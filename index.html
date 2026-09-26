@@ -612,7 +612,7 @@ a{text-decoration:none;color:inherit}
       <button class="login-btn" onclick="doLogin()">
         <i class="fas fa-envelope"></i> Получить ссылку
       </button>
-      <p class="login-note">Ссылка придёт в течение 1 минуты. Проверьте также папку «Спам».</p>
+      <p class="login-note" id="loginMessage">Ссылка придёт в течение 1 минуты. Проверьте также папку «Спам».</p>
       <div class="login-back" onclick="showScreen('landing')">← На главную</div>
     </div>
   </div>
@@ -1039,16 +1039,16 @@ a{text-decoration:none;color:inherit}
     <div class="profile-header">
       <div class="profile-avatar">АМ</div>
       <div>
-        <div class="profile-name">Анна Морозова</div>
-        <div class="profile-email">anna.morozova@mail.ru</div>
+        <div class="profile-name" id="profileName">Участник клуба</div>
+        <div class="profile-email" id="profileEmail">—</div>
       </div>
     </div>
-    <div class="profile-row"><span class="pl">ФИО</span><span class="pv">Морозова Анна Сергеевна</span></div>
-    <div class="profile-row"><span class="pl">Email</span><span class="pv">anna.morozova@mail.ru</span></div>
-    <div class="profile-row"><span class="pl">Дата покупки клуба</span><span class="pv">12 сентября 2026</span></div>
+    <div class="profile-row"><span class="pl">ФИО</span><span class="pv" id="profileFullName">—</span></div>
+    <div class="profile-row"><span class="pl">Email</span><span class="pv" id="profileEmailRow">—</span></div>
+    <div class="profile-row"><span class="pl">Дата покупки клуба</span><span class="pv" id="profilePurchaseDate">—</span></div>
     <div class="profile-row"><span class="pl">Тариф</span><span class="pv"><span class="tariff-badge premium" id="profileTariff">Расширенный</span></span></div>
-    <div class="profile-row"><span class="pl">Статус подписки</span><span class="pv" style="color:#2e7d32">● Активна</span></div>
-    <div class="profile-row"><span class="pl">Доступ до</span><span class="pv">12 октября 2026</span></div>
+    <div class="profile-row"><span class="pl">Статус подписки</span><span class="pv" id="profileStatus" style="color:#2e7d32">● Активна</span></div>
+    <div class="profile-row"><span class="pl">Доступ до</span><span class="pv" id="profileAccessUntil">—</span></div>
   </div>
   <div style="margin:0 20px;display:flex;flex-direction:column;gap:12px">
     <button class="login-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> Вернуться в кабинет</button>
@@ -1272,29 +1272,21 @@ const HEALTH_ITEMS = [
 
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
 let currentTariff = 'premium';
+let currentUser = null;
+const PUBLIC_SCREENS = new Set(['landing','login']);
 
 /* ═══════════ НАВИГАЦИЯ ═══════════ */
 function showScreen(id){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('screen-'+id).classList.add('active');
-  window.scrollTo(0,0);
+  if(!PUBLIC_SCREENS.has(id) && !currentUser){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('screen-login').classList.add('active'); return; }
+  const target=document.getElementById('screen-'+id); if(!target) return;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); target.classList.add('active'); window.scrollTo(0,0);
   if(id==='dashboard') renderNavGrid();
   if(id==='recipes') renderAccordion('recipeCategoriesList', RECIPE_CATEGORIES);
-  if(id==='holiday'){ 
-      renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday);
-      renderAccordion('holidayCategoriesList', HOLIDAY_CATEGORIES); 
-      renderHolidayFiles(); 
-  }
+  if(id==='holiday'){ renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday); renderAccordion('holidayCategoriesList', HOLIDAY_CATEGORIES); renderHolidayFiles(); }
   if(id==='smart') renderVideoList('smartList', CLUB_VIDEOS.smart);
   if(id==='ready-menu') renderVideoList('readyMenuList', CLUB_VIDEOS.readyMenu);
-  if(id==='broths'){ 
-      renderVideoList('brothsList', CLUB_VIDEOS.broths);
-      renderFileList('brothsFilesList', CLUB_FILES.broths);
-  }
-  if(id==='sauces'){ 
-      renderVideoList('saucesList', CLUB_VIDEOS.sauces);
-      renderFileList('saucesFilesList', CLUB_FILES.sauces);
-  }
+  if(id==='broths'){ renderVideoList('brothsList', CLUB_VIDEOS.broths); renderFileList('brothsFilesList', CLUB_FILES.broths); }
+  if(id==='sauces'){ renderVideoList('saucesList', CLUB_VIDEOS.sauces); renderFileList('saucesFilesList', CLUB_FILES.sauces); }
   if(id==='constructor') renderVideoList('constructorList', CLUB_VIDEOS.constructor);
   if(id==='health') renderHealth();
   if(id==='rules') renderRules();
@@ -1307,13 +1299,28 @@ function toggleMenu(){
 }
 
 /* ═══════════ ВХОД / ВЫХОД ═══════════ */
-function doLogin(){
-  const email = document.getElementById('loginEmail').value.trim();
-  if(!email || !email.includes('@')){ toast('Введите корректный email', true); return; }
-  toast('Ссылка отправлена на '+email);
-  setTimeout(()=>showScreen('dashboard'), 800);
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim().toLowerCase();
+  if(!email || !email.includes('@')){ toast('Введите корректный email',true); return; }
+  const button=document.querySelector('#screen-login .login-btn'); if(button) button.disabled=true;
+  try{ const response=await fetch('/api/auth/request-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}); const data=await response.json().catch(()=>({})); if(!response.ok) throw new Error(data.message||'Не удалось отправить ссылку'); toast(data.message||'Если доступ найден, ссылка уже отправлена на почту'); }
+  catch(error){ toast(error.message||'Попробуйте ещё раз',true); }
+  finally{ if(button) button.disabled=false; }
 }
-function doLogout(){ showScreen('landing'); toast('Вы вышли из аккаунта'); }
+async function doLogout(){ try{ await fetch('/api/auth/logout',{method:'POST'}); }catch(error){} currentUser=null; currentTariff='premium'; showScreen('landing'); toast('Вы вышли из аккаунта'); }
+function formatProfileDate(value){ if(!value) return '—'; const date=new Date(value); return Number.isNaN(date.getTime())?'—':new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',year:'numeric'}).format(date); }
+function renderUser(){
+  if(!currentUser) return;
+  const displayName=currentUser.name||'Участник клуба';
+  const initials=displayName.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase()||currentUser.email[0].toUpperCase();
+  document.querySelectorAll('.header-avatar').forEach(el=>el.textContent=initials);
+  const values={profileName:displayName,profileEmail:currentUser.email,profileFullName:displayName,profileEmailRow:currentUser.email,profilePurchaseDate:formatProfileDate(currentUser.purchaseAt),profileAccessUntil:formatProfileDate(currentUser.accessUntil),profileStatus:'● Активна'};
+  Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value;}); currentTariff=currentUser.tariff||'premium'; applyTariff();
+}
+async function restoreSession(){
+  try{ const response=await fetch('/api/auth/me',{credentials:'same-origin'}); if(response.ok){currentUser=await response.json();renderUser();showScreen('dashboard');} else if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Оплата подтверждена. Введите email покупки — мы отправим ссылку для входа.');} }
+  catch(error){ if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Введите email покупки, чтобы получить ссылку для входа.');} }
+}
 
 /* ═══════════ РЕНДЕР: ГЛАВНАЯ СЕТКА РАЗДЕЛОВ ═══════════ */
 function renderNavGrid(){
@@ -1487,6 +1494,7 @@ function toast(msg, err){
 /* ═══════════ INIT ═══════════ */
 renderNavGrid();
 applyTariff();
+restoreSession();
 </script>
 
 </body>
