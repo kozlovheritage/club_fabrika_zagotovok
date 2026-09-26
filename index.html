@@ -1313,11 +1313,11 @@ async function doLogin(){
     const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok) throw new Error(data.message||'Неверный email или пароль');
-    currentUser=data; renderUser(); showScreen('dashboard'); toast('Вы вошли в кабинет');
+    currentUser=data; location.assign('/club');
   }catch(error){ toast(error.message||'Неверный email или пароль',true); }
   finally{ if(button) button.disabled=false; }
 }
-async function doLogout(){ try{ await fetch('/api/auth/logout',{method:'POST'}); }catch(error){} currentUser=null; currentTariff='premium'; showScreen('landing'); toast('Вы вышли из аккаунта'); }
+async function doLogout(){ try{ await fetch('/api/auth/logout',{method:'POST'}); }finally{ location.replace('/'); } }
 function formatProfileDate(value){ if(!value) return '—'; const date=new Date(value); return Number.isNaN(date.getTime())?'—':new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',year:'numeric'}).format(date); }
 function renderUser(){
   if(!currentUser) return;
@@ -1328,8 +1328,8 @@ function renderUser(){
   Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value;}); currentTariff=currentUser.tariff||'premium'; applyTariff();
 }
 async function restoreSession(){
-  try{ const response=await fetch('/api/auth/me',{credentials:'same-origin'}); if(response.ok){currentUser=await response.json();renderUser();showScreen('dashboard');} else if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Оплата подтверждена. Данные для входа отправлены на почту.');} }
-  catch(error){ if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Проверьте письмо с данными для входа и зайдите по email и паролю.');} }
+  try{ const response=await fetch('/api/auth/me',{credentials:'same-origin'}); if(response.ok){currentUser=await response.json();renderUser();showScreen('dashboard');} else if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Если оплата прошла, данные для входа придут на почту.');} }
+  catch(error){ if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Если оплата прошла, проверьте почту и зайдите по email и паролю.');} }
 }
 
 /* ═══════════ РЕНДЕР: ГЛАВНАЯ СЕТКА РАЗДЕЛОВ ═══════════ */
