@@ -604,15 +604,19 @@ a{text-decoration:none;color:inherit}
   <div class="login-screen">
     <div class="login-card">
       <div class="login-logo">Фабрика <span>заготовок</span></div>
-      <p class="login-sub">Введите email, на который вы приобретали доступ — мы отправим ссылку для входа.</p>
+      <p class="login-sub">Введите email и постоянный пароль из письма после оплаты.</p>
       <div class="login-field">
-        <label for="loginEmail">Ваш email</label>
-        <input type="email" id="loginEmail" placeholder="example@mail.ru">
-      </div>
+         <label for="loginEmail">Ваш email</label>
+         <input type="email" id="loginEmail" placeholder="example@mail.ru" autocomplete="email">
+       </div>
+       <div class="login-field">
+         <label for="loginPassword">Постоянный пароль</label>
+         <input type="password" id="loginPassword" placeholder="Пароль из письма" autocomplete="current-password">
+       </div>
       <button class="login-btn" onclick="doLogin()">
-        <i class="fas fa-envelope"></i> Получить ссылку
+        <i class="fas fa-arrow-right"></i> Войти в кабинет
       </button>
-      <p class="login-note" id="loginMessage">Ссылка придёт в течение 1 минуты. Проверьте также папку «Спам».</p>
+      <p class="login-note" id="loginMessage">Данные для входа придут на почту после успешной оплаты.</p>
       <div class="login-back" onclick="showScreen('landing')">← На главную</div>
     </div>
   </div>
@@ -1301,10 +1305,16 @@ function toggleMenu(){
 /* ═══════════ ВХОД / ВЫХОД ═══════════ */
 async function doLogin(){
   const email=document.getElementById('loginEmail').value.trim().toLowerCase();
+  const password=document.getElementById('loginPassword').value;
   if(!email || !email.includes('@')){ toast('Введите корректный email',true); return; }
+  if(!password){ toast('Введите постоянный пароль из письма',true); return; }
   const button=document.querySelector('#screen-login .login-btn'); if(button) button.disabled=true;
-  try{ const response=await fetch('/api/auth/request-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}); const data=await response.json().catch(()=>({})); if(!response.ok) throw new Error(data.message||'Не удалось отправить ссылку'); toast(data.message||'Если доступ найден, ссылка уже отправлена на почту'); }
-  catch(error){ toast(error.message||'Попробуйте ещё раз',true); }
+  try{
+    const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(data.message||'Неверный email или пароль');
+    currentUser=data; renderUser(); showScreen('dashboard'); toast('Вы вошли в кабинет');
+  }catch(error){ toast(error.message||'Неверный email или пароль',true); }
   finally{ if(button) button.disabled=false; }
 }
 async function doLogout(){ try{ await fetch('/api/auth/logout',{method:'POST'}); }catch(error){} currentUser=null; currentTariff='premium'; showScreen('landing'); toast('Вы вышли из аккаунта'); }
@@ -1318,8 +1328,8 @@ function renderUser(){
   Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value;}); currentTariff=currentUser.tariff||'premium'; applyTariff();
 }
 async function restoreSession(){
-  try{ const response=await fetch('/api/auth/me',{credentials:'same-origin'}); if(response.ok){currentUser=await response.json();renderUser();showScreen('dashboard');} else if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Оплата подтверждена. Введите email покупки — мы отправим ссылку для входа.');} }
-  catch(error){ if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Введите email покупки, чтобы получить ссылку для входа.');} }
+  try{ const response=await fetch('/api/auth/me',{credentials:'same-origin'}); if(response.ok){currentUser=await response.json();renderUser();showScreen('dashboard');} else if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Оплата подтверждена. Данные для входа отправлены на почту.');} }
+  catch(error){ if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Проверьте письмо с данными для входа и зайдите по email и паролю.');} }
 }
 
 /* ═══════════ РЕНДЕР: ГЛАВНАЯ СЕТКА РАЗДЕЛОВ ═══════════ */
