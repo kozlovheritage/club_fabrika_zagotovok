@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Фабрика заготовок | Клуб Веры Малыгиной</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{
+  --pink:#d4768a;
+  --pink-dark:#B85A6D;
+  --pink-light:#F5D6DE;
+  --pink-soft:#FCE8EC;
+  --pink-bg:#FDF2F5;
+  --cream:#F5EFE6;
+  --warm:#FBF8F2;
+  --white:#FFFFFF;
+  --text:#5B5A5A;
+  --text-mid:#5C4F47;
+  --text-light:#8C7D74;
+  --border:rgba(91,90,90,.1);
+  --shadow:0 8px 32px rgba(212,118,138,.12);
+  --shadow-lg:0 16px 48px rgba(212,118,138,.2);
+  --r:24px;
+  --r-sm:16px;
+  --tr:all .35s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  font-family:'Manrope',sans-serif;
+  background:var(--pink-bg);
+  color:var(--text);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+img{max-width:100%;display:block}
+button{font-family:inherit;cursor:pointer;border:none;outline:none;background:none}
+a{text-decoration:none;color:inherit}
+
+.screen{display:none;min-height:100vh}
+.screen.active{display:block}
+
+.app-header{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:100;
+  padding:16px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(180deg,var(--pink-bg) 0%,rgba(253,242,245,0) 100%);
+}
+.burger{
+  width:40px;height:40px;border-radius:50%;
+  background:var(--white);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;color:var(--pink);
+  box-shadow:var(--shadow);
+  transition:var(--tr);
+}
+.burger:hover{transform:scale(1.05)}
+.header-logo{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.1rem;font-weight:600;color:var(--text-mid);
+}
+.header-logo span{color:var(--pink)}
+.header-avatar{
+  width:44px;height:44px;border-radius:50%;
+  background:linear-gradient(135deg,var(--pink-light),var(--pink));
+  display:flex;align-items:center;justify-content:center;
+  color:var(--white);font-weight:700;font-size:.95rem;
+  box-shadow:var(--shadow);
+  cursor:pointer;
+  transition:var(--tr);
+}
+.header-avatar:hover{transform:scale(1.05)}
+
+.side-menu{
+  position:fixed;top:0;left:0;bottom:0;width:290px;
+  background:var(--white);
+  z-index:200;
+  transform:translateX(-100%);
+  transition:transform .35s ease;
+  padding:24px;
+  padding-top:calc(24px + env(safe-area-inset-top,0px));
+  box-shadow:var(--shadow-lg);
+  overflow-y:auto;
+}
+.side-menu.open{transform:translateX(0)}
+.side-menu-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
+.side-menu-close{width:36px;height:36px;border-radius:50%;background:var(--pink-soft);color:var(--pink);display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+.side-menu-logo{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:600;color:var(--text-mid)}
+.side-menu-logo span{color:var(--pink)}
+.side-menu ul{list-style:none}
+.side-menu ul li{margin-bottom:4px}
+.side-menu ul li a{
+  display:flex;align-items:center;gap:8px;
+  padding:12px 14px;border-radius:var(--r-sm);
+  font-weight:600;color:var(--text-mid);font-size:.92rem;
+  transition:var(--tr);
+}
+.side-menu ul li a i{color:var(--pink);width:18px;text-align:center}
+.side-menu ul li a:hover,.side-menu ul li a.active{background:var(--pink-soft);color:var(--pink)}
+.side-menu-divider{height:1px;background:var(--border);margin:16px 0}
+.side-menu-section{font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-light);margin-bottom:10px;padding-left:14px}
+.menu-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.3);
+  z-index:150;opacity:0;visibility:hidden;transition:var(--tr);
+}
+.menu-overlay.open{opacity:1;visibility:visible}
+
+.back-btn{
+  position:sticky;top:calc(16px + env(safe-area-inset-top,0px));z-index:50;
+  margin:16px 20px 0 auto;
+  padding:10px 20px;border-radius:50px;
+  background:var(--white);color:var(--pink);
+  font-weight:700;font-size:.88rem;
+  box-shadow:var(--shadow);
+  display:inline-flex;align-items:center;gap:8px;
+  transition:var(--tr);
+}
+.back-btn:hover{background:var(--pink);color:var(--white)}
+
+.container{max-width:720px;margin:0 auto;padding:0 20px 60px}
+
+.hero-card{
+  position:relative;
+  border-radius:32px;
+  overflow:hidden;
+  margin:20px 20px 24px;
+  background:linear-gradient(135deg,#FCE4EC 0%,#F8BBD0 50%,#F48FB1 100%);
+  min-height:340px;
+  display:flex;flex-direction:column;justify-content:flex-end;
+  padding:32px 28px;
+  box-shadow:var(--shadow-lg);
+}
+.hero-card .hero-photo{
+  position:absolute;right:-20px;bottom:-20px;
+  width:230px;height:300px;
+  background:linear-gradient(135deg,#EDCAD2,#D4768A);
+  border-radius:50% 50% 20% 20%;
+  opacity:.85;
+}
+.hero-card .hero-photo::before{
+  content:'👩‍';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);font-size:7rem;opacity:.6;
+}
+.hero-card .hero-content{position:relative;z-index:2;max-width:75%}
+.hero-card .hero-label{
+  display:inline-block;padding:6px 14px;border-radius:50px;
+  background:rgba(255,255,255,.85);backdrop-filter:blur(10px);
+  font-size:.72rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--pink-dark);
+  margin-bottom:12px;
+}
+.hero-card h1{
+  font-family:'Cormorant Garamond',serif;
+  font-size:2.2rem;font-weight:600;
+  color:var(--white);line-height:1.1;
+  margin-bottom:8px;
+  text-shadow:0 2px 12px rgba(184,90,109,.3);
+}
+.hero-card h1 span{font-style:italic;color:#fff}
+.hero-card p{color:rgba(255,255,255,.9);font-size:.95rem;margin-top:8px}
+
+.telegram-buttons{display:flex;flex-direction:column;gap:12px;margin:0 20px 28px}
+.tg-btn{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:18px 24px;border-radius:50px;
+  background:var(--white);
+  color:var(--text-mid);
+  font-weight:700;font-size:1rem;
+  box-shadow:var(--shadow);
+  transition:var(--tr);
+  position:relative;
+}
+.tg-btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.tg-btn i{color:var(--pink);font-size:1.2rem}
+.tg-btn.locked{opacity:.55}
+.tg-btn.locked::after{
+  content:'🔒';position:absolute;right:20px;font-size:.9rem;
+}
+
+.section-label{
+  font-size:.72rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--pink);
+  margin:0 20px 8px;
+}
+.section-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.9rem;font-weight:600;
+  color:var(--text-mid);
+  margin:0 20px 20px;
+  line-height:1.15;
+}
+
+.start-card{
+  margin:0 20px 28px;
+  background:linear-gradient(135deg,#fff 0%,var(--pink-soft) 100%);
+  border:2px solid var(--pink);
+  border-radius:var(--r);
+  padding:26px 22px;
+  box-shadow:var(--shadow);
+  cursor:pointer;
+  transition:var(--tr);
+}
+.start-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+.start-card-top{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.start-card-icon{
+  width:52px;height:52px;border-radius:16px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--pink-light),var(--pink));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:1.3rem;
+}
+.start-card h3{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:600;color:var(--text-mid)}
+.start-card p{font-size:.88rem;color:var(--text)}
+
+.start-step{display:flex;gap:16px;background:var(--white);border-radius:var(--r);padding:20px 22px;box-shadow:var(--shadow);margin-bottom:14px;align-items:flex-start}
+.start-step .num{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--pink-light),var(--pink));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0}
+.start-step h4{font-size:1.02rem;color:var(--text-mid);margin-bottom:4px}
+.start-step p{font-size:.86rem;color:var(--text)}
+.start-step .link-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;color:var(--pink);font-weight:700;font-size:.85rem; cursor: pointer;}
+
+.nav-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 20px 32px}
+.nav-card{
+  background:var(--white);border-radius:20px;padding:20px 18px;
+  box-shadow:var(--shadow);cursor:pointer;transition:var(--tr);
+  position:relative;
+}
+.nav-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+.nav-card i{font-size:1.5rem;color:var(--pink);margin-bottom:10px;display:block}
+.nav-card h4{font-size:.92rem;color:var(--text-mid);font-weight:700;margin-bottom:4px;line-height:1.2}
+.nav-card p{font-size:.74rem;color:var(--text-light);line-height:1.35}
+
+.badge-soon{
+  display:inline-block;margin-left:8px;padding:2px 10px;border-radius:50px;
+  background:var(--pink-soft);color:var(--pink-dark);font-size:.65rem;font-weight:700;
+  letter-spacing:.03em;vertical-align:middle;
+}
+
+.welcome-block{
+  margin:0 20px 28px;
+  background:var(--white);
+  border-radius:var(--r);
+  padding:26px 22px;
+  box-shadow:var(--shadow);
+  display:flex;gap:16px;align-items:flex-start;
+}
+.welcome-avatar{
+  width:56px;height:56px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--pink-light),var(--pink));
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.6rem;color:#fff;
+}
+.welcome-text h3{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.35rem;font-weight:600;color:var(--text-mid);
+  margin-bottom:6px;
+}
+.welcome-text p{font-size:.9rem;color:var(--text);line-height:1.6}
+
+.categories{margin:0 20px 32px;display:flex;flex-direction:column;gap:12px}
+.cat-item{
+  background:var(--white);
+  border-radius:var(--r);
+  overflow:hidden;
+  box-shadow:var(--shadow);
+  transition:var(--tr);
+}
+.cat-head{
+  display:flex;align-items:center;gap:16px;
+  padding:18px 22px;cursor:pointer;
+  transition:var(--tr);
+}
+.cat-head:hover{background:var(--pink-soft)}
+.cat-icon{
+  width:46px;height:46px;border-radius:14px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--pink-light),var(--pink));
+  display:flex;align-items:center;justify-content:center;
+  color:var(--white);font-size:1.1rem;
+}
+.cat-title{flex:1;font-weight:700;font-size:1.02rem;color:var(--text-mid)}
+.cat-arrow{color:var(--text-light);transition:transform .3s}
+.cat-item.open .cat-arrow{transform:rotate(180deg)}
+.cat-body{
+  max-height:0;overflow:hidden;
+  transition:max-height .4s ease;
+}
+.cat-item.open .cat-body{max-height:5000px}
+.cat-body-inner{padding:0 22px 22px}
+
+.mat-section{margin-bottom:18px}
+.mat-section:last-child{margin-bottom:0}
+.mat-label{
+  font-size:.7rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--pink);
+  margin-bottom:12px;display:flex;align-items:center;gap:8px;
+}
+.mat-label i{font-size:.85rem}
+.mat-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.mat-card{
+  display:flex;align-items:center;gap:14px;
+  padding:13px 15px;border-radius:var(--r-sm);
+  background:var(--pink-bg);
+  transition:var(--tr);
+  cursor:pointer;
+}
+.mat-card:hover{background:var(--pink-soft);transform:translateX(4px)}
+.mat-thumb{
+  width:50px;height:50px;border-radius:12px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--pink-light),var(--pink));
+  display:flex;align-items:center;justify-content:center;
+  color:var(--white);font-size:1.05rem;
+}
+.mat-thumb.file{background:linear-gradient(135deg,#EDE8A8,#D4C97A);color:var(--text-mid)}
+.mat-info{flex:1;min-width:0}
+.mat-info h4{font-size:.9rem;font-weight:600;color:var(--text-mid);margin-bottom:2px}
+.mat-info p{font-size:.76rem;color:var(--text-light)}
+
+.soon-note{
+  display:flex;align-items:center;gap:10px;
+  background:var(--pink-bg);border-radius:var(--r-sm);
+  padding:16px 18px;color:var(--text-mid);font-size:.88rem;font-weight:600;
+}
+.soon-note i{color:var(--pink)}
+
+.rules-table-wrap{margin:0 20px 32px;overflow-x:auto;border-radius:var(--r);box-shadow:var(--shadow)}
+.rules-table{width:100%;border-collapse:collapse;background:var(--white);min-width:520px}
+.rules-table th,.rules-table td{padding:12px 16px;text-align:left;font-size:.82rem;border-bottom:1px solid var(--border)}
+.rules-table th{background:var(--pink-soft);color:var(--pink-dark);font-weight:700;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase}
+.rules-table tr:last-child td{border-bottom:none}
+.rules-note{margin:0 20px 28px;background:var(--white);border-radius:var(--r-sm);padding:16px 18px;font-size:.85rem;color:var(--text);box-shadow:var(--shadow)}
+
+.profile-card{
+  margin:0 20px 28px;
+  background:var(--white);
+  border-radius:var(--r);
+  padding:28px 24px;
+  box-shadow:var(--shadow);
+}
+.profile-header{display:flex;align-items:center;gap:16px;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+.profile-avatar{
+  width:72px;height:72px;border-radius:50%;
+  background:linear-gradient(135deg,var(--pink-light),var(--pink));
+  display:flex;align-items:center;justify-content:center;
+  color:var(--white);font-weight:700;font-size:1.5rem;
+}
+.profile-name{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:600;color:var(--text-mid)}
+.profile-email{font-size:.85rem;color:var(--text-light);margin-top:2px}
+.profile-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
+.profile-row:last-child{border-bottom:none}
+.profile-row .pl{font-size:.88rem;color:var(--text-light)}
+.profile-row .pv{font-weight:600;color:var(--text-mid);font-size:.92rem}
+.tariff-badge{
+  display:inline-block;padding:4px 12px;border-radius:50px;
+  font-size:.72rem;font-weight:700;letter-spacing:.05em;
+}
+.tariff-badge.basic{background:#EDE8A8;color:#7a7330}
+.tariff-badge.premium{background:var(--pink-light);color:var(--pink-dark)}
+
+.landing-hero{
+  padding:80px 20px 60px;
+  text-align:center;
+  background:linear-gradient(180deg,var(--pink-bg) 0%,var(--white) 100%);
+}
+.landing-logo{
+  font-family:'Cormorant Garamond',serif;
+  font-size:2rem;font-weight:600;color:var(--text-mid);
+  margin-bottom:12px;
+}
+.landing-logo span{color:var(--pink)}
+.landing-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:2.4rem;font-weight:600;color:var(--text-mid);
+  line-height:1.15;margin-bottom:16px;
+}
+.landing-title span{color:var(--pink)}
+.landing-sub{font-size:1rem;color:var(--text);max-width:500px;margin:0 auto 28px}
+
+.tariff-cards{display:flex;flex-direction:column;gap:16px;margin:0 20px 40px}
+.tariff-card{
+  background:var(--white);
+  border-radius:var(--r);
+  padding:28px 24px;
+  box-shadow:var(--shadow);
+  position:relative;
+  transition:var(--tr);
+}
+.tariff-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg)}
+.tariff-card.featured{
+  background:linear-gradient(135deg,#fff 0%,var(--pink-soft) 100%);
+  border:2px solid var(--pink);
+}
+.tariff-popular{
+  position:absolute;top:-12px;right:20px;
+  background:var(--pink);color:var(--white);
+  padding:4px 14px;border-radius:50px;
+  font-size:.72rem;font-weight:700;letter-spacing:.05em;
+}
+.tariff-name{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:600;color:var(--text-mid);margin-bottom:4px}
+.tariff-price{font-size:1.8rem;font-weight:800;color:var(--pink);margin-bottom:16px}
+.tariff-price small{font-size:.85rem;font-weight:500;color:var(--text-light)}
+.tariff-features{list-style:none;margin-bottom:20px}
+.tariff-features li{padding:8px 0;font-size:.9rem;color:var(--text-mid);display:flex;align-items:flex-start;gap:10px}
+.tariff-features li i{color:var(--pink);margin-top:3px;flex-shrink:0}
+.tariff-features li.disabled{opacity:.4}
+.tariff-features li.disabled i{color:var(--text-light)}
+
+.login-screen{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:24px;
+  background:linear-gradient(135deg,var(--pink-bg) 0%,var(--white) 100%);
+}
+.login-card{
+  background:var(--white);
+  border-radius:var(--r);
+  padding:40px 28px;
+  max-width:420px;width:100%;
+  box-shadow:var(--shadow-lg);
+  text-align:center;
+}
+.login-card .login-logo{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:600;color:var(--text-mid);margin-bottom:8px}
+.login-card .login-logo span{color:var(--pink)}
+.login-card .login-sub{color:var(--text-light);font-size:.9rem;margin-bottom:28px}
+.login-field{margin-bottom:16px;text-align:left}
+.login-field label{display:block;font-weight:600;font-size:.85rem;margin-bottom:6px;color:var(--text-mid)}
+.login-field input{
+  width:100%;padding:14px 18px;border-radius:var(--r-sm);
+  border:2px solid var(--border);
+  font-family:inherit;font-size:1rem;
+  transition:var(--tr);
+  background:var(--pink-bg);
+}
+.login-field input:focus{outline:none;border-color:var(--pink);background:var(--white)}
+.login-btn{
+  width:100%;justify-content:center;
+  padding:16px;border-radius:50px;
+  background:var(--pink);color:var(--white);
+  font-weight:700;font-size:1rem;
+  transition:var(--tr);
+  display:flex;align-items:center;gap:8px;
+}
+.login-btn:hover{background:var(--pink-dark);transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.login-note{font-size:.8rem;color:var(--text-light);margin-top:16px}
+.login-back{margin-top:20px;font-size:.88rem;color:var(--pink);font-weight:600;cursor:pointer}
+
+.app-footer{
+  background:var(--white);
+  padding:40px 20px 24px;
+  margin-top:40px;
+}
+.footer-inner{max-width:720px;margin:0 auto}
+.footer-logo{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:600;color:var(--text-mid);margin-bottom:16px}
+.footer-logo span{color:var(--pink)}
+.footer-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
+.footer-col h4{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-light);margin-bottom:12px}
+.footer-col ul{list-style:none}
+.footer-col ul li{margin-bottom:8px}
+.footer-col ul li a{font-size:.88rem;color:var(--text-mid);transition:var(--tr)}
+.footer-col ul li a:hover{color:var(--pink)}
+.footer-bottom{padding-top:20px;border-top:1px solid var(--border);text-align:center;font-size:.8rem;color:var(--text-light)}
+
+.toast{
+  position:fixed;bottom:calc(24px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(100px);
+  background:var(--text-mid);color:var(--white);
+  padding:14px 24px;border-radius:50px;
+  font-weight:600;font-size:.9rem;
+  box-shadow:var(--shadow-lg);
+  opacity:0;transition:var(--tr);
+  z-index:1000;max-width:88%;text-align:center;
+}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{background:#dc2626}
+
+/* Video Modal */
+.video-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 3000;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; visibility: hidden; transition: all .3s; padding: 20px;
+}
+.video-modal-overlay.active { opacity: 1; visibility: visible; }
+.video-modal-window {
+    background: var(--white); border-radius: var(--r); max-width: 800px; width: 100%;
+    padding: 24px; position: relative; box-shadow: var(--shadow-lg);
+    transform: scale(0.9); transition: transform .3s;
+}
+.video-modal-overlay.active .video-modal-window { transform: scale(1); }
+.close-video {
+    position: absolute; top: 12px; right: 16px; font-size: 28px; cursor: pointer;
+    color: var(--text-light); background: none; border: none; line-height: 1; z-index: 10;
+}
+.video-modal-window h3 { font-size: 1.2rem; color: var(--text-mid); margin-bottom: 16px; padding-right: 30px;}
+.video-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: var(--r-sm); background: #000; }
+.video-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+
+@media(min-width:768px){
+  .container{padding:0 40px 80px}
+  .hero-card{margin:32px 40px 32px;min-height:420px}
+  .hero-card h1{font-size:2.8rem}
+  .telegram-buttons{margin:0 40px 32px}
+  .section-label,.section-title{margin-left:40px;margin-right:40px}
+  .categories{margin:0 40px 40px}
+  .welcome-block{margin:0 40px 32px}
+  .profile-card{margin:0 40px 32px}
+  .tariff-cards{margin:0 40px 40px}
+  .app-footer{padding:60px 40px 32px}
+  .mat-grid{grid-template-columns:repeat(2,1fr)}
+  .nav-grid{grid-template-columns:repeat(3,1fr);margin:0 40px 32px}
+  .start-card{margin:0 40px 28px}
+  .rules-table-wrap{margin:0 40px 32px}
+  .rules-note{margin:0 40px 28px}
+}
+@media(min-width:1024px){
+  .container{max-width:900px}
+  .hero-card{margin:40px auto 40px;max-width:900px}
+  .telegram-buttons{max-width:500px;margin:0 auto 40px}
+  .categories{max-width:900px;margin:0 auto 40px}
+  .welcome-block{max-width:900px;margin:0 auto 32px}
+  .profile-card{max-width:900px;margin:0 auto 32px}
+  .tariff-cards{max-width:900px;margin:0 auto 40px;display:grid;grid-template-columns:1fr 1fr}
+  .section-label,.section-title{max-width:900px;margin-left:auto;margin-right:auto}
+  .nav-grid{max-width:900px;margin:0 auto 32px}
+  .start-card{max-width:900px;margin:0 auto 28px}
+  .rules-table-wrap{max-width:900px;margin:0 auto 32px}
+  .rules-note{max-width:900px;margin:0 auto 28px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ ЭКРАН: ЛЕНДИНГ / ТАРИФЫ ═══════════ -->
+<div class="screen active" id="screen-landing">
+<div class="landing-hero">
+  <div class="landing-logo">Фабрика <span>заготовок</span></div>
+  <h1 class="landing-title">Готовь <span>меньше</span>,<br>ешь вкуснее</h1>
+  <p class="landing-sub">Заготовки на неделю за один день. Полуфабрикаты, заморозка, соусы — всё, чтобы питаться вкусно и не стоять у плиты.</p>
+  <button class="login-btn" style="max-width:280px;margin:0 auto" onclick="showScreen('login')">
+    <i class="fas fa-arrow-right"></i> Получить доступ
+  </button>
+</div>
+
+<div class="section-label" style="text-align:center">Тарифы</div>
+<h2 class="section-title" style="text-align:center">Выберите свой формат</h2>
+
+<div class="tariff-cards">
+  <div class="tariff-card">
+    <div class="tariff-name">Базовый</div>
+    <div class="tariff-price">2 900 ₽ <small>/ месяц</small></div>
+    <ul class="tariff-features">
+      <li><i class="fas fa-check"></i> Доступ к каналу с рецептами</li>
+      <li><i class="fas fa-check"></i> Список покупок на неделю</li>
+      <li><i class="fas fa-check"></i> Пошаговые инструкции</li>
+      <li><i class="fas fa-check"></i> Бот техподдержки</li>
+      <li class="disabled"><i class="fas fa-lock"></i> Чат участников</li>
+    </ul>
+    <button class="login-btn" onclick="showScreen('login')">Присоединиться</button>
+  </div>
+  <div class="tariff-card featured">
+    <div class="tariff-popular">Популярный</div>
+    <div class="tariff-name">Расширенный</div>
+    <div class="tariff-price">4 900 ₽ <small>/ месяц</small></div>
+    <ul class="tariff-features">
+      <li><i class="fas fa-check"></i> Всё из базового тарифа</li>
+      <li><i class="fas fa-check"></i> Чат участников клуба</li>
+      <li><i class="fas fa-check"></i> Прямая связь с Верой</li>
+      <li><i class="fas fa-check"></i> Эксклюзивные рецепты</li>
+      <li><i class="fas fa-check"></i> Разборы ваших заготовок</li>
+    </ul>
+    <button class="login-btn" onclick="showScreen('login')">Присоединиться</button>
+  </div>
+</div>
+
+<div class="app-footer">
+  <div class="footer-inner">
+    <div class="footer-logo">Фабрика <span>заготовок</span></div>
+    <div class="footer-grid">
+      <div class="footer-col">
+        <h4>Документы</h4>
+        <ul>
+          <li><a href="#">Оферта</a></li>
+          <li><a href="#">Политика обработки ПД</a></li>
+          <li><a href="#">Согласие на рассылку</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Контакты</h4>
+        <ul>
+          <li><a href="#">Telegram</a></li>
+          <li><a href="#">ВКонтакте</a></li>
+          <li><a href="#">Почта</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Вера Малыгина. Фабрика заготовок.</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ВХОД ═══════════ -->
+<div class="screen" id="screen-login">
+  <div class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">Фабрика <span>заготовок</span></div>
+      <p class="login-sub">Введите email, на который вы приобретали доступ — мы отправим ссылку для входа.</p>
+      <div class="login-field">
+        <label for="loginEmail">Ваш email</label>
+        <input type="email" id="loginEmail" placeholder="example@mail.ru">
+      </div>
+      <button class="login-btn" onclick="doLogin()">
+        <i class="fas fa-envelope"></i> Получить ссылку
+      </button>
+      <p class="login-note">Ссылка придёт в течение 1 минуты. Проверьте также папку «Спам».</p>
+      <div class="login-back" onclick="showScreen('landing')">← На главную</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ЛИЧНЫЙ КАБИНЕТ (ГЛАВНАЯ) ═══════════ -->
+<div class="screen" id="screen-dashboard">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+
+<div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+<aside class="side-menu" id="sideMenu">
+  <div class="side-menu-header">
+    <div class="side-menu-logo">Фабрика <span>заготовок</span></div>
+    <button class="side-menu-close" onclick="toggleMenu()"><i class="fas fa-times"></i></button>
+  </div>
+  <ul>
+    <li><a href="#" onclick="showScreen('dashboard');toggleMenu();return false"><i class="fas fa-home"></i>Главная</a></li>
+    <li><a href="#" onclick="showScreen('start');toggleMenu();return false"><i class="fas fa-rocket"></i>Начните с этого</a></li>
+  </ul>
+  <div class="side-menu-divider"></div>
+  <div class="side-menu-section">Разделы клуба</div>
+  <ul id="sideMenuBlocks"></ul>
+  <div class="side-menu-divider"></div>
+  <ul>
+    <li><a href="#" onclick="showScreen('profile');toggleMenu();return false"><i class="fas fa-user"></i>Профиль</a></li>
+  </ul>
+  <div style="margin-top:20px;padding:16px;background:var(--pink-soft);border-radius:var(--r-sm);font-size:.85rem;color:var(--text-mid)">
+    Возникли проблемы? Пишите в <a href="#" style="color:var(--pink);font-weight:700">службу поддержки</a>
+  </div>
+</aside>
+
+<div class="hero-card">
+  <div class="hero-photo"></div>
+  <div class="hero-content">
+    <div class="hero-label">Клуб Веры Малыгиной</div>
+    <h1>онлайн-клуб<br><span>фабрика заготовок</span></h1>
+    <p>Готовь меньше — ешь вкуснее</p>
+  </div>
+</div>
+
+<div class="telegram-buttons">
+  <a href="https://t.me/fabrika_zagotovok" target="_blank" class="tg-btn">
+    <i class="fab fa-telegram"></i><span>telegram-канал клуба</span>
+  </a>
+  <a href="https://t.me/fabrika_chat" target="_blank" class="tg-btn" id="chatBtn1">
+    <i class="fab fa-telegram"></i><span>общий чат участников</span>
+  </a>
+  <a href="https://t.me/fabrika_support_bot" target="_blank" class="tg-btn">
+    <i class="fab fa-telegram"></i><span>служба поддержки</span>
+  </a>
+</div>
+
+<div class="start-card" onclick="showScreen('start')">
+  <div class="start-card-top">
+    <div class="start-card-icon"><i class="fas fa-rocket"></i></div>
+    <h3>Начните с этого</h3>
+  </div>
+  <p>Ревизия кухни, планирование меню, основные правила заготовок и подборка утвари — база всей системы заготовок.</p>
+</div>
+
+<div class="section-label">Разделы клуба</div>
+<h2 class="section-title">Все материалы</h2>
+<div class="nav-grid" id="navGrid"></div>
+
+<div class="app-footer">
+  <div class="footer-inner">
+    <div class="footer-logo">Фабрика <span>заготовок</span></div>
+    <div class="footer-grid">
+      <div class="footer-col">
+        <h4>Оглавление</h4>
+        <ul>
+          <li><a href="#" onclick="showScreen('dashboard');return false">Главная страница</a></li>
+          <li><a href="#" onclick="showScreen('recipes');return false">Рецепты</a></li>
+          <li><a href="#" onclick="showScreen('holiday');return false">Для праздника</a></li>
+          <li><a href="#" onclick="showScreen('profile');return false">Профиль</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Служба поддержки</h4>
+        <ul>
+          <li><a href="#">Время работы: 10:00–18:00 МСК</a></li>
+          <li><a href="https://t.me/fabrika_support_bot">Написать в поддержку</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Вера Малыгина. Фабрика заготовок.</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: НАЧНИТЕ С ЭТОГО ═══════════ -->
+<div class="screen" id="screen-start">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="section-label">С чего начать</div>
+  <h2 class="section-title">начните с этого</h2>
+  <p style="margin:0 20px 24px;color:var(--text);font-size:.92rem">В этом блоке — основа системы заготовок. Пройдите шаги по порядку, и дальше все разделы клуба встанут на свои места.</p>
+
+  <div class="start-step">
+    <div class="num">1</div>
+    <div>
+      <h4>Ревизия</h4>
+      <p>Наводим порядок на кухне, выбрасываем всё лишнее и находим продукты, которые будем использовать в еду.</p>
+    </div>
+  </div>
+
+  <div class="start-step">
+    <div class="num">2</div>
+    <div>
+      <h4>Меню</h4>
+      <p>Планируем меню и закупку, учитывая свои особенности и пожелания. Совет: подсмотрите разделы с рецептами или блок «Готовое меню», чтобы составить свой план.</p>
+    </div>
+  </div>
+
+  <div class="start-step">
+    <div class="num">3</div>
+    <div>
+      <h4>Основные правила заготовок</h4>
+      <p>Тонкости заморозки, советы по таре и упаковке, а также табличка хранения — всё собрано в одном месте.</p>
+      <div class="link-btn" onclick="showScreen('rules')"><i class="fas fa-arrow-right"></i> Открыть правила и табличку хранения</div>
+    </div>
+  </div>
+
+  <div class="start-step">
+    <div class="num">4</div>
+    <div>
+      <h4>Подборка кухонной утвари</h4>
+      <p>Список форм, посуды и инструментов, которые упрощают процесс заготовок.</p>
+      <div class="link-btn" onclick="toast('Открываем файл: Подборка кухонной утвари')"><i class="fas fa-file-pdf"></i> Смотреть файл</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ОСНОВНЫЕ ПРАВИЛА / ТАБЛИЧКА ХРАНЕНИЯ ═══════════ -->
+<div class="screen" id="screen-rules">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('start')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="section-label">Начните с этого</div>
+  <h2 class="section-title">основные правила заготовок</h2>
+
+  <div class="rules-note"><i class="fas fa-lightbulb" style="color:var(--pink);margin-right:8px"></i>Замораживайте продукт только полностью остывшим, для упаковки используйте вакуум, зип-пакеты или контейнеры с плотной крышкой — так заготовка дольше хранится и не впитывает лишние запахи. Размораживайте всегда постепенно — из морозилки в холодильник.</div>
+
+  <div class="rules-table-wrap">
+    <table class="rules-table">
+      <thead><tr><th>Заготовка</th><th>В морозилке</th><th>В холодильнике</th></tr></thead>
+      <tbody id="rulesTableBody"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: РЕЦЕПТЫ ═══════════ -->
+<div class="screen" id="screen-recipes">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar">👩‍🍳</div>
+    <div class="welcome-text">
+      <h3>Блок рецептов</h3>
+      <p>Здесь собраны все заготовки по категориям — выбирайте раздел и открывайте видео и файлы с рецептами.</p>
+    </div>
+  </div>
+  <div class="section-label">Основной контент</div>
+  <h2 class="section-title">блок рецептов заготовок</h2>
+  <div class="categories" id="recipeCategoriesList"></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: БУЛЬОНЫ ═══════════ -->
+<div class="screen" id="screen-broths">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-mug-hot" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Бульоны</h3>
+      <p>Бульоны-концентраты — основа для супов, соусов и ризотто. Готовим один раз — используем неделю.</p>
+    </div>
+  </div>
+  <div class="section-label">Видео</div>
+  <div class="mat-grid" id="brothsList" style="margin:0 0 32px"></div>
+  <div class="section-label">Материалы</div>
+  <div class="mat-grid" id="brothsFilesList" style="margin:0 0 32px"></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: СОУСЫ ═══════════ -->
+<div class="screen" id="screen-sauces">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-jar" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Соусы</h3>
+      <p>Авторские соусы, которые преобразят любое блюдо и отлично хранятся в холодильнике.</p>
+    </div>
+  </div>
+  <div class="section-label">Видео</div>
+  <div class="mat-grid" id="saucesList" style="margin:0 0 32px"></div>
+  <div class="section-label">Материалы</div>
+  <div class="mat-grid" id="saucesFilesList" style="margin:0 0 32px"></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: КОНСТРУКТОР ═══════════ -->
+<div class="screen" id="screen-constructor">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-cubes" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Конструктор</h3>
+      <p>Универсальные базы для творчества: вафли, лимонады и пицца. Собирайте свои идеальные сочетания.</p>
+    </div>
+  </div>
+  <div class="section-label">Видео</div>
+  <div class="mat-grid" id="constructorList" style="margin:0 0 32px"></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ДЛЯ ДЕТЕЙ ═══════════ -->
+<div class="screen" id="screen-kids">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-child" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Для детей</h3>
+      <p>Заготовки, перекусы и меню, которые понравятся даже самым привередливым едокам.</p>
+    </div>
+  </div>
+  <div class="section-label">В разработке</div>
+  <h2 class="section-title">материалы для этого блока</h2>
+  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материалы этого раздела скоро появятся</div></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: СМАРТ-ЗАГОТОВКИ ═══════════ -->
+<div class="screen" id="screen-smart">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-lightbulb" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Смарт-заготовки</h3>
+      <p>Три части, в каждой — видео и файл с материалами.</p>
+    </div>
+  </div>
+  <div class="section-label">Видео</div>
+  <div class="mat-grid" id="smartList" style="margin:0 0 32px"></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ЛЕНИВЫЙ РЕСТОРАН ДОМА ═══════════ -->
+<div class="screen" id="screen-lazy">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-couch" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Ленивый ресторан дома</h3>
+      <p>Ресторанные блюда без лишних усилий — на основе ваших заготовок.</p>
+    </div>
+  </div>
+  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материалы этого раздела скоро появятся</div></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ГОТОВОЕ МЕНЮ ═══════════ -->
+<div class="screen" id="screen-ready-menu">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-clipboard-list" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Готовое меню</h3>
+      <p>Готовые меню на неделю — просто следуйте плану и списку покупок.</p>
+    </div>
+  </div>
+  <div class="section-label">Видео</div>
+  <div class="mat-grid" id="readyMenuList" style="margin:0 0 32px"></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ДЛЯ ПРАЗДНИКА ═══════════ -->
+<div class="screen" id="screen-holiday">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar">🎉</div>
+    <div class="welcome-text">
+      <h3>Праздничный стол</h3>
+      <p>Меню составлено по ресторанному принципу «кросс-использования»: ограниченный набор базовых ингредиентов даёт широкое и разнообразное меню. Рассчитано на 4 персоны. Многое можно и нужно приготовить заранее.</p>
+    </div>
+  </div>
+  
+  <div class="section-label">Видео</div>
+  <div class="mat-grid" id="holidayVideoList" style="margin:0 0 24px"></div>
+
+  <div class="section-label">Материалы</div>
+  <h2 class="section-title">файлы для скачивания</h2>
+  <div class="mat-grid" id="holidayFilesList" style="margin:0 20px 32px"></div>
+
+  <div class="section-label">Праздничное меню</div>
+  <h2 class="section-title">рецепты, посуда и декор</h2>
+  <div class="categories" id="holidayCategoriesList"></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ЗАРАБОТОК НА ЗАГОТОВКАХ ═══════════ -->
+<div class="screen" id="screen-earning">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-coins" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Заработок на заготовках</h3>
+      <p>Как превратить навык заготовок в источник дохода.</p>
+    </div>
+  </div>
+  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материалы этого раздела скоро появятся</div></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ДЛЯ ЗДОРОВЬЯ ═══════════ -->
+<div class="screen" id="screen-health">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-heartbeat" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Для здоровья</h3>
+      <p>Питание, нутрициология и личные лайфхаки для поддержания формы.</p>
+    </div>
+  </div>
+  <div class="section-label">Материалы</div>
+  <h2 class="section-title">для здоровья</h2>
+  <div class="mat-grid" id="healthList" style="margin:0 20px"></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ПРОФИЛЬ ═══════════ -->
+<div class="screen" id="screen-profile">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="section-label">Личный кабинет</div>
+  <h2 class="section-title">мой профиль</h2>
+  <div class="profile-card">
+    <div class="profile-header">
+      <div class="profile-avatar">АМ</div>
+      <div>
+        <div class="profile-name">Анна Морозова</div>
+        <div class="profile-email">anna.morozova@mail.ru</div>
+      </div>
+    </div>
+    <div class="profile-row"><span class="pl">ФИО</span><span class="pv">Морозова Анна Сергеевна</span></div>
+    <div class="profile-row"><span class="pl">Email</span><span class="pv">anna.morozova@mail.ru</span></div>
+    <div class="profile-row"><span class="pl">Дата покупки клуба</span><span class="pv">12 сентября 2026</span></div>
+    <div class="profile-row"><span class="pl">Тариф</span><span class="pv"><span class="tariff-badge premium" id="profileTariff">Расширенный</span></span></div>
+    <div class="profile-row"><span class="pl">Статус подписки</span><span class="pv" style="color:#2e7d32">● Активна</span></div>
+    <div class="profile-row"><span class="pl">Доступ до</span><span class="pv">12 октября 2026</span></div>
+  </div>
+  <div style="margin:0 20px;display:flex;flex-direction:column;gap:12px">
+    <button class="login-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> Вернуться в кабинет</button>
+    <button class="login-btn" style="background:var(--white);color:var(--pink);border:2px solid var(--pink)" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Выйти из аккаунта</button>
+  </div>
+</div>
+<div class="app-footer"><div class="footer-inner"><div class="footer-bottom">© 2026 Вера Малыгина. Фабрика заготовок.</div></div></div>
+</div>
+
+<!-- Модальное окно для видео -->
+<div class="video-modal-overlay" id="videoModal" onclick="closeVideoModal(event)">
+    <div class="video-modal-window">
+        <button class="close-video" onclick="closeVideoModal()">&times;</button>
+        <h3 id="videoModalTitle"></h3>
+        <div class="video-wrapper" id="videoModalPlayer"></div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════ ДАННЫЕ: ВИДЕО (KINESCOPE) ═══════════ */
+const CLUB_VIDEOS = {
+    broths: [{title: "Бульоны-концентраты", id: "w8Wtdzuq9nVt85ub76og9z"}],
+    sauces: [{title: "Соусы", id: "5vA8cnqfp9NxdDVNY1aioa"}],
+    constructor: [
+        {title: "Конструктор вафель", id: "oPJY9r8Fq6B4xiMNWshfC3"},
+        {title: "Конструктор лимонадов", id: "7HXsRqn7g669c96cgfPS9b"},
+        {title: "Конструктор пиццы", id: "sKucqGSc4p2ey37EByY5pY"}
+    ],
+    smart: [
+        {title: "Смарт-заготовки - 1 часть", id: "0yNDhhx4mcHZvkBTUZM1LH"},
+        {title: "Смарт-заготовки - 2 часть", id: "rwS5qPC7N86WqjVzZqnwB5"},
+        {title: "Смарт-заготовки - 3 часть", id: "48qH5EdydKffrGfSP5dhmH"}
+    ],
+    readyMenu: [{title: "Закупка на 7.500р", id: "353MCVPGkpRDE8bmZU2ujs"}],
+    holiday: [
+        {title: "Горячее", id: "wHQqAhvUT5qyYBgiSRrcpE"},
+        {title: "Десерты", id: "q7CNLcZoNa317ZrwxjzkpC"},
+        {title: "Салаты и закуски", id: "mAKRfTpqSy8yFnZc9S1otr"}
+    ],
+    recipes: {
+        'Овощи': [
+            {t: "Овощи - 1 часть", id: "ifYSQQTmQ7U5m9HRFe7SYr"},
+            {t: "Овощи - 2 часть", id: "2NoywUJkxnH76Cem1m5hqB"},
+            {t: "Овощи - из заготовок", id: "wAUmYJJ2Xd2uWLB8DfF9WP"}
+        ],
+        'Птица': [
+            {t: "Птица - 1 часть", id: "5CotbwebNqmqmmTCQhC9tq"},
+            {t: "Птица - 2 часть", id: "kXT92rHUuQapgDdo7kzM6k"},
+            {t: "Птица - из заготовок", id: "17vRZ4dX4ueqSC24C5GVFP"}
+        ],
+        'Мясо': [
+            {t: "Мясо - 1 часть", id: "hLQ63EKncbMFn1cmm5SL5J"},
+            {t: "Мясо - 2 часть", id: "dooVFCgm5my3b4d4oLbuXH"},
+            {t: "Мясо - из заготовок", id: "9mg2SCnzAf9pSBSsC1VF9K"}
+        ],
+        'Творог': [
+            {t: "Творог - 1 часть", id: "qU6JrgV9e3A1dHY13tUg7M"},
+            {t: "Творог - 2 часть", id: "rJmKkU1WXTLsYMuw2Ugkvb"},
+            {t: "Творог - из заготовок", id: "drbfe8fwTjsVptwDNsPcGg"}
+        ],
+        'Рыба': [
+            {t: "Рыба - 1 часть", id: "eKXB1w8RUaK1D5b5LjgZPw"},
+            {t: "Рыба - 2 часть", id: "6YSLYN4yEavrmncBHP2BJf"},
+            {t: "Рыба - из заготовок", id: "tBM3d1HcV12EgrD5nNF5Fq"}
+        ],
+        'Выпечка': [
+            {t: "Выпечка - 1 часть", id: "eZFmREowYZ8zqVui2KovW9"},
+            {t: "Выпечка - 2 часть", id: "rc35Va8sT5zEVa9cZzzU7P"}
+        ],
+        'Паштеты': [{t: "Паштеты", id: "dw2VYpk98qxYKRneViit8r"}],
+        'Галеты': [{t: "Галеты", id: "cjmDyYqivy136GoyupUFEP"}],
+        'Вафли': [{t: "Вафли", id: "i2MHanydu4ZNXfc3aknkok"}],
+        'Колбаса': [{t: "Колбаса", id: "dit9sfQoEXoHDjyGNA61P3"}]
+    }
+};
+
+/* ═══════════ ДАННЫЕ: PDF-ФАЙЛЫ (Яндекс.Диск) ═══════════ */
+const CLUB_FILES = {
+    broths: [
+        {t: "Сборник Бульоны-концентраты", url: "https://disk.yandex.ru/i/iiNClFa-DUyCGA"},
+        {t: "Сборник Супы-конструкторы", url: "https://disk.yandex.ru/i/AzJV4maQvYFiiw"}
+    ],
+    sauces: [
+        {t: "Сборник «Соусы»", url: "https://disk.yandex.ru/i/o2788-xEzwHTLw"},
+        {t: "Сборник «Блюда из соусов»", url: "https://disk.yandex.ru/i/UHcuCDt4gYcl1g"}
+    ]
+};
+
+/* ═══════════ ДАННЫЕ: РАЗДЕЛЫ КЛУБА ═══════════ */
+const NAV_BLOCKS = [
+  {id:'recipes', title:'Рецепты', icon:'fa-utensils', desc:'Заготовки, выпечка, паштеты и другое'},
+  {id:'broths', title:'Бульоны', icon:'fa-mug-hot', desc:'Бульоны-концентраты'},
+  {id:'sauces', title:'Соусы', icon:'fa-jar', desc:'Авторские соусы'},
+  {id:'constructor', title:'Конструктор', icon:'fa-cubes', desc:'Вафли, лимонады, пицца'},
+  {id:'smart', title:'Смарт-заготовки', icon:'fa-lightbulb', desc:'3 части: видео + файл в каждой'},
+  {id:'kids', title:'Для детей', icon:'fa-child', desc:'Заготовки и меню для детей'},
+  {id:'lazy', title:'Ленивый ресторан дома', icon:'fa-couch', desc:'Ресторанные блюда без лишних усилий'},
+  {id:'ready-menu', title:'Готовое меню', icon:'fa-clipboard-list', desc:'Закупка и меню на неделю'},
+  {id:'holiday', title:'Для праздника', icon:'fa-champagne-glasses', desc:'Праздничное меню, посуда и декор'},
+  {id:'earning', title:'Заработок на заготовках', icon:'fa-coins', desc:'Как зарабатывать на заготовках'},
+  {id:'health', title:'Для здоровья', icon:'fa-heartbeat', desc:'Питание, нутрициология, лайфхаки'}
+];
+
+/* ═══════════ ДАННЫЕ: РЕЦЕПТЫ ═══════════ */
+const RECIPE_CATEGORIES = [
+  {name:'Заготовки из овощей', icon:'fa-carrot', videos: CLUB_VIDEOS.recipes['Овощи'], files:[{t:'PDF: Рецепты из овощей (16 стр.)', d:'PDF, 2.9 МБ'},{t:'Таблица: Заморозка овощей', d:'PDF, 310 КБ'}]},
+  {name:'Заготовки из птицы', icon:'fa-drumstick-bite', videos: CLUB_VIDEOS.recipes['Птица'], files:[{t:'PDF: Рецепты из птицы (12 стр.)', d:'PDF, 2.4 МБ'},{t:'Чек-лист: Заготовки из птицы', d:'PDF, 340 КБ'}]},
+  {name:'Заготовки из мяса', icon:'fa-cow', videos: CLUB_VIDEOS.recipes['Мясо'], files:[{t:'PDF: Рецепты из мяса (14 стр.)', d:'PDF, 3.1 МБ'},{t:'Чек-лист: Заготовки из мяса', d:'PDF, 380 КБ'}]},
+  {name:'Заготовки из творога', icon:'fa-cheese', videos: CLUB_VIDEOS.recipes['Творог'], files:[{t:'PDF: Рецепты из творога (10 стр.)', d:'PDF, 1.6 МБ'},{t:'Чек-лист: Творожные заготовки', d:'PDF, 280 КБ'}]},
+  {name:'Заготовки из рыбы', icon:'fa-fish', videos: CLUB_VIDEOS.recipes['Рыба'], files:[{t:'PDF: Рецепты из рыбы (10 стр.)', d:'PDF, 1.8 МБ'},{t:'Таблица: Сроки хранения рыбы', d:'PDF, 220 КБ'}]},
+  {name:'Выпечка', icon:'fa-bread-slice', videos: CLUB_VIDEOS.recipes['Выпечка'], files:[{t:'PDF: Рецепты выпечки (18 стр.)', d:'PDF, 3.4 МБ'},{t:'Чек-лист: Тесто и выпечка', d:'PDF, 350 КБ'}]},
+  {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты'], files:[{t:'PDF: Рецепты паштетов (8 стр.)', d:'PDF, 1.2 МБ'},{t:'Чек-лист: Хранение паштетов', d:'PDF, 200 КБ'}]},
+  {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[]},
+  {name:'Галеты', icon:'fa-cookie', videos: CLUB_VIDEOS.recipes['Галеты'], files:[{t:'Сборник «Галеты»', d:'PDF-файл', url:'https://disk.yandex.ru/d/00Un9tc0TtUKww'}]},
+  {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[]},
+  {name:'Десерты', icon:'fa-ice-cream', soon:true}
+];
+
+/* ═══════════ ДАННЫЕ: ПРАЗДНИЧНЫЙ СТОЛ ═══════════ */
+const HOLIDAY_CATEGORIES = [
+  {name:'Заготовки', icon:'fa-box-open', items:[
+    {t:'Ростбиф', d:'Мясная заготовка, до 3 мес. в морозилке'},
+    {t:'Грудинка', d:'Пряная свиная закуска'},
+    {t:'Паштет', d:'Из куриной печени'},
+    {t:'Свекольная рыба слабой соли', d:'Засолка со свеклой'},
+    {t:'Профитроли', d:'Заготовка теста-основы'},
+    {t:'Свекольные блины', d:'Розовые блины для роллов'},
+    {t:'Вишнёвый конфитюр', d:'Для профитролей и десертов'},
+    {t:'Подготовка овощей', d:'Запечённые корнеплоды и перец'}
+  ]},
+  {name:'Салаты', icon:'fa-leaf', items:[
+    {t:'Оливье с ростбифом и свежим горошком', d:'Салат'},
+    {t:'"Тбилиси" с запечённым перцем', d:'Салат'},
+    {t:'Салат с лососем и авокадо', d:'Слоёный салат'},
+    {t:'Роллы "Под шубой"', d:'Рулет из свекольных блинов'},
+    {t:'Салат с ростбифом', d:'Руккола, пармезан, орехи'}
+  ]},
+  {name:'Закуски', icon:'fa-utensils', items:[
+    {t:'Рулетики с ростбифом', d:'Творожный сыр и руккола'},
+    {t:'Рулетики из перца с сыром и орехами', d:'Брынза, фисташки'},
+    {t:'Профитроли с тар-таром из запечённого перца', d:''},
+    {t:'Профитроли с паштетом и вишнёвым конфитюром', d:''},
+    {t:'Мини-брускетта с грудинкой', d:''},
+    {t:'Брускетта с тар-таром из лосося', d:''},
+    {t:'Мини-сэндвичи с ростбифом', d:''},
+    {t:'Рулеты с красной рыбой', d:''}
+  ]},
+  {name:'Горячее и гарниры', icon:'fa-fire-burner', items:[
+    {t:'Пряная свинина "Глинтвейн"', d:'Горячее'},
+    {t:'Томлёные ребра "BBQ"', d:'Горячее'},
+    {t:'Глазированная курица с апельсинами', d:'Горячее'},
+    {t:'Мраморный террин', d:'Горячее из рыбы'},
+    {t:'Картофель бэби с розмарином и пармезаном', d:'Гарнир'},
+    {t:'Цветная капуста с копчёной паприкой', d:'Гарнир'},
+    {t:'Батат дор-блю с фисташками', d:'Гарнир'}
+  ]},
+  {name:'Десерты', icon:'fa-birthday-cake', items:[
+    {t:'Ленивый рулет-медовик', d:'Десерт'},
+    {t:'Профитроли с кремом и конфитюром', d:'Десерт'},
+    {t:'Тарталетки с грушей и дор-блю', d:'Десерт'}
+  ]},
+  {name:'Посуда и декор', icon:'fa-gem', items:[
+    {t:'Сервировочные блюда', d:'Подборка для подачи'},
+    {t:'Креманки и салатники', d:'Подборка для подачи'},
+    {t:'Формы для салата', d:'Металлические кольца'},
+    {t:'Декор стола', d:'Скатерти, свечи, подсвечники, вазы'},
+    {t:'Декор закусок', d:'Шпажки, кондитерские мешки, кунжут, миндаль, сусальное золото'}
+  ]}
+];
+
+/* ═══════════ ДАННЫЕ: ТАБЛИЧКА ХРАНЕНИЯ ═══════════ */
+const STORAGE_RULES = [
+  ['Ростбиф','до 3 мес.','вакуум — 5 дн., без вакуума — 2 дн.'],
+  ['Грудинка','до 2 мес.','вакуум — 5 дн., без вакуума — 2 дн.'],
+  ['Паштет','до 3 мес.','до 3 дн.'],
+  ['Свекольная рыба слабой соли','до 3 мес.','вакуум — 5 дн., без вакуума — 3 дн.'],
+  ['Профитроли (без начинки)','до 3 мес.','до 7 дн.'],
+  ['Свекольные блины','до 2 мес.','до 3 дн.'],
+  ['Вишнёвый конфитюр','до 12 мес.','до 4 недель'],
+  ['Запечённые овощи для салатов','не замораживаем','1–2 дн.'],
+  ['Пряная свинина «Глинтвейн»','до 3 мес.','вакуум — 5 дн., без вакуума — 2 дн.'],
+  ['Томлёные ребра BBQ','до 3 мес.','вакуум — 5 дн., без вакуума — 2 дн.'],
+  ['Глазированная курица с апельсинами','до 3 мес.','вакуум — 5 дн., без вакуума — 2 дн.'],
+  ['Мраморный террин (сырой)','до 4 мес.','до 24 ч.'],
+  ['Цветная капуста маринованная','—','1–2 дн.'],
+  ['Ленивый рулет-медовик','до 2 мес.','до 3 дн.']
+];
+
+/* ═══════════ ДАННЫЕ: ФАЙЛЫ ПРАЗДНИЧНОГО МЕНЮ ═══════════ */
+const HOLIDAY_FILES = [
+  {t:'Салаты и закуски', d:'PDF-файл', url:'https://disk.yandex.ru/i/l1ECDibK9o339w'},
+  {t:'Горячее', d:'PDF-файл', url:'https://disk.yandex.ru/i/22Ylxt0SiFWQcA'},
+  {t:'Десерты', d:'PDF-файл', url:'https://disk.yandex.ru/i/H9hhbRt9CUVhRg'},
+  {t:'Подборка посуды на праздник', d:'PDF-файл', url:'https://disk.yandex.ru/i/sctJjYZsnjl5yw'}
+];
+
+/* ═══════════ ДАННЫЕ: ДЛЯ ЗДОРОВЬЯ ═══════════ */
+const HEALTH_ITEMS = [
+  {t:'Азбука питания от гематолога: от анализов до тарелки', d:'Материал'},
+  {t:'Нутрициологическая памятка на каждый день', d:'Материал'},
+  {t:'Мои лайфхаки в питании для поддержания формы', d:'Материал'}
+];
+
+/* ═══════════ СОСТОЯНИЕ ═══════════ */
+let currentTariff = 'premium';
+
+/* ═══════════ НАВИГАЦИЯ ═══════════ */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  window.scrollTo(0,0);
+  if(id==='dashboard') renderNavGrid();
+  if(id==='recipes') renderAccordion('recipeCategoriesList', RECIPE_CATEGORIES);
+  if(id==='holiday'){ 
+      renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday);
+      renderAccordion('holidayCategoriesList', HOLIDAY_CATEGORIES); 
+      renderHolidayFiles(); 
+  }
+  if(id==='smart') renderVideoList('smartList', CLUB_VIDEOS.smart);
+  if(id==='ready-menu') renderVideoList('readyMenuList', CLUB_VIDEOS.readyMenu);
+  if(id==='broths'){ 
+      renderVideoList('brothsList', CLUB_VIDEOS.broths);
+      renderFileList('brothsFilesList', CLUB_FILES.broths);
+  }
+  if(id==='sauces'){ 
+      renderVideoList('saucesList', CLUB_VIDEOS.sauces);
+      renderFileList('saucesFilesList', CLUB_FILES.sauces);
+  }
+  if(id==='constructor') renderVideoList('constructorList', CLUB_VIDEOS.constructor);
+  if(id==='health') renderHealth();
+  if(id==='rules') renderRules();
+  applyTariff();
+}
+
+function toggleMenu(){
+  document.getElementById('sideMenu').classList.toggle('open');
+  document.getElementById('menuOverlay').classList.toggle('open');
+}
+
+/* ═══════════ ВХОД / ВЫХОД ═══════════ */
+function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  if(!email || !email.includes('@')){ toast('Введите корректный email', true); return; }
+  toast('Ссылка отправлена на '+email);
+  setTimeout(()=>showScreen('dashboard'), 800);
+}
+function doLogout(){ showScreen('landing'); toast('Вы вышли из аккаунта'); }
+
+/* ═══════════ РЕНДЕР: ГЛАВНАЯ СЕТКА РАЗДЕЛОВ ═══════════ */
+function renderNavGrid(){
+  const grid = document.getElementById('navGrid');
+  if(grid) grid.innerHTML = NAV_BLOCKS.map(b=>`
+    <div class="nav-card" onclick="showScreen('${b.id}')">
+      <i class="fas ${b.icon}"></i>
+      <h4>${b.title}</h4>
+      <p>${b.desc}</p>
+    </div>`).join('');
+
+  const sideList = document.getElementById('sideMenuBlocks');
+  if(sideList) sideList.innerHTML = NAV_BLOCKS.map(b=>`
+    <li><a href="#" onclick="showScreen('${b.id}');toggleMenu();return false"><i class="fas ${b.icon}"></i>${b.title}</a></li>`).join('');
+}
+
+/* ═══════════ ОТКРЫТИЕ ФАЙЛА ═══════════ */
+function openFile(url, title){
+  if(url){
+    window.open(url, '_blank');
+    toast('Открываем файл: ' + title);
+  } else {
+    toast('Открываем: ' + title);
+  }
+}
+
+/* ═══════════ РЕНДЕР: АККОРДЕОН (рецепты / праздник) ═══════════ */
+function renderAccordion(containerId, categories){
+  const list = document.getElementById(containerId);
+  if(!list) return;
+  list.innerHTML = categories.map((c,i)=>{
+    let bodyHtml = '';
+    if(c.soon){
+      bodyHtml = `<div class="soon-note"><i class="fas fa-hourglass-half"></i> Материалы этого раздела скоро появятся</div>`;
+    } else if(c.videos){
+      bodyHtml = `
+        <div class="mat-section">
+          <div class="mat-label"><i class="fas fa-video"></i> Видео (${c.videos.length})</div>
+          <div class="mat-grid">
+            ${c.videos.map(v=>`<div class="mat-card" onclick="playVideo('${v.title || v.t}', '${v.id}')"><div class="mat-thumb"><i class="fas fa-play"></i></div><div class="mat-info"><h4>${v.title || v.t}</h4><p>Видео</p></div></div>`).join('')}
+          </div>
+        </div>
+        <div class="mat-section">
+          <div class="mat-label"><i class="fas fa-file-pdf"></i> Материалы (${c.files ? c.files.length : 0})</div>
+          <div class="mat-grid">
+            ${(c.files || []).map(f=>`<div class="mat-card" onclick="openFile('${f.url || ''}', '${f.t}')"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.d}</p></div></div>`).join('')}
+          </div>
+        </div>`;
+    } else if(c.items){
+      bodyHtml = `
+        <div class="mat-section">
+          <div class="mat-grid">
+            ${c.items.map(it=>`<div class="mat-card" onclick="toast('Открываем: ${it.t}')"><div class="mat-thumb"><i class="fas fa-utensils"></i></div><div class="mat-info"><h4>${it.t}</h4><p>${it.d||''}</p></div></div>`).join('')}
+          </div>
+        </div>`;
+    }
+    return `
+    <div class="cat-item" data-idx="${i}">
+      <div class="cat-head" onclick="toggleCat(this)">
+        <div class="cat-icon"><i class="fas ${c.icon}"></i></div>
+        <div class="cat-title">${c.name}${c.soon?'<span class="badge-soon">скоро</span>':''}</div>
+        <div class="cat-arrow"><i class="fas fa-chevron-down"></i></div>
+      </div>
+      <div class="cat-body"><div class="cat-body-inner">${bodyHtml}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCat(head){
+  const item = head.parentElement;
+  const wasOpen = item.classList.contains('open');
+  item.parentElement.querySelectorAll('.cat-item').forEach(c=>c.classList.remove('open'));
+  if(!wasOpen) item.classList.add('open');
+}
+
+/* ═══════════ РЕНДЕР: СПИСКИ ВИДЕО ═══════════ */
+function renderVideoList(containerId, videos) {
+    const list = document.getElementById(containerId);
+    if(!list) return;
+    list.innerHTML = videos.map(v => `
+        <div class="mat-card" onclick="playVideo('${v.title || v.t}', '${v.id}')">
+            <div class="mat-thumb"><i class="fas fa-play"></i></div>
+            <div class="mat-info"><h4>${v.title || v.t}</h4><p>Видео</p></div>
+        </div>
+    `).join('');
+}
+
+/* ═══════════ РЕНДЕР: СПИСКИ PDF-ФАЙЛОВ ═══════════ */
+function renderFileList(containerId, files) {
+    const list = document.getElementById(containerId);
+    if(!list) return;
+    list.innerHTML = files.map(f => `
+        <div class="mat-card" onclick="window.open('${f.url}','_blank'); toast('Открываем файл: ${f.t}')">
+            <div class="mat-thumb file"><i class="fas fa-file-pdf"></i></div>
+            <div class="mat-info"><h4>${f.t}</h4><p>PDF-файл</p></div>
+        </div>
+    `).join('');
+}
+
+/* ═══════════ РЕНДЕР: ФАЙЛЫ ПРАЗДНИЧНОГО МЕНЮ ═══════════ */
+function renderHolidayFiles(){
+  const list = document.getElementById('holidayFilesList');
+  if(!list) return;
+  list.innerHTML = HOLIDAY_FILES.map(f=>`
+    <div class="mat-card" onclick="window.open('${f.url}','_blank'); toast('Открываем файл: ${f.t}')">
+      <div class="mat-thumb file"><i class="fas fa-file-pdf"></i></div>
+      <div class="mat-info"><h4>${f.t}</h4><p>${f.d}</p></div>
+    </div>`).join('');
+}
+
+/* ═══════════ РЕНДЕР: ДЛЯ ЗДОРОВЬЯ ═══════════ */
+function renderHealth(){
+  const list = document.getElementById('healthList');
+  if(!list) return;
+  list.innerHTML = HEALTH_ITEMS.map(it=>`
+    <div class="mat-card" onclick="toast('Открываем материал: ${it.t}')">
+      <div class="mat-thumb file"><i class="fas fa-file-alt"></i></div>
+      <div class="mat-info"><h4>${it.t}</h4><p>${it.d}</p></div>
+    </div>`).join('');
+}
+
+/* ═══════════ РЕНДЕР: ТАБЛИЧКА ХРАНЕНИЯ ═══════════ */
+function renderRules(){
+  const body = document.getElementById('rulesTableBody');
+  if(!body) return;
+  body.innerHTML = STORAGE_RULES.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+}
+
+/* ═══════════ ВИДЕО ПЛЕЕР ═══════════ */
+function playVideo(title, kinescopeId) {
+    document.getElementById('videoModalTitle').textContent = title;
+    document.getElementById('videoModalPlayer').innerHTML = `<iframe src="https://kinescope.io/embed/${kinescopeId}" allow="autoplay; fullscreen; picture-in-picture; encrypted-media;" frameborder="0" allowfullscreen></iframe>`;
+    document.getElementById('videoModal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeVideoModal(e) {
+    if (e && e.target !== e.currentTarget && !e.target.classList.contains('close-video')) return;
+    document.getElementById('videoModal').classList.remove('active');
+    document.getElementById('videoModalPlayer').innerHTML = '';
+    document.body.style.overflow = '';
+}
+
+/* ═══════════ ТАРИФЫ ═══════════ */
+function applyTariff(){
+  const chatBtns = document.querySelectorAll('#chatBtn1');
+  chatBtns.forEach(btn=>{
+    if(currentTariff==='basic'){
+      btn.classList.add('locked');
+      btn.onclick = (e)=>{e.preventDefault(); toast('Чат доступен только в расширенном тарифе', true);};
+    } else {
+      btn.classList.remove('locked');
+      btn.onclick = null;
+    }
+  });
+  const badge = document.getElementById('profileTariff');
+  if(badge){
+    badge.textContent = currentTariff==='premium' ? 'Расширенный' : 'Базовый';
+    badge.className = 'tariff-badge ' + currentTariff;
+  }
+}
+
+/* ═══════════ TOAST ═══════════ */
+function toast(msg, err){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (err ? ' err' : '');
+  setTimeout(()=>t.className='toast', 2500);
+}
+
+/* ═══════════ INIT ═══════════ */
+renderNavGrid();
+applyTariff();
+</script>
+
+</body>
+</html>
