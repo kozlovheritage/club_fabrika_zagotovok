@@ -4,6 +4,7 @@ import {promisify} from 'node:util';
 import express from 'express';
 import multer from 'multer';
 import pg from 'pg';
+import {sendCredentialsEmail} from './email.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -56,12 +57,6 @@ function inferTariff(payload){const names=flattenProducts(payload.products).map(
 function parseCookies(header){return String(header||'').split(';').reduce((out,part)=>{const index=part.indexOf('=');if(index<0)return out;out[part.slice(0,index).trim()]=decodeURIComponent(part.slice(index+1).trim());return out;},{});}
 function cookieHeader(name,value,maxAge){return name+'='+encodeURIComponent(value)+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+maxAge+(COOKIE_SECURE?'; Secure':'');}
 function clearCookieHeader(name){return name+'=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(COOKIE_SECURE?'; Secure':'');}
-function escapeHtml(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));}
-async function sendCredentialsEmail(email,password,siteUrl){
-  if(process.env.AUTH_EMAIL_PROVIDER!=='resend'||!process.env.RESEND_API_KEY||!process.env.AUTH_FROM_EMAIL)throw new Error('Email provider is not configured');
-  const response=await fetch('https://api.resend.com/emails',{method:'POST',signal:AbortSignal.timeout(10000),headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.AUTH_FROM_EMAIL,to:[email],subject:'Доступ в клуб «Фабрика заготовок»',text:'Ваш доступ в клуб открыт. Сайт: '+siteUrl+'\nEmail: '+email+'\nПароль: '+password+'\n\nСохраните это письмо. Пароль постоянный и не меняется при повторной оплате.',html:'<h2>Доступ в клуб «Фабрика заготовок» открыт</h2><p><a href="'+escapeHtml(siteUrl)+'">Открыть сайт клуба</a></p><p><b>Email:</b> '+escapeHtml(email)+'<br><b>Пароль:</b> '+escapeHtml(password)+'</p><p>Сохраните это письмо. Пароль постоянный и не меняется при повторной оплате.</p>'})});
-  if(!response.ok)throw new Error('Email provider returned '+response.status);
-}
 async function initDatabase(){for(const statement of schema)await pool.query(statement);}
 async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT u.email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.access_until>now()",[sha256(raw)]);return result.rows[0]||null;}
 async function requireAuth(req,res,next){try{const user=await findSession(req);if(!user)return res.status(401).json({message:'Сессия истекла'});req.user=user;next();}catch(error){next(error);}}

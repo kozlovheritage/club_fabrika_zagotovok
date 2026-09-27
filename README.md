@@ -4,7 +4,9 @@
 
 ## Подготовка ONREZA
 
-Разверните эту ветку отдельно для проверки как **Compute**, а не Static, с Node.js >=20 и командой `npm start`. Не переключайте опубликованный `main`, пока не проверите оплату и вход. В тестовом окружении `PUBLIC_URL` должен указывать на тестовый HTTPS-адрес, иначе письмо направит клиента на текущий основной сайт. Нужна PostgreSQL и переменные из `.env.example`: `DATABASE_URL`, `PUBLIC_URL` (HTTPS-адрес сайта), `PRODAMUS_SECRET_KEY`, `AUTH_CREDENTIAL_KEY` (случайная строка не короче 32 символов), `RESEND_API_KEY`, `AUTH_FROM_EMAIL` (подтверждённый в Resend домен), `AUTH_EMAIL_PROVIDER=resend`, `COOKIE_SECURE=true`. Не добавляйте значения ключей в GitHub. Не меняйте `AUTH_CREDENTIAL_KEY`, пока остались неотправленные письма.
+Разверните эту ветку отдельно для проверки как **Compute**, а не Static, с Node.js >=20 и командой `npm start`. Не переключайте опубликованный `main`, пока не проверите оплату и вход. В тестовом окружении `PUBLIC_URL` должен указывать на тестовый HTTPS-адрес, иначе письмо направит клиента на текущий основной сайт. Нужна PostgreSQL и переменные из `.env.example`: `DATABASE_URL`, `PUBLIC_URL` (HTTPS-адрес сайта), `PRODAMUS_SECRET_KEY`, `AUTH_CREDENTIAL_KEY` (случайная строка не короче 32 символов), `COOKIE_SECURE=true`. Не добавляйте значения ключей в GitHub. Не меняйте `AUTH_CREDENTIAL_KEY`, пока остались неотправленные письма.
+
+Для отправки писем выберите **одного** провайдера. При `AUTH_EMAIL_PROVIDER=resend` нужны `RESEND_API_KEY` и `AUTH_FROM_EMAIL` в формате Resend. При `AUTH_EMAIL_PROVIDER=notisend` нужны `NOTISEND_API_KEY` и `AUTH_FROM_EMAIL` как обычный email-адрес без имени и угловых скобок; `AUTH_FROM_NAME` необязателен. NotiSend принимает одиночные письма по API в очередь; ответ «queued» ещё не гарантирует доставку. Перед массовой отправкой проверьте доступный лимит тарифа и доставляемость писем.
 
 ## Настройка Продамус
 
