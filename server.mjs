@@ -78,6 +78,7 @@ app.use('/api/checkout',(req,res,next)=>{
 app.post('/api/checkout/session',(req,res)=>{
   const tariff=req.body?.tariff;
   if(tariff!=='basic'&&tariff!=='premium')return res.status(400).json({message:'Неизвестный тариф'});
+  if(tariff==='basic'&&process.env.BASIC_CHECKOUT_ENABLED!=='true')return res.status(503).json({message:'Оплата базового тарифа пока недоступна'});
   const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY);
   if(!checkout)return res.status(503).json({message:'Оплата пока недоступна'});
   res.set('Cache-Control','no-store').json(checkout);
