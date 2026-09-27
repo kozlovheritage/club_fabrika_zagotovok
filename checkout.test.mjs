@@ -10,7 +10,8 @@ for (const tariff of ['basic', 'premium']) {
     const order = createCheckout(tariff, key, env);
     assert.ok(order);
     const notification = {order_id: '300155', order_num: order.order_id, products: order.products, sum: order.products[0].price};
-    assert.deepEqual(identifyCheckout(notification, key, env), {kind: 'site', tariff});
+    assert.deepEqual(identifyCheckout(notification, key), {kind: 'site', tariff});
+    assert.deepEqual(identifyCheckout(notification, key, {BASIC_PRICE_RUB: '9900', PREMIUM_PRICE_RUB: '9900'}), {kind: 'site', tariff});
     assert.equal(identifyCheckout({...notification, sum: '1.00'}, key, env).kind, 'invalid');
     assert.equal(identifyCheckout({...notification, products: [{...order.products[0], name: 'Other'}]}, key, env).kind, 'invalid');
     assert.equal(identifyCheckout({...notification, products: [{...order.products[0], price: '1.00'}]}, key, env).kind, 'invalid');
