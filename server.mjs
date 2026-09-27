@@ -5,6 +5,7 @@ import express from 'express';
 import multer from 'multer';
 import pg from 'pg';
 import {sendCredentialsEmail} from './email.mjs';
+import {createCheckout,identifyCheckout} from './checkout.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -12,24 +13,24 @@ const app=express();
 const upload=multer({limits:{fields:200,fieldSize:1024*1024}});
 const PORT=Number(process.env.PORT||3000);
 const PUBLIC_URL=(process.env.PUBLIC_URL||'').replace(/\/$/,'');
-const ACCESS_DAYS=Number(process.env.ACCESS_DAYS||31);
 const SESSION_DAYS=Number(process.env.SESSION_DAYS||30);
 const COOKIE_SECURE=process.env.COOKIE_SECURE!=='false'&&process.env.NODE_ENV==='production';
-const DEFAULT_TARIFF=process.env.DEFAULT_TARIFF||'premium';
+const SALES_ORIGINS=(process.env.SALES_ORIGINS||'https://sales-club-fabrika-zagotovok-kozlovheritage.onreza.app').split(',').map(x=>x.trim()).filter(Boolean);
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.PGSSL==='false'?false:{rejectUnauthorized:false}});
 if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL is required');
 if(!PUBLIC_URL||!/^https:\/\//.test(PUBLIC_URL))throw new Error('PUBLIC_URL must be an HTTPS site address');
-if(!Number.isFinite(ACCESS_DAYS)||ACCESS_DAYS<=0)throw new Error('ACCESS_DAYS must be positive');
 credentialKey();
 
 const schema=[
-  "CREATE TABLE IF NOT EXISTS club_users (email TEXT PRIMARY KEY, name TEXT, password_hash TEXT, tariff TEXT NOT NULL DEFAULT 'premium', access_until TIMESTAMPTZ NOT NULL, purchase_at TIMESTAMPTZ, welcome_email_sent_at TIMESTAMPTZ, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+  "CREATE TABLE IF NOT EXISTS club_users (email TEXT PRIMARY KEY, name TEXT, password_hash TEXT, tariff TEXT NOT NULL DEFAULT 'premium', access_until TIMESTAMPTZ, purchase_at TIMESTAMPTZ, welcome_email_sent_at TIMESTAMPTZ, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+  "ALTER TABLE club_users ALTER COLUMN access_until DROP NOT NULL",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS password_hash TEXT",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS welcome_email_sent_at TIMESTAMPTZ",
   "CREATE TABLE IF NOT EXISTS club_sessions (token_hash TEXT PRIMARY KEY, email TEXT NOT NULL REFERENCES club_users(email) ON DELETE CASCADE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
   "CREATE TABLE IF NOT EXISTS club_webhook_events (event_id TEXT PRIMARY KEY, payload JSONB NOT NULL, received_at TIMESTAMPTZ NOT NULL DEFAULT now())",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS credential_email_ciphertext TEXT",
-  "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS credential_claimed_at TIMESTAMPTZ"
+  "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS credential_claimed_at TIMESTAMPTZ",
+  "UPDATE club_users SET access_until=NULL WHERE tariff='premium' AND status='active' AND access_until IS NOT NULL"
 ];
 function normalizeEmail(value){return String(value||'').trim().toLowerCase();}
 function sha256(value){return crypto.createHash('sha256').update(value,'utf8').digest('hex');}
@@ -52,18 +53,35 @@ function setDeep(target,path,value){
   for(let i=0;i<parts.length;i+=1){const part=parts[i];if(!part||part==='__proto__'||part==='constructor'||part==='prototype')return;const last=i===parts.length-1;if(last){if(cursor[part]===undefined)cursor[part]=value;else if(Array.isArray(cursor[part]))cursor[part].push(value);else cursor[part]=[cursor[part],value];return;}const nextIsIndex=/^\d+$/.test(parts[i+1]);if(cursor[part]===undefined)cursor[part]=nextIsIndex?[]:{};cursor=cursor[part];}
 }
 function normalizeWebhookBody(body){if(!body||typeof body!=='object')return {};if(!Object.keys(body).some(key=>key.includes('[')))return body;const result={};Object.entries(body).forEach(([key,value])=>setDeep(result,key,value));return result;}
-function flattenProducts(products){if(!products)return [];return Array.isArray(products)?products:Object.values(products);}
-function inferTariff(payload){const names=flattenProducts(payload.products).map(product=>String(product?.name||'').toLowerCase()).join(' ');if(/расшир|premium|премиум/.test(names))return 'premium';if(/базов|basic/.test(names))return 'basic';return DEFAULT_TARIFF;}
 function parseCookies(header){return String(header||'').split(';').reduce((out,part)=>{const index=part.indexOf('=');if(index<0)return out;out[part.slice(0,index).trim()]=decodeURIComponent(part.slice(index+1).trim());return out;},{});}
 function cookieHeader(name,value,maxAge){return name+'='+encodeURIComponent(value)+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+maxAge+(COOKIE_SECURE?'; Secure':'');}
 function clearCookieHeader(name){return name+'=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(COOKIE_SECURE?'; Secure':'');}
 async function initDatabase(){for(const statement of schema)await pool.query(statement);}
-async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT u.email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.access_until>now()",[sha256(raw)]);return result.rows[0]||null;}
+async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT u.email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.tariff='premium' AND (u.access_until IS NULL OR u.access_until>now())",[sha256(raw)]);return result.rows[0]||null;}
 async function requireAuth(req,res,next){try{const user=await findSession(req);if(!user)return res.status(401).json({message:'Сессия истекла'});req.user=user;next();}catch(error){next(error);}}
 
 app.use(express.json({limit:'1mb'}));
 app.use(express.urlencoded({extended:true,limit:'1mb'}));
 app.get('/api/health',(req,res)=>res.json({ok:true}));
+app.use('/api/checkout',(req,res,next)=>{
+  const origin=req.get('Origin');
+  if(!origin||!SALES_ORIGINS.includes(origin))return res.status(403).json({message:'Недоступный источник'});
+  res.set('Access-Control-Allow-Origin',origin);
+  res.set('Vary','Origin');
+  if(req.method==='OPTIONS'){
+    res.set('Access-Control-Allow-Methods','POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers','Content-Type');
+    return res.status(204).end();
+  }
+  next();
+});
+app.post('/api/checkout/session',(req,res)=>{
+  const tariff=req.body?.tariff;
+  if(tariff!=='basic'&&tariff!=='premium')return res.status(400).json({message:'Неизвестный тариф'});
+  const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY);
+  if(!checkout)return res.status(503).json({message:'Оплата пока недоступна'});
+  res.set('Cache-Control','no-store').json(checkout);
+});
 app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
 const failedLogins=new Map();
 app.get('/api/auth/me',requireAuth,(req,res)=>res.json({email:req.user.email,name:req.user.name,tariff:req.user.tariff,purchaseAt:req.user.purchase_at,accessUntil:req.user.access_until}));
@@ -75,7 +93,7 @@ app.post('/api/auth/login',async(req,res,next)=>{
     if(failedLogins.size>10000){for(const [oldKey,value] of failedLogins){if(value.until<Date.now())failedLogins.delete(oldKey);}if(failedLogins.size>10000)failedLogins.clear();}
     const key=req.ip+':'+email;const record=failedLogins.get(key);
     if(record?.until>Date.now()&&record.count>=10)return res.status(429).json({message:'Слишком много попыток. Повторите вход через 15 минут'});
-    const result=await pool.query("SELECT email,name,password_hash,tariff,purchase_at,access_until FROM club_users WHERE email=$1 AND status='active' AND access_until>now()",[email]);
+    const result=await pool.query("SELECT email,name,password_hash,tariff,purchase_at,access_until FROM club_users WHERE email=$1 AND status='active' AND tariff='premium' AND (access_until IS NULL OR access_until>now())",[email]);
     const user=result.rows[0];
     if(!user||!(await verifyPassword(password,user.password_hash))){const current=failedLogins.get(key);failedLogins.set(key,{count:(current?.until>Date.now()?current.count:0)+1,until:Date.now()+15*60000});return res.status(401).json({message:'Неверный email или пароль'});}
     failedLogins.delete(key);
@@ -108,20 +126,27 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
     const payload=normalizeWebhookBody(req.body);
     const receivedSign=req.get('Sign');
     const expectedSign=prodamusSign(payload,process.env.PRODAMUS_SECRET_KEY);
-    if(!receivedSign||!safeEqualHex(receivedSign.toLowerCase(),expectedSign))return res.status(400).send('Invalid signature');
+    if(!/^[0-9a-f]{64}$/i.test(receivedSign||'')||!safeEqualHex(receivedSign.toLowerCase(),expectedSign))return res.status(400).send('Invalid signature');
     if(process.env.PRODAMUS_SYS&&String(payload.sys||'')!==process.env.PRODAMUS_SYS)return res.status(400).send('Invalid integration code');
     if(String(payload.payment_status||'').toLowerCase()!=='success')return res.status(200).send('ok');
+    const checkout=identifyCheckout(payload,process.env.AUTH_CREDENTIAL_KEY);
+    if(checkout.kind==='external')return res.status(200).send('ok');
+    if(checkout.kind==='invalid')return res.status(422).send('Unexpected site order');
     const email=normalizeEmail(payload.customer_email);
-    const orderId=String(payload.order_id||'').trim();
+    const orderId=String(payload.order_num||payload.order_id||'').trim();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!orderId)return res.status(422).send('customer_email and order_id are required');
     const eventId=sha256('prodamus:'+orderId);
+    if(checkout.tariff==='basic'){
+      await pool.query('INSERT INTO club_webhook_events (event_id,payload) VALUES ($1,$2::jsonb) ON CONFLICT (event_id) DO NOTHING',[eventId,JSON.stringify({tariff:'basic',source:'site',handledBy:'prodamus'})]);
+      return res.status(200).send('ok');
+    }
     const client=await pool.connect();
     try{
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[email]);
       const event=await client.query('INSERT INTO club_webhook_events (event_id,payload) VALUES ($1,$2::jsonb) ON CONFLICT (event_id) DO NOTHING RETURNING event_id',[eventId,JSON.stringify(payload)]);
       if(event.rowCount){
-        const found=await client.query('SELECT password_hash,welcome_email_sent_at,credential_email_ciphertext,access_until FROM club_users WHERE email=$1 FOR UPDATE',[email]);
+        const found=await client.query('SELECT password_hash,welcome_email_sent_at,credential_email_ciphertext FROM club_users WHERE email=$1 FOR UPDATE',[email]);
         const existing=found.rows[0];
         let passwordHash=existing?.password_hash||null;
         let ciphertext=existing?.credential_email_ciphertext||null;
@@ -132,10 +157,8 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
           ciphertext=encryptPassword(password);
           sentAt=null;
         }
-        const previousUntil=existing?.access_until?new Date(existing.access_until).getTime():0;
-        const accessUntil=new Date(Math.max(Date.now(),previousUntil)+ACCESS_DAYS*86400000);
         const customerName=payload.customer_name?String(payload.customer_name).trim():null;
-        await client.query("INSERT INTO club_users (email,name,password_hash,credential_email_ciphertext,tariff,access_until,purchase_at,welcome_email_sent_at,status) VALUES ($1,$2,$3,$4,$5,$6,now(),$7,'active') ON CONFLICT (email) DO UPDATE SET name=COALESCE(EXCLUDED.name,club_users.name),password_hash=EXCLUDED.password_hash,credential_email_ciphertext=EXCLUDED.credential_email_ciphertext,tariff=EXCLUDED.tariff,access_until=EXCLUDED.access_until,purchase_at=now(),welcome_email_sent_at=EXCLUDED.welcome_email_sent_at,status='active',updated_at=now()",[email,customerName,passwordHash,ciphertext,inferTariff(payload),accessUntil,sentAt]);
+        await client.query("INSERT INTO club_users (email,name,password_hash,credential_email_ciphertext,tariff,access_until,purchase_at,welcome_email_sent_at,status) VALUES ($1,$2,$3,$4,'premium',NULL,now(),$5,'active') ON CONFLICT (email) DO UPDATE SET name=COALESCE(EXCLUDED.name,club_users.name),password_hash=EXCLUDED.password_hash,credential_email_ciphertext=EXCLUDED.credential_email_ciphertext,tariff='premium',access_until=NULL,purchase_at=now(),welcome_email_sent_at=EXCLUDED.welcome_email_sent_at,status='active',updated_at=now()",[email,customerName,passwordHash,ciphertext,sentAt]);
       }
       await client.query('COMMIT');
     }catch(error){await client.query('ROLLBACK').catch(console.error);throw error;}
