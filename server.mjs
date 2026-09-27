@@ -5,7 +5,7 @@ import express from 'express';
 import multer from 'multer';
 import pg from 'pg';
 import {sendCredentialsEmail} from './email.mjs';
-import {createCheckout,identifyCheckout} from './checkout.mjs';
+import {createCheckout,identifyCheckout,premiumPasswordForOrder} from './checkout.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -27,12 +27,22 @@ const schema=[
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS password_hash TEXT",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS welcome_email_sent_at TIMESTAMPTZ",
   "CREATE TABLE IF NOT EXISTS club_sessions (token_hash TEXT PRIMARY KEY, email TEXT NOT NULL REFERENCES club_users(email) ON DELETE CASCADE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+  "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS login_email TEXT",
+  "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS password_tag TEXT",
+  "CREATE INDEX IF NOT EXISTS club_users_login_email_tag ON club_users (login_email,password_tag)",
   "CREATE TABLE IF NOT EXISTS club_webhook_events (event_id TEXT PRIMARY KEY, payload JSONB NOT NULL, received_at TIMESTAMPTZ NOT NULL DEFAULT now())",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS credential_email_ciphertext TEXT",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS credential_claimed_at TIMESTAMPTZ",
   "UPDATE club_users SET access_until=NULL WHERE tariff='premium' AND status='active' AND access_until IS NOT NULL"
 ];
 function normalizeEmail(value){return String(value||'').trim().toLowerCase();}
+function basicInviteUrl(){
+  try{
+    const url=new URL(process.env.BASIC_ACCESS_URL||'');
+    return url.protocol==='https:'&&['t.me','telegram.me'].includes(url.hostname)&&
+      url.pathname.length>1&&!url.username&&!url.password&&!url.search&&!url.hash ? url.href : null;
+  }catch{return null;}
+}
 function sha256(value){return crypto.createHash('sha256').update(value,'utf8').digest('hex');}
 function randomToken(){return crypto.randomBytes(32).toString('base64url');}
 function generatePassword(){return 'Fz-'+crypto.randomBytes(9).toString('base64url');}
@@ -57,7 +67,7 @@ function parseCookies(header){return String(header||'').split(';').reduce((out,p
 function cookieHeader(name,value,maxAge){return name+'='+encodeURIComponent(value)+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+maxAge+(COOKIE_SECURE?'; Secure':'');}
 function clearCookieHeader(name){return name+'=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(COOKIE_SECURE?'; Secure':'');}
 async function initDatabase(){for(const statement of schema)await pool.query(statement);}
-async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT u.email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.tariff='premium' AND (u.access_until IS NULL OR u.access_until>now())",[sha256(raw)]);return result.rows[0]||null;}
+async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT COALESCE(u.login_email,u.email) AS email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.tariff='premium' AND (u.access_until IS NULL OR u.access_until>now())",[sha256(raw)]);return result.rows[0]||null;}
 async function requireAuth(req,res,next){try{const user=await findSession(req);if(!user)return res.status(401).json({message:'Сессия истекла'});req.user=user;next();}catch(error){next(error);}}
 
 app.use(express.json({limit:'1mb'}));
@@ -75,13 +85,29 @@ app.use('/api/checkout',(req,res,next)=>{
   }
   next();
 });
-app.post('/api/checkout/session',(req,res)=>{
+app.post('/api/checkout/session',async(req,res,next)=>{
   const tariff=req.body?.tariff;
   if(tariff!=='basic'&&tariff!=='premium')return res.status(400).json({message:'Неизвестный тариф'});
+  const email=normalizeEmail(req.body?.email);
+  if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({message:'Укажите email для письма с доступом'});
   if(tariff==='basic'&&process.env.BASIC_CHECKOUT_ENABLED!=='true')return res.status(503).json({message:'Оплата базового тарифа пока недоступна'});
-  const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY);
-  if(!checkout)return res.status(503).json({message:'Оплата пока недоступна'});
-  res.set('Cache-Control','no-store').json(checkout);
+  const invite=tariff==='basic'&&basicInviteUrl();
+  if(tariff==='basic'&&!invite)return res.status(503).json({message:'Доступ в Telegram-клуб пока не настроен'});
+  try{
+    if(tariff==='premium'){
+      const existing=await pool.query("SELECT 1 FROM club_users WHERE (email=$1 OR login_email=$1) AND password_hash IS NOT NULL LIMIT 1",[email]);
+      if(existing.rowCount)return res.status(409).json({message:'У вас уже есть доступ по этому email. Войдите в клуб или обратитесь в службу заботы, если забыли пароль.'});
+    }
+    const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY,process.env,email);
+    if(!checkout)return res.status(503).json({message:'Оплата пока недоступна'});
+    checkout.paid_content=tariff==='basic'
+      ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+checkout.order_id
+      : 'Расширенный тариф клуба «Фабрика заготовок». Личный кабинет: '+PUBLIC_URL+
+        '/?login=1\nEmail для входа: '+email+
+        '\nПароль: '+premiumPasswordForOrder(checkout.order_id,process.env.AUTH_CREDENTIAL_KEY)+
+        '\nСохраните это письмо: данные для входа действуют бессрочно.';
+    res.set('Cache-Control','no-store').json(checkout);
+  }catch(error){next(error);}
 });
 app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
 const failedLogins=new Map();
@@ -95,13 +121,19 @@ app.post('/api/auth/login',async(req,res,next)=>{
     const key=req.ip+':'+email;const record=failedLogins.get(key);
     if(record?.until>Date.now()&&record.count>=10)return res.status(429).json({message:'Слишком много попыток. Повторите вход через 15 минут'});
     const result=await pool.query("SELECT email,name,password_hash,tariff,purchase_at,access_until FROM club_users WHERE email=$1 AND status='active' AND tariff='premium' AND (access_until IS NULL OR access_until>now())",[email]);
-    const user=result.rows[0];
-    if(!user||!(await verifyPassword(password,user.password_hash))){const current=failedLogins.get(key);failedLogins.set(key,{count:(current?.until>Date.now()?current.count:0)+1,until:Date.now()+15*60000});return res.status(401).json({message:'Неверный email или пароль'});}
+    let user=result.rows[0];
+    let authenticated=user&&await verifyPassword(password,user.password_hash);
+    if(!authenticated){
+      const purchased=await pool.query("SELECT email,login_email,name,password_hash,tariff,purchase_at,access_until FROM club_users WHERE login_email=$1 AND password_tag=$2 AND status='active' AND tariff='premium' AND (access_until IS NULL OR access_until>now()) LIMIT 1",[email,sha256('club-order-password:'+password)]);
+      user=purchased.rows[0];
+      authenticated=user&&await verifyPassword(password,user.password_hash);
+    }
+    if(!authenticated){const current=failedLogins.get(key);failedLogins.set(key,{count:(current?.until>Date.now()?current.count:0)+1,until:Date.now()+15*60000});return res.status(401).json({message:'Неверный email или пароль'});}
     failedLogins.delete(key);
     const sessionToken=randomToken();
-    await pool.query("INSERT INTO club_sessions (token_hash,email,expires_at) VALUES ($1,$2,now()+($3 * interval '1 day'))",[sha256(sessionToken),email,SESSION_DAYS]);
+    await pool.query("INSERT INTO club_sessions (token_hash,email,expires_at) VALUES ($1,$2,now()+($3 * interval '1 day'))",[sha256(sessionToken),user.email,SESSION_DAYS]);
     res.setHeader('Set-Cookie',cookieHeader('club_session',sessionToken,SESSION_DAYS*86400));
-    res.json({email:user.email,name:user.name,tariff:user.tariff,purchaseAt:user.purchase_at,accessUntil:user.access_until});
+    res.json({email:user.login_email||user.email,name:user.name,tariff:user.tariff,purchaseAt:user.purchase_at,accessUntil:user.access_until});
   }catch(error){next(error);}
 });
 app.post('/api/auth/logout',async(req,res,next)=>{try{const raw=parseCookies(req.headers.cookie).club_session;if(raw)await pool.query('DELETE FROM club_sessions WHERE token_hash=$1',[sha256(raw)]);res.setHeader('Set-Cookie',clearCookieHeader('club_session'));res.json({ok:true});}catch(error){next(error);}});
@@ -145,10 +177,19 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
     try{
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[email]);
-      const event=await client.query('INSERT INTO club_webhook_events (event_id,payload) VALUES ($1,$2::jsonb) ON CONFLICT (event_id) DO NOTHING RETURNING event_id',[eventId,JSON.stringify(payload)]);
+      const auditPayload=checkout.orderId
+        ? {source:'site',tariff:'premium',orderNum:orderId,providerOrderId:payload.order_id,customerEmail:email,sum:payload.sum}
+        : payload;
+      const event=await client.query('INSERT INTO club_webhook_events (event_id,payload) VALUES ($1,$2::jsonb) ON CONFLICT (event_id) DO NOTHING RETURNING event_id',[eventId,JSON.stringify(auditPayload)]);
       if(event.rowCount){
         const found=await client.query('SELECT password_hash,welcome_email_sent_at,credential_email_ciphertext FROM club_users WHERE email=$1 FOR UPDATE',[email]);
         const existing=found.rows[0];
+        if(checkout.orderId){
+          const password=premiumPasswordForOrder(checkout.orderId,process.env.AUTH_CREDENTIAL_KEY);
+          const passwordHash=await hashPassword(password);
+          const customerName=payload.customer_name?String(payload.customer_name).trim():null;
+          await client.query("INSERT INTO club_users (email,login_email,password_tag,name,password_hash,tariff,access_until,purchase_at,status) VALUES ($1,$2,$3,$4,$5,'premium',NULL,now(),'active') ON CONFLICT (email) DO NOTHING",['order:'+checkout.orderId,email,sha256('club-order-password:'+password),customerName,passwordHash]);
+        }else{
         let passwordHash=existing?.password_hash||null;
         let ciphertext=existing?.credential_email_ciphertext||null;
         let sentAt=existing?.welcome_email_sent_at||null;
@@ -160,12 +201,25 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
         }
         const customerName=payload.customer_name?String(payload.customer_name).trim():null;
         await client.query("INSERT INTO club_users (email,name,password_hash,credential_email_ciphertext,tariff,access_until,purchase_at,welcome_email_sent_at,status) VALUES ($1,$2,$3,$4,'premium',NULL,now(),$5,'active') ON CONFLICT (email) DO UPDATE SET name=COALESCE(EXCLUDED.name,club_users.name),password_hash=EXCLUDED.password_hash,credential_email_ciphertext=EXCLUDED.credential_email_ciphertext,tariff='premium',access_until=NULL,purchase_at=now(),welcome_email_sent_at=EXCLUDED.welcome_email_sent_at,status='active',updated_at=now()",[email,customerName,passwordHash,ciphertext,sentAt]);
+        }
       }
       await client.query('COMMIT');
     }catch(error){await client.query('ROLLBACK').catch(console.error);throw error;}
     finally{client.release();}
-    await deliverPendingCredentials(email);
+    if(!checkout.orderId)await deliverPendingCredentials(email);
     return res.status(200).send('ok');
+  }catch(error){next(error);}
+});
+
+app.get('/access/basic/:orderId',async(req,res,next)=>{
+  try{
+    const orderId=String(req.params.orderId||'');
+    if(!/^fz3-b-[a-z0-9-]{45,125}$/.test(orderId))return res.status(404).send('Доступ пока недоступен');
+    const event=await pool.query("SELECT 1 FROM club_webhook_events WHERE event_id=$1 AND payload->>'tariff'='basic' LIMIT 1",[sha256('prodamus:'+orderId)]);
+    if(!event.rowCount)return res.status(404).send('Оплата пока не подтверждена. Если вы уже оплатили, попробуйте открыть ссылку через несколько минут.');
+    const invite=basicInviteUrl();
+    if(!invite)return res.status(503).send('Доступ временно недоступен. Обратитесь в службу заботы.');
+    res.set('Cache-Control','no-store').redirect(302,invite);
   }catch(error){next(error);}
 });
 
