@@ -131,29 +131,26 @@ a{text-decoration:none;color:inherit}
   border-radius:32px;
   overflow:hidden;
   margin:20px 20px 24px;
-  background:linear-gradient(135deg,#FCE4EC 0%,#F8BBD0 50%,#F48FB1 100%);
+  background:#873C58;
   min-height:340px;
   display:flex;flex-direction:column;justify-content:flex-end;
   padding:32px 28px;
   box-shadow:var(--shadow-lg);
 }
-.hero-card .hero-photo{
-  position:absolute;right:-20px;bottom:-20px;
-  width:230px;height:300px;
-  background:linear-gradient(135deg,#EDCAD2,#D4768A);
-  border-radius:50% 50% 20% 20%;
-  opacity:.85;
+.hero-card::after{
+  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(90deg,rgba(84,24,45,.9) 0%,rgba(105,37,61,.72) 46%,rgba(105,37,61,.03) 100%);
 }
-.hero-card .hero-photo::before{
-  content:'👩‍';position:absolute;top:50%;left:50%;
-  transform:translate(-50%,-50%);font-size:7rem;opacity:.6;
+.hero-card .hero-photo{
+  position:absolute;right:0;bottom:0;
+  width:53%;height:100%;object-fit:cover;object-position:center 40%;
 }
 .hero-card .hero-content{position:relative;z-index:2;max-width:75%}
 .hero-card .hero-label{
   display:inline-block;padding:6px 14px;border-radius:50px;
   background:rgba(255,255,255,.85);backdrop-filter:blur(10px);
-  font-size:.72rem;font-weight:700;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--pink-dark);
+  font-size:.76rem;font-weight:700;letter-spacing:.02em;
+  color:var(--pink-dark);
   margin-bottom:12px;
 }
 .hero-card h1{
@@ -653,16 +650,16 @@ a{text-decoration:none;color:inherit}
 </aside>
 
 <div class="hero-card">
-  <div class="hero-photo"></div>
+  <img class="hero-photo" src="https://i.ibb.co/gsgvLcv/i-1.png" alt="Вера Малыгина">
   <div class="hero-content">
-    <div class="hero-label">Клуб Веры Малыгиной</div>
-    <h1>онлайн-клуб<br><span>фабрика заготовок</span></h1>
-    <p>Готовь меньше — ешь вкуснее</p>
+    <div class="hero-label">онлайн-клуб</div>
+    <h1>Фабрика<br><span>Заготовок</span></h1>
+    <p>удобная система для быта и питания</p>
   </div>
 </div>
 
 <div class="telegram-buttons">
-  <a href="https://t.me/fabrika_zagotovok" target="_blank" class="tg-btn">
+  <a href="https://t.me/+adFXuYWs8IxkODJi" target="_blank" rel="noopener noreferrer" class="tg-btn">
     <i class="fab fa-telegram"></i><span>telegram-канал клуба</span>
   </a>
   <a href="https://t.me/fabrika_chat" target="_blank" class="tg-btn" id="chatBtn1">
@@ -694,6 +691,7 @@ a{text-decoration:none;color:inherit}
         <ul>
           <li><a href="#" onclick="showScreen('dashboard');return false">Главная страница</a></li>
           <li><a href="#" onclick="showScreen('recipes');return false">Рецепты</a></li>
+          <li><a href="#" onclick="showScreen('baking');return false">Выпечка и десерты</a></li>
           <li><a href="#" onclick="showScreen('holiday');return false">Для праздника</a></li>
           <li><a href="#" onclick="showScreen('profile');return false">Профиль</a></li>
         </ul>
@@ -802,6 +800,28 @@ a{text-decoration:none;color:inherit}
   <div class="section-label">Основной контент</div>
   <h2 class="section-title">блок рецептов заготовок</h2>
   <div class="categories" id="recipeCategoriesList"></div>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ВЫПЕЧКА И ДЕСЕРТЫ ═══════════ -->
+<div class="screen" id="screen-baking">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-bread-slice" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Выпечка и десерты</h3>
+      <p>Видео и материалы по выпечке, а также отдельная подборка десертов.</p>
+    </div>
+  </div>
+  <div class="section-label">Материалы клуба</div>
+  <h2 class="section-title">выпечка и десерты</h2>
+  <div class="categories" id="bakingCategoriesList"></div>
 </div>
 </div>
 
@@ -1145,7 +1165,8 @@ const CLUB_FILES = {
 
 /* ═══════════ ДАННЫЕ: РАЗДЕЛЫ КЛУБА ═══════════ */
 const NAV_BLOCKS = [
-  {id:'recipes', title:'Рецепты', icon:'fa-utensils', desc:'Заготовки, выпечка, паштеты и другое'},
+  {id:'recipes', title:'Рецепты', icon:'fa-utensils', desc:'Заготовки, паштеты и другие рецепты'},
+  {id:'baking', title:'Выпечка и десерты', icon:'fa-bread-slice', desc:'Видео, рецепты и материалы'},
   {id:'broths', title:'Бульоны', icon:'fa-mug-hot', desc:'Бульоны-концентраты'},
   {id:'sauces', title:'Соусы', icon:'fa-jar', desc:'Авторские соусы'},
   {id:'constructor', title:'Конструктор', icon:'fa-cubes', desc:'Вафли, лимонады, пицца'},
@@ -1178,14 +1199,17 @@ const RECIPE_CATEGORIES = [
     {t:'Заготовки из рыбы 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/-fVOLz3sSIrEOQ'},
     {t:'Заготовки из рыбы 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/llBfBAgKPG2KSA'}
   ]},
+  {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты'], files:[{t:'PDF: Рецепты паштетов (8 стр.)', d:'PDF, 1.2 МБ'},{t:'Чек-лист: Хранение паштетов', d:'PDF, 200 КБ'}]},
+  {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[]},
+  {name:'Галеты', icon:'fa-cookie', videos: CLUB_VIDEOS.recipes['Галеты'], files:[{t:'Сборник «Галеты»', d:'PDF-файл', url:'https://disk.yandex.ru/d/00Un9tc0TtUKww'}]},
+  {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[]}
+];
+
+const BAKING_CATEGORIES = [
   {name:'Выпечка', icon:'fa-bread-slice', videos: CLUB_VIDEOS.recipes['Выпечка'], files:[
     {t:'Выпечка в заготовки 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/OfKEt3dNOm6QiQ'},
     {t:'Выпечка в заготовки 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/Pmqw8dVg70i2tg'}
   ]},
-  {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты'], files:[{t:'PDF: Рецепты паштетов (8 стр.)', d:'PDF, 1.2 МБ'},{t:'Чек-лист: Хранение паштетов', d:'PDF, 200 КБ'}]},
-  {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[]},
-  {name:'Галеты', icon:'fa-cookie', videos: CLUB_VIDEOS.recipes['Галеты'], files:[{t:'Сборник «Галеты»', d:'PDF-файл', url:'https://disk.yandex.ru/d/00Un9tc0TtUKww'}]},
-  {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[]},
   {name:'Десерты', icon:'fa-ice-cream', soon:true}
 ];
 
@@ -1286,6 +1310,7 @@ function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); target.classList.add('active'); window.scrollTo(0,0);
   if(id==='dashboard') renderNavGrid();
   if(id==='recipes') renderAccordion('recipeCategoriesList', RECIPE_CATEGORIES);
+  if(id==='baking') renderAccordion('bakingCategoriesList', BAKING_CATEGORIES);
   if(id==='holiday'){ renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday); renderAccordion('holidayCategoriesList', HOLIDAY_CATEGORIES); renderHolidayFiles(); }
   if(id==='smart') renderVideoList('smartList', CLUB_VIDEOS.smart);
   if(id==='ready-menu') renderVideoList('readyMenuList', CLUB_VIDEOS.readyMenu);
