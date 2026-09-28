@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
 import express from 'express';
 import multer from 'multer';
 import pg from 'pg';
@@ -228,6 +229,7 @@ const memberHtml=await readFile(new URL('./index.html',import.meta.url),'utf8');
 const memberMarker='<!-- ═══════════ ЭКРАН: ЛИЧНЫЙ КАБИНЕТ (ГЛАВНАЯ) ═══════════ -->';
 if(!memberHtml.includes(memberMarker))throw new Error('Public page boundary not found');
 const guestHtml=memberHtml.split(memberMarker)[0]+"<div id=\"toast\" class=\"toast\" role=\"status\"></div>\n<script>\nfunction showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('screen-'+id).classList.add('active');window.scrollTo(0,0);}\nfunction toast(message,error){const node=document.getElementById('toast');node.textContent=message;node.className='toast show'+(error?' err':'');setTimeout(()=>node.className='toast',4000);}\nasync function doLogin(){\n  const email=document.getElementById('loginEmail').value.trim().toLowerCase();\n  const password=document.getElementById('loginPassword').value;\n  if(!email||!password)return toast('Введите email и пароль из письма',true);\n  const button=document.querySelector('#screen-login .login-btn');button.disabled=true;\n  try{\n    const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});\n    const data=await response.json();\n    if(!response.ok)throw new Error(data.message||'Не удалось войти');\n    location.assign('/club');\n  }catch(error){toast(error.message||'Не удалось войти',true);button.disabled=false;}\n}\nif(new URLSearchParams(location.search).has('paid')){showScreen('login');toast('Если оплата прошла, письмо с данными для входа придёт на вашу почту.');}\nelse if(new URLSearchParams(location.search).has('login'))showScreen('login');\n</script></body></html>";
+app.get('/vera-hero.png',(req,res)=>res.sendFile(fileURLToPath(new URL('./vera-hero.png',import.meta.url))));
 app.get(['/', '/index.html'],async(req,res,next)=>{
   try{
     res.set('Cache-Control','no-store');
