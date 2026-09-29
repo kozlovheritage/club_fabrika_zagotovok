@@ -228,7 +228,12 @@ a{text-decoration:none;color:inherit}
 .start-step p{font-size:.86rem;color:var(--text)}
 .start-step .link-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;color:var(--pink);font-weight:700;font-size:.85rem; cursor: pointer;}
 .start-material-content{margin:0 22px;padding:18px 0 22px;border-top:1px solid var(--border)}
-.start-material-text{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font-size:.88rem;line-height:1.65}
+.start-material-text{overflow-wrap:anywhere;color:var(--text);font-size:.88rem;line-height:1.65}
+.start-material-text h5{font-size:1.04rem;font-weight:700;color:var(--text-mid);line-height:1.35;margin:20px 0 8px}
+.start-material-text h5:first-child{margin-top:0}
+.start-material-text p{font-size:inherit;white-space:pre-wrap;margin:0 0 12px}
+.start-material-text strong{font-weight:700}
+.start-material-text em{font-style:italic}
 .start-material-content button.link-btn{border:0;background:none;padding:0;font-family:inherit}
 
 .nav-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 20px 32px}
@@ -1284,6 +1289,44 @@ const HEALTH_ITEMS = [
 let currentTariff = 'premium';
 
 /* ═══════════ НАВИГАЦИЯ ═══════════ */
+const startMaterialHeadings={
+  revision:['Основные правила ревизии','Ревизия холодильника','Отмываем холодильник','Заполняем холодильник','Ревизия сухих продуктов'],
+  menu:['Планирование меню','Планирование закупки','Мои лайфхаки разумной закупки:','Как определить размер закупки для заготовки основных блюд ☝️','Мои лайфхаки по питанию'],
+  rules:['Правила заготовок','Что нельзя замораживать?','Что можно замораживать? и что замораживаю я','Основные правила заготовок','Тара: основные правила','Сроки хранения заготовок'],
+  organization:['Организация пространства','Как организовывать пространство','В чем хранить заготовки','Вакууммация','Примечание','Лайфхаки','Предметы для организации пространства']
+};
+function renderStartMaterial(container,source,material){
+  const headings=new Set(startMaterialHeadings[material]||[]);
+  const shown=new Set();
+  container.replaceChildren();
+  for(const block of source.trim().split(/\n\s*\n/)){
+    const lines=block.split('\n').map(line=>line.trim()).filter(Boolean);
+    if(!lines.length) continue;
+    const title=lines.join(' ').replace(/\s+/g,' ');
+    if(headings.has(title)){
+      if(shown.has(title)) continue;
+      shown.add(title);
+      const heading=document.createElement('h5');
+      heading.textContent=title;
+      container.append(heading);
+      continue;
+    }
+    const paragraph=document.createElement('p');
+    lines.forEach((line,index)=>{
+      if(index) paragraph.append(document.createElement('br'));
+      const important=/^(?:📌|❗|⚠️|‼️|Важно(?:\s|:)|Главный враг(?:\s|:)|Повторное замораживание исключено:|Замораживайте свежие продукты:|Возвращаем продукты обратно после полного высыхания)/u.test(line);
+      const label=!important && line.length<95 && line.endsWith(':') && !/^[•✓\d]/u.test(line);
+      if(important||label){
+        const mark=document.createElement(important?'em':'strong');
+        mark.textContent=line;
+        paragraph.append(mark);
+      }else{
+        paragraph.append(document.createTextNode(line));
+      }
+    });
+    container.append(paragraph);
+  }
+}
 async function loadStartMaterial(card){
   if(!card.open || card.dataset.loaded==='true' || card.dataset.loading==='true') return;
   const text=card.querySelector('.start-material-text');
@@ -1293,7 +1336,7 @@ async function loadStartMaterial(card){
   try{
     const response=await fetch(base+card.dataset.material+'.txt',{credentials:'same-origin',cache:'no-cache'});
     if(!response.ok) throw new Error('HTTP '+response.status);
-    text.textContent=await response.text();
+    renderStartMaterial(text,await response.text(),card.dataset.material);
     card.dataset.loaded='true';
   }catch(error){
     console.error('Не удалось загрузить материал',error);
