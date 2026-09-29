@@ -215,11 +215,17 @@ a{text-decoration:none;color:inherit}
 .start-card h3{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:600;color:var(--text-mid)}
 .start-card p{font-size:.88rem;color:var(--text)}
 
-.start-step{display:flex;gap:16px;background:var(--white);border-radius:var(--r);padding:20px 22px;box-shadow:var(--shadow);margin-bottom:14px;align-items:flex-start}
+.start-step{display:block;background:var(--white);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:14px}
+.start-step summary{display:flex;gap:16px;padding:20px 22px;align-items:flex-start;cursor:pointer;list-style:none}
+.start-step summary::-webkit-details-marker{display:none}
+.start-step summary:focus-visible{outline:2px solid var(--pink);outline-offset:2px;border-radius:var(--r)}
+.start-step summary > div:last-child{flex:1;min-width:0}
 .start-step .num{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--pink-light),var(--pink));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0}
 .start-step h4{font-size:1.02rem;color:var(--text-mid);margin-bottom:4px}
 .start-step p{font-size:.86rem;color:var(--text)}
 .start-step .link-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;color:var(--pink);font-weight:700;font-size:.85rem; cursor: pointer;}
+.start-material-content{margin:0 22px;padding:18px 0 22px;border-top:1px solid var(--border)}
+.start-material-text{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font-size:.88rem;line-height:1.65}
 
 .nav-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 20px 32px}
 .nav-card{
@@ -722,39 +728,39 @@ a{text-decoration:none;color:inherit}
   <h2 class="section-title">начните с этого</h2>
   <p style="margin:0 20px 24px;color:var(--text);font-size:.92rem">В этом блоке — основа системы заготовок. Пройдите шаги по порядку, и дальше все разделы клуба встанут на свои места.</p>
 
-  <div class="start-step">
-    <div class="num">1</div>
-    <div>
+  <details class="start-step" data-material="revision" ontoggle="loadStartMaterial(this)">
+    <summary><div class="num">1</div><div>
       <h4>Ревизия</h4>
       <p>Наводим порядок на кухне, выбрасываем всё лишнее и находим продукты, которые будем использовать в еду.</p>
-    </div>
-  </div>
+    </div></summary>
+    <div class="start-material-content"><div class="start-material-text" aria-live="polite"></div></div>
+  </details>
 
-  <div class="start-step">
-    <div class="num">2</div>
-    <div>
+  <details class="start-step" data-material="menu" ontoggle="loadStartMaterial(this)">
+    <summary><div class="num">2</div><div>
       <h4>Меню</h4>
       <p>Планируем меню и закупку, учитывая свои особенности и пожелания. Совет: подсмотрите разделы с рецептами или блок «Готовое меню», чтобы составить свой план.</p>
-    </div>
-  </div>
+    </div></summary>
+    <div class="start-material-content"><div class="start-material-text" aria-live="polite"></div></div>
+  </details>
 
-  <div class="start-step">
-    <div class="num">3</div>
-    <div>
+  <details class="start-step" data-material="rules" ontoggle="loadStartMaterial(this)">
+    <summary><div class="num">3</div><div>
       <h4>Основные правила заготовок</h4>
       <p>Тонкости заморозки, советы по таре и упаковке, а также табличка хранения — всё собрано в одном месте.</p>
-      <div class="link-btn" onclick="showScreen('rules')"><i class="fas fa-arrow-right"></i> Открыть правила и табличку хранения</div>
-    </div>
-  </div>
+      <span class="link-btn"><i class="fas fa-arrow-right"></i> Открыть правила и табличку хранения</span>
+    </div></summary>
+    <div class="start-material-content"><div class="start-material-text" aria-live="polite"></div></div>
+  </details>
 
-  <div class="start-step">
-    <div class="num">4</div>
-    <div>
+  <details class="start-step" data-material="organization" ontoggle="loadStartMaterial(this)">
+    <summary><div class="num">4</div><div>
       <h4>Подборка кухонной утвари</h4>
       <p>Список форм, посуды и инструментов, которые упрощают процесс заготовок.</p>
-      <div class="link-btn" onclick="toast('Открываем файл: Подборка кухонной утвари')"><i class="fas fa-file-pdf"></i> Смотреть файл</div>
-    </div>
-  </div>
+      <span class="link-btn"><i class="fas fa-file-pdf"></i> Смотреть файл</span>
+    </div></summary>
+    <div class="start-material-content"><div class="start-material-text" aria-live="polite"></div></div>
+  </details>
 </div>
 </div>
 
@@ -1304,6 +1310,25 @@ let currentUser = null;
 const PUBLIC_SCREENS = new Set(['landing','login']);
 
 /* ═══════════ НАВИГАЦИЯ ═══════════ */
+async function loadStartMaterial(card){
+  if(!card.open || card.dataset.loaded==='true' || card.dataset.loading==='true') return;
+  const text=card.querySelector('.start-material-text');
+  card.dataset.loading='true';
+  text.textContent='Загрузка материала…';
+  const base=location.pathname==='/club' ? '/api/start-materials/' : './start-materials/';
+  try{
+    const response=await fetch(base+card.dataset.material+'.txt',{credentials:'same-origin',cache:'no-cache'});
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    text.textContent=await response.text();
+    card.dataset.loaded='true';
+  }catch(error){
+    console.error('Не удалось загрузить материал',error);
+    text.textContent='Не удалось загрузить материал. Закройте и откройте карточку, чтобы повторить попытку.';
+  }finally{
+    delete card.dataset.loading;
+  }
+}
+
 function showScreen(id){
   if(!PUBLIC_SCREENS.has(id) && !currentUser){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('screen-login').classList.add('active'); return; }
   const target=document.getElementById('screen-'+id); if(!target) return;

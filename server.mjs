@@ -237,6 +237,15 @@ app.get(['/', '/index.html'],async(req,res,next)=>{
     res.type('html').send(guestHtml);
   }catch(error){next(error);}
 });
+const startMaterialNames=new Set(['revision','menu','rules','organization']);
+app.get('/api/start-materials/:name.txt',async(req,res,next)=>{
+  try{
+    if(!await findSession(req))return res.status(401).json({message:'Войдите в клуб, чтобы открыть материал'});
+    if(!startMaterialNames.has(req.params.name))return res.status(404).end();
+    res.set('Cache-Control','private, no-store').type('text/plain; charset=utf-8');
+    res.sendFile(fileURLToPath(new URL(`./start-materials/${req.params.name}.txt`,import.meta.url)));
+  }catch(error){next(error);}
+});
 app.get('/club',async(req,res,next)=>{
   try{
     if(!await findSession(req))return res.redirect('/?login=1');
