@@ -246,6 +246,22 @@ app.get('/api/start-materials/:name.txt',async(req,res,next)=>{
     res.sendFile(fileURLToPath(new URL(`./start-materials/${req.params.name}.txt`,import.meta.url)));
   }catch(error){next(error);}
 });
+const hematologistParts=new Set(['1','2','3']);
+app.get('/api/hematologist/:part.txt',async(req,res,next)=>{
+  try{
+    if(!await findSession(req))return res.status(401).json({message:'Войдите в клуб, чтобы открыть материал'});
+    if(!hematologistParts.has(req.params.part))return res.status(404).end();
+    res.set('Cache-Control','private, no-store').type('text/plain; charset=utf-8');
+    res.sendFile(fileURLToPath(new URL(`./health/hematologist-${req.params.part}.txt`,import.meta.url)));
+  }catch(error){next(error);}
+});
+app.get(['/health/hematologist.js','/health/hematologist.jpg'],async(req,res,next)=>{
+  try{
+    if(!await findSession(req))return res.status(401).end();
+    res.set('Cache-Control','private, no-store');
+    res.sendFile(fileURLToPath(new URL(`.${req.path}`,import.meta.url)));
+  }catch(error){next(error);}
+});
 app.get('/club',async(req,res,next)=>{
   try{
     if(!await findSession(req))return res.redirect('/?login=1');

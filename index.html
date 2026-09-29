@@ -329,6 +329,36 @@ a{text-decoration:none;color:inherit}
 .mat-info h4{font-size:.9rem;font-weight:600;color:var(--text-mid);margin-bottom:2px}
 .mat-info p{font-size:.76rem;color:var(--text-light)}
 
+.health-link{text-decoration:none}
+.hematologist-page{padding-bottom:60px}
+.hematologist-title{margin:4px 20px 22px;font-size:clamp(1.35rem,3vw,2rem);line-height:1.25;color:var(--text-mid)}
+.hematologist-intro,.hematologist-section{margin:0 20px 18px;padding:24px;border:1px solid #f1e2e3;border-radius:18px;background:#fff}
+.hematologist-intro{display:grid;grid-template-columns:minmax(145px,195px) 1fr;align-items:start;gap:24px}
+.hematologist-photo{width:100%;aspect-ratio:2/3;object-fit:cover;object-position:center 25%;border-radius:14px;background:var(--pink-bg)}
+.hematologist-doctor{margin:0 0 5px;color:var(--text-mid);font-size:1.3rem;line-height:1.25}
+.hematologist-role{color:var(--pink);font-weight:700;margin:0 0 12px}
+.hematologist-socials{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 20px}
+.hematologist-socials a{border:1px solid #e7ced2;border-radius:100px;padding:7px 12px;color:var(--text-mid);font-size:.8rem;text-decoration:none}
+.hematologist-socials a:hover,.hematologist-socials a:focus-visible{background:var(--pink-bg);outline-color:var(--pink)}
+.hematologist-section h3{font-size:1.15rem;color:var(--text-mid);line-height:1.3;margin:0 0 18px}
+.hematologist-section h4{font-size:1rem;color:var(--text-mid);margin:20px 0 8px}
+.hematologist-intro p,.hematologist-section p{line-height:1.65;margin:0 0 14px}
+.hematologist-section ul,.hematologist-intro ul{padding-left:22px;margin:0 0 16px;line-height:1.65}
+.hematologist-section li{margin-bottom:4px}
+.hematologist-subtitle{font-weight:700}
+.hematologist-section .hematologist-note{border-left:3px solid var(--pink);background:var(--pink-bg);padding:12px 16px;border-radius:0 8px 8px 0}
+.hematologist-table-wrap{overflow-x:auto;margin:8px 0 0}
+.hematologist-table{width:100%;min-width:680px;border-collapse:collapse;font-size:.87rem;line-height:1.5}
+.hematologist-table th,.hematologist-table td{text-align:left;vertical-align:top;border:1px solid #eadbdf;padding:12px;white-space:pre-line}
+.hematologist-table thead th{background:var(--pink-bg)}
+.hematologist-table tbody th{color:var(--text-mid);background:#fff8f8;min-width:105px}
+.hematologist-disclaimer{margin:10px 20px;color:var(--text-light);font-size:.8rem;line-height:1.5}
+@media(max-width:600px){
+  .hematologist-intro{grid-template-columns:1fr;gap:16px}
+  .hematologist-photo{max-width:210px}
+  .hematologist-intro,.hematologist-section{padding:18px}
+}
+
 .soon-note{
   display:flex;align-items:center;gap:10px;
   background:var(--pink-bg);border-radius:var(--r-sm);
@@ -1064,6 +1094,36 @@ a{text-decoration:none;color:inherit}
 </div>
 
 <!-- ═══════════ ЭКРАН: ПРОФИЛЬ ═══════════ -->
+<!-- ═══════════ ЭКРАН: ГЕМАТОЛОГ ═══════════ -->
+<div class="screen" id="screen-hematologist">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('health')"><i class="fas fa-arrow-left"></i> вернуться к материалам</button>
+<div class="container hematologist-page" style="padding-top:20px">
+  <div class="section-label">Для здоровья · материал врача</div>
+  <h2 class="hematologist-title">Азбука питания от гематолога: от анализов до тарелки</h2>
+  <section class="hematologist-intro">
+    <img class="hematologist-photo" src="/health/hematologist.jpg" alt="Врач-гематолог Кузнецова Дарья Михайловна" loading="lazy">
+    <div>
+      <p class="hematologist-role">Врач-гематолог</p>
+      <h3 class="hematologist-doctor">Кузнецова Дарья Михайловна</h3>
+      <div class="hematologist-socials" aria-label="Контакты врача">
+        <a href="https://www.instagram.com/hematolog_kuznetsova_krd/" target="_blank" rel="noopener noreferrer">Instagram</a>
+        <a href="https://t.me/hematolog_kuznetsova" target="_blank" rel="noopener noreferrer">Telegram</a>
+        <a href="https://max.ru/join/dTMakKXFMCokGsTIIBEZI1FdK6MRh9oYeYihpWZRZDQ" target="_blank" rel="noopener noreferrer">MAX</a>
+      </div>
+      <div id="hematologistIntroBody"></div>
+    </div>
+  </section>
+  <div id="hematologistSections" aria-live="polite"></div>
+  <p class="hematologist-disclaimer">Материал носит информационный характер. Обсуждайте результаты анализов и лечение с врачом.</p>
+</div>
+</div>
+
+<!-- ═══════════ ЭКРАН: ПРОФИЛЬ ═══════════ -->
 <div class="screen" id="screen-profile">
 <header class="app-header">
   <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
@@ -1108,6 +1168,7 @@ a{text-decoration:none;color:inherit}
 
 <div class="toast" id="toast"></div>
 
+<script src="/health/hematologist.js"></script>
 <script>
 /* ═══════════ ДАННЫЕ: ВИДЕО (KINESCOPE) ═══════════ */
 const CLUB_VIDEOS = {
@@ -1390,6 +1451,7 @@ function showScreen(id){
   if(id==='sauces'){ renderVideoList('saucesList', CLUB_VIDEOS.sauces); renderFileList('saucesFilesList', CLUB_FILES.sauces); }
   if(id==='constructor') renderVideoList('constructorList', CLUB_VIDEOS.constructor);
   if(id==='health') renderHealth();
+  if(id==='hematologist') loadHematologist();
   if(id==='rules') renderRules();
   applyTariff();
 }
@@ -1542,11 +1604,11 @@ function renderHolidayFiles(){
 function renderHealth(){
   const list = document.getElementById('healthList');
   if(!list) return;
-  list.innerHTML = HEALTH_ITEMS.map(it=>`
-    <div class="mat-card" onclick="toast('Открываем материал: ${it.t}')">
+  list.innerHTML = HEALTH_ITEMS.map((it,index)=>`
+    <${index===0?'a':'div'} class="mat-card${index===0?' health-link':''}" ${index===0?'href="#hematologist" onclick="showScreen(\'hematologist\');return false"':`onclick="toast('Открываем материал: ${it.t}')"`}>
       <div class="mat-thumb file"><i class="fas fa-file-alt"></i></div>
       <div class="mat-info"><h4>${it.t}</h4><p>${it.d}</p></div>
-    </div>`).join('');
+    </${index===0?'a':'div'}>`).join('');
 }
 
 /* ═══════════ РЕНДЕР: ТАБЛИЧКА ХРАНЕНИЯ ═══════════ */
