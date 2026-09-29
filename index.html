@@ -229,6 +229,7 @@ a{text-decoration:none;color:inherit}
 .start-step .link-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;color:var(--pink);font-weight:700;font-size:.85rem; cursor: pointer;}
 .start-material-content{margin:0 22px;padding:18px 0 22px;border-top:1px solid var(--border)}
 .start-material-text{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font-size:.88rem;line-height:1.65}
+.start-material-content button.link-btn{border:0;background:none;padding:0;font-family:inherit}
 
 .nav-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 20px 32px}
 .nav-card{
@@ -748,7 +749,10 @@ a{text-decoration:none;color:inherit}
       <p>Тонкости заморозки, советы по таре и упаковке, а также табличка хранения — всё собрано в одном месте.</p>
       <span class="link-btn"><i class="fas fa-arrow-right"></i> Открыть правила и табличку хранения</span>
     </div></summary>
-    <div class="start-material-content"><div class="start-material-text" aria-live="polite"></div></div>
+    <div class="start-material-content">
+      <div class="start-material-text" aria-live="polite"></div>
+      <button class="link-btn" type="button" onclick="showScreen('rules')"><i class="fas fa-arrow-right"></i> Перейти к отдельной таблице хранения</button>
+    </div>
   </details>
 
   <details class="start-step" data-material="organization" ontoggle="loadStartMaterial(this)">
