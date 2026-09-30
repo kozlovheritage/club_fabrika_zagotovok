@@ -138,20 +138,15 @@ a{text-decoration:none;color:inherit}
   box-shadow:var(--shadow-lg);
 }
 .hero-card .hero-photo{
-  position:absolute;right:-20px;bottom:-20px;
-  width:230px;height:300px;
-  opacity:.85;
-}
-.hero-card .hero-photo::before{
-  content:'👩‍';position:absolute;top:50%;left:50%;
-  transform:translate(-50%,-50%);font-size:7rem;opacity:.6;
+  position:absolute;right:0;bottom:0;
+  width:auto;height:100%;max-width:65%;object-fit:contain;object-position:bottom right;
 }
 .hero-card .hero-content{position:relative;z-index:2;max-width:75%}
 .hero-card .hero-label{
   display:inline-block;padding:6px 14px;border-radius:50px;
   background:rgba(255,255,255,.85);backdrop-filter:blur(10px);
-  font-size:.72rem;font-weight:700;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--pink-dark);
+  font-size:.76rem;font-weight:700;letter-spacing:.02em;
+  color:var(--pink-dark);
   margin-bottom:12px;
 }
 .hero-card h1{
@@ -253,14 +248,6 @@ a{text-decoration:none;color:inherit}
 .start-material-text .product-link{color:var(--pink-dark);text-decoration:underline;text-underline-offset:3px}
 .start-material-text .product-link:hover{color:var(--pink)}
 .start-material-text .product-link:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
-.material-reader-content{white-space:normal;overflow-wrap:anywhere;line-height:1.75}
-.material-reader-content h3{font-size:1.3rem;line-height:1.35;color:var(--text-mid);margin:28px 0 12px}
-.material-reader-content h4{font-size:1.08rem;line-height:1.4;color:var(--text-mid);margin:22px 0 10px}
-.material-reader-content p{margin:0 0 15px}
-.material-reader-content ul,.material-reader-content ol{padding-left:24px;margin:0 0 16px}
-.material-reader-content li{padding-left:3px;margin:6px 0}
-.material-reader-content li ul{margin:6px 0 10px}
-.material-reader-content .nutrition-illustration{background:var(--pink-bg);border-left:3px solid var(--pink);border-radius:8px;padding:12px 16px;margin:18px 0;color:var(--text-mid);font-size:.9rem}
 .start-material-text h5{font-size:1.04rem;font-weight:700;color:var(--text-mid);line-height:1.35;margin:20px 0 8px}
 .start-material-text h5:first-child{margin-top:0}
 .start-material-text p{font-size:inherit;white-space:pre-wrap;margin:0 0 12px}
@@ -364,6 +351,25 @@ a{text-decoration:none;color:inherit}
 .mat-info h4{font-size:.9rem;font-weight:600;color:var(--text-mid);margin-bottom:2px}
 .mat-info p{font-size:.76rem;color:var(--text-light)}
 
+.material-reader{margin:0 20px 40px;background:#fff;border-radius:var(--r);padding:clamp(18px,4vw,32px);box-shadow:var(--shadow)}
+.material-reader h2{font-family:'Cormorant Garamond',serif;font-size:clamp(1.45rem,4vw,2rem);line-height:1.25;color:var(--text-mid);margin:0 0 8px}
+.material-reader-meta{color:var(--text-light);font-size:.82rem;margin-bottom:20px}
+.material-reader-content{font-size:1rem;line-height:1.8;color:var(--text-mid);white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal}
+.material-reader-content{white-space:normal}
+.material-reader-content h3{font-size:1.3rem;line-height:1.35;color:var(--text-mid);margin:28px 0 12px}
+.material-reader-content h4{font-size:1.08rem;line-height:1.4;color:var(--text-mid);margin:22px 0 10px}
+.material-reader-content p{margin:0 0 15px}
+.material-reader-content ul,.material-reader-content ol{padding-left:24px;margin:0 0 16px}
+.material-reader-content li{padding-left:3px;margin:6px 0}
+.material-reader-content li ul{margin:6px 0 10px}
+.material-reader-content .nutrition-illustration{background:var(--pink-bg);border-left:3px solid var(--pink);border-radius:8px;padding:12px 16px;margin:18px 0;color:var(--text-mid);font-size:.9rem}
+.material-reader-state{padding:16px 0;color:var(--text-light);line-height:1.6}
+.material-reader-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+.material-reader-actions a,.material-reader-actions button{border:1px solid #e7ced2;border-radius:100px;padding:9px 14px;color:var(--text-mid);font:600 .82rem 'Manrope',sans-serif}
+.material-reader-actions a:hover,.material-reader-actions button:hover{background:var(--pink-bg)}
+.reader-retry{display:inline-block;margin-top:12px;border:0;border-radius:100px;background:var(--pink);color:white;padding:10px 16px;font:700 .85rem 'Manrope',sans-serif}
+.reader-retry[hidden]{display:none}
+
 .health-link{text-decoration:none}
 .hematologist-page{padding-bottom:60px}
 .hematologist-title{margin:4px 20px 22px;font-size:clamp(1.35rem,3vw,2rem);line-height:1.25;color:var(--text-mid)}
@@ -392,6 +398,7 @@ a{text-decoration:none;color:inherit}
   .hematologist-intro{grid-template-columns:1fr;gap:16px}
   .hematologist-photo{max-width:210px}
   .hematologist-intro,.hematologist-section{padding:18px}
+  .material-reader{margin-left:14px;margin-right:14px;padding:18px}
 }
 
 .soon-note{
@@ -678,15 +685,19 @@ a{text-decoration:none;color:inherit}
   <div class="login-screen">
     <div class="login-card">
       <div class="login-logo">Фабрика <span>заготовок</span></div>
-      <p class="login-sub">Введите email, на который вы приобретали доступ — мы отправим ссылку для входа.</p>
+      <p class="login-sub">Введите email и постоянный пароль из письма после оплаты.</p>
       <div class="login-field">
-        <label for="loginEmail">Ваш email</label>
-        <input type="email" id="loginEmail" placeholder="example@mail.ru">
-      </div>
+         <label for="loginEmail">Ваш email</label>
+         <input type="email" id="loginEmail" placeholder="example@mail.ru" autocomplete="email">
+       </div>
+       <div class="login-field">
+         <label for="loginPassword">Постоянный пароль</label>
+         <input type="password" id="loginPassword" placeholder="Пароль из письма" autocomplete="current-password">
+       </div>
       <button class="login-btn" onclick="doLogin()">
-        <i class="fas fa-envelope"></i> Получить ссылку
+        <i class="fas fa-arrow-right"></i> Войти в кабинет
       </button>
-      <p class="login-note">Ссылка придёт в течение 1 минуты. Проверьте также папку «Спам».</p>
+      <p class="login-note" id="loginMessage">Данные для входа придут на почту после успешной оплаты.</p>
       <div class="login-back" onclick="showScreen('landing')">← На главную</div>
     </div>
   </div>
@@ -723,11 +734,11 @@ a{text-decoration:none;color:inherit}
 </aside>
 
 <div class="hero-card">
-  <div class="hero-photo"></div>
+  <img class="hero-photo" src="/vera-hero.png" alt="Вера Малыгина с блюдом">
   <div class="hero-content">
-    <div class="hero-label">Клуб Веры Малыгиной</div>
-    <h1>онлайн-клуб<br><span>фабрика заготовок</span></h1>
-    <p>Готовь меньше — ешь вкуснее</p>
+    <div class="hero-label">онлайн-клуб</div>
+    <h1>Фабрика<br><span>Заготовок</span></h1>
+    <p>удобная система для быта и питания</p>
   </div>
 </div>
 
@@ -764,6 +775,7 @@ a{text-decoration:none;color:inherit}
         <ul>
           <li><a href="#" onclick="showScreen('dashboard');return false">Главная страница</a></li>
           <li><a href="#" onclick="showScreen('recipes');return false">Рецепты</a></li>
+          <li><a href="#" onclick="showScreen('baking');return false">Выпечка и десерты</a></li>
           <li><a href="#" onclick="showScreen('holiday');return false">Для праздника</a></li>
           <li><a href="#" onclick="showScreen('profile');return false">Профиль</a></li>
         </ul>
@@ -887,7 +899,7 @@ a{text-decoration:none;color:inherit}
 </div>
 
 <!-- ═══════════ ЭКРАН: ВЫПЕЧКА И ДЕСЕРТЫ ═══════════ -->
-<div class="screen" id="screen-baking-desserts">
+<div class="screen" id="screen-baking">
 <header class="app-header">
   <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
   <div class="header-logo">Фабрика <span>заготовок</span></div>
@@ -896,15 +908,15 @@ a{text-decoration:none;color:inherit}
 <button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
 <div class="container" style="padding-top:20px">
   <div class="welcome-block">
-    <div class="welcome-avatar"><i class="fas fa-ice-cream" style="color:var(--pink)"></i></div>
+    <div class="welcome-avatar"><i class="fas fa-bread-slice" style="color:var(--pink)"></i></div>
     <div class="welcome-text">
       <h3>Выпечка и десерты</h3>
-      <p>Полнотекстовые материалы о выпечке и десертах.</p>
+      <p>Видео и материалы по выпечке, а также отдельная подборка десертов.</p>
     </div>
   </div>
-  <div class="section-label">Десерты</div>
-  <h2 class="section-title">материалы раздела</h2>
-  <div class="mat-grid" id="bakingDessertsList" style="margin:0 20px"></div>
+  <div class="section-label">Материалы клуба</div>
+  <h2 class="section-title">выпечка и десерты</h2>
+  <div class="categories" id="bakingCategoriesList"></div>
 </div>
 </div>
 
@@ -995,7 +1007,7 @@ a{text-decoration:none;color:inherit}
   </div>
   <div class="section-label">Материалы</div>
   <h2 class="section-title">для детей</h2>
-  <div class="mat-grid" id="kidsMaterialsList" style="margin:0 20px"></div>
+  <div class="mat-grid" id="kidsMaterialsList" style="margin:0 20px 32px"></div>
 </div>
 </div>
 
@@ -1132,6 +1144,29 @@ a{text-decoration:none;color:inherit}
 </div>
 </div>
 
+<!-- ═══════════ ЭКРАН: ТЕКСТОВЫЙ МАТЕРИАЛ ═══════════ -->
+<div class="screen" id="screen-material-reader">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" id="materialReaderBack" onclick="returnFromMaterial()"><i class="fas fa-arrow-left"></i> вернуться к материалам</button>
+<div class="container" style="padding-top:20px">
+  <div class="section-label" id="materialReaderSection">Материал клуба</div>
+  <article class="material-reader" aria-live="polite">
+    <h2 id="materialReaderTitle"></h2>
+    <div class="material-reader-meta" id="materialReaderAuthor"></div>
+    <div class="material-reader-state" id="materialReaderState">Загрузка материала…</div>
+    <div class="material-reader-content" id="materialReaderContent"></div>
+    <div class="material-reader-actions">
+      <a id="materialReaderSource" target="_blank" rel="noopener noreferrer">Открыть текстовую версию (TXT)</a>
+      <button type="button" class="reader-retry" onclick="loadClubMaterial(activeMaterialSlug)" hidden>Загрузить повторно</button>
+    </div>
+  </article>
+</div>
+</div>
+
 <!-- ═══════════ ЭКРАН: ПРОФИЛЬ ═══════════ -->
 <!-- ═══════════ ЭКРАН: ГЕМАТОЛОГ ═══════════ -->
 <div class="screen" id="screen-hematologist">
@@ -1162,28 +1197,6 @@ a{text-decoration:none;color:inherit}
 </div>
 </div>
 
-<!-- ═══════════ ЭКРАН: ЧТЕНИЕ МАТЕРИАЛА ═══════════ -->
-<div class="screen" id="screen-material-reader">
-<header class="app-header">
-  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
-  <div class="header-logo">Фабрика <span>заготовок</span></div>
-  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
-</header>
-<button class="back-btn" onclick="returnFromMaterial()"><i class="fas fa-arrow-left"></i> вернуться к разделу</button>
-<div class="container" style="padding-top:20px">
-  <div class="section-label" id="materialReaderSection">Материал клуба</div>
-  <article class="material-reader-card">
-    <h1 class="material-reader-title" id="materialReaderTitle"></h1>
-    <p class="material-reader-byline" id="materialReaderByline"></p>
-    <a class="material-reader-source" id="materialReaderSource" target="_blank" rel="noopener noreferrer">
-      <i class="fas fa-arrow-up-right-from-square"></i> Открыть текстовую версию
-    </a>
-    <div class="material-reader-status" id="materialReaderStatus" role="status" aria-live="polite">Загрузка материала…</div>
-    <div class="material-reader-content" id="materialReaderContent" hidden></div>
-  </article>
-</div>
-</div>
-
 <!-- ═══════════ ЭКРАН: ПРОФИЛЬ ═══════════ -->
 <div class="screen" id="screen-profile">
 <header class="app-header">
@@ -1199,16 +1212,16 @@ a{text-decoration:none;color:inherit}
     <div class="profile-header">
       <div class="profile-avatar">АМ</div>
       <div>
-        <div class="profile-name">Анна Морозова</div>
-        <div class="profile-email">anna.morozova@mail.ru</div>
+        <div class="profile-name" id="profileName">Участник клуба</div>
+        <div class="profile-email" id="profileEmail">—</div>
       </div>
     </div>
-    <div class="profile-row"><span class="pl">ФИО</span><span class="pv">Морозова Анна Сергеевна</span></div>
-    <div class="profile-row"><span class="pl">Email</span><span class="pv">anna.morozova@mail.ru</span></div>
-    <div class="profile-row"><span class="pl">Дата покупки клуба</span><span class="pv">12 сентября 2026</span></div>
+    <div class="profile-row"><span class="pl">ФИО</span><span class="pv" id="profileFullName">—</span></div>
+    <div class="profile-row"><span class="pl">Email</span><span class="pv" id="profileEmailRow">—</span></div>
+    <div class="profile-row"><span class="pl">Дата покупки клуба</span><span class="pv" id="profilePurchaseDate">—</span></div>
     <div class="profile-row"><span class="pl">Тариф</span><span class="pv"><span class="tariff-badge premium" id="profileTariff">Расширенный</span></span></div>
-    <div class="profile-row"><span class="pl">Статус подписки</span><span class="pv" style="color:#2e7d32">● Активна</span></div>
-    <div class="profile-row"><span class="pl">Доступ до</span><span class="pv">12 октября 2026</span></div>
+    <div class="profile-row"><span class="pl">Статус подписки</span><span class="pv" id="profileStatus" style="color:#2e7d32">● Активна</span></div>
+    <div class="profile-row"><span class="pl">Доступ до</span><span class="pv" id="profileAccessUntil">—</span></div>
   </div>
   <div style="margin:0 20px;display:flex;flex-direction:column;gap:12px">
     <button class="login-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> Вернуться в кабинет</button>
@@ -1306,12 +1319,6 @@ const CLUB_FILES = {
         {t: "Сборник 2", url: "https://disk.yandex.ru/i/Js-WVEJIeA0feg"},
         {t: "Сборник 3", url: "https://disk.yandex.ru/i/8b7ojsoG-8N1ng"}
     ],
-    constructor: [
-        {t: "Лимонады", url: "https://disk.yandex.ru/i/o_vWJ3-y7pxotA"},
-        {t: "Пиццы", url: "https://disk.yandex.ru/i/ZnMrzfJbSSM3uQ"},
-        {t: "Вафли", url: "https://disk.yandex.ru/i/ecRHnxya3tA6Ig"}
-    ],
-    lazy: [{t: "Ленивый ресторан дома", url: "https://disk.yandex.ru/d/3TNP-Pm91gD-RA"}],
     broths: [
         {t: "Сборник Бульоны-концентраты", url: "https://disk.yandex.ru/i/iiNClFa-DUyCGA"},
         {t: "Сборник Супы-конструкторы", url: "https://disk.yandex.ru/i/AzJV4maQvYFiiw"}
@@ -1324,8 +1331,8 @@ const CLUB_FILES = {
 
 /* ═══════════ ДАННЫЕ: РАЗДЕЛЫ КЛУБА ═══════════ */
 const NAV_BLOCKS = [
-  {id:'recipes', title:'Рецепты', icon:'fa-utensils', desc:'Заготовки, выпечка, паштеты и другое'},
-  {id:'baking-desserts', title:'Выпечка и десерты', icon:'fa-ice-cream', desc:'Материалы о выпечке и десертах'},
+  {id:'recipes', title:'Рецепты', icon:'fa-utensils', desc:'Заготовки, паштеты и другие рецепты'},
+  {id:'baking', title:'Выпечка и десерты', icon:'fa-bread-slice', desc:'Видео, рецепты и материалы'},
   {id:'broths', title:'Бульоны', icon:'fa-mug-hot', desc:'Бульоны-концентраты'},
   {id:'sauces', title:'Соусы', icon:'fa-jar', desc:'Авторские соусы'},
   {id:'constructor', title:'Конструктор', icon:'fa-cubes', desc:'Вафли, лимонады, пицца'},
@@ -1337,11 +1344,6 @@ const NAV_BLOCKS = [
   {id:'earning', title:'Заработок на заготовках', icon:'fa-coins', desc:'Как зарабатывать на заготовках'},
   {id:'health', title:'Для здоровья', icon:'fa-heartbeat', desc:'Питание, нутрициология, лайфхаки'}
 ];
-
-/* ═══════════ ПОЛНОТЕКСТОВЫЕ МАТЕРИАЛЫ (STATIC) ═══════════ */
-const READER_MATERIALS = {
-  'nutrition-calories': {title:'Нутрициологическая памятка на каждый день', section:'Для здоровья', author:'Яна'}
-};
 const MATERIAL_PENDING_NOTICE = 'Материал в разработке, будет доступен 11 октября';
 
 /* ═══════════ ДАННЫЕ: РЕЦЕПТЫ ═══════════ */
@@ -1367,15 +1369,24 @@ const RECIPE_CATEGORIES = [
     {t:'Заготовки из рыбы 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/-fVOLz3sSIrEOQ'},
     {t:'Заготовки из рыбы 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/llBfBAgKPG2KSA'}
   ]},
+  {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты']},
+  {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[
+    {t:'Домашние колбасы в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/wVO3VjQAi1u4jg'}
+  ]},
+  {name:'Галеты', icon:'fa-cookie', videos: CLUB_VIDEOS.recipes['Галеты'], files:[{t:'Сборник «Галеты»', d:'PDF-файл', url:'https://disk.yandex.ru/d/00Un9tc0TtUKww'}]},
+  {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[
+    {t:'Вафли в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/i/43tXB3s9sDZ3ow'}
+  ]}
+];
+
+const BAKING_CATEGORIES = [
   {name:'Выпечка', icon:'fa-bread-slice', videos: CLUB_VIDEOS.recipes['Выпечка'], files:[
     {t:'Выпечка в заготовки 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/OfKEt3dNOm6QiQ'},
     {t:'Выпечка в заготовки 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/Pmqw8dVg70i2tg'}
   ]},
-  {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты']},
-  {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[{t:'Домашние колбасы в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/wVO3VjQAi1u4jg'}]},
-  {name:'Галеты', icon:'fa-cookie', videos: CLUB_VIDEOS.recipes['Галеты'], files:[{t:'Сборник «Галеты»', d:'PDF-файл', url:'https://disk.yandex.ru/d/00Un9tc0TtUKww'}]},
-  {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[{t:'Вафли в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/i/43tXB3s9sDZ3ow'}]},
-  {name:'Десерты', icon:'fa-ice-cream', videos:[], files:[{t:'Десерты в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/CnmHLxvkOtGpPg'}]}
+  {name:'Десерты', icon:'fa-ice-cream', videos:[], files:[
+    {t:'Десерты в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/CnmHLxvkOtGpPg'}
+  ]}
 ];
 
 /* ═══════════ ДАННЫЕ: ТАБЛИЧКА ХРАНЕНИЯ ═══════════ */
@@ -1407,11 +1418,30 @@ const HOLIDAY_FILES = [
 /* ═══════════ ДАННЫЕ: ДЛЯ ЗДОРОВЬЯ ═══════════ */
 const HEALTH_ITEMS = [
   {t:'Азбука питания от гематолога: от анализов до тарелки', d:'Материал'},
-  {t:'Нутрициологическая памятка на каждый день', d:'Статья · Яна', slug:'nutrition-calories'}
+  {t:'Нутрициологическая памятка на каждый день', d:'Статья · Яна', slug:'nutrition-calories', author:'Яна'}
 ];
+
+const KIDS_MATERIALS = [
+  {t:'Заготовки для детей', d:'PDF-файл', url:'https://disk.yandex.ru/i/em3krmfOgwk45w'},
+  {t:'Сладкие заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/i/9Qz381Qfz2kQeA'},
+  {t:'Подборка формочек', d:'PDF-файл', url:'https://disk.yandex.ru/i/BrEpSFftnydJAQ'}
+];
+
+const CONSTRUCTOR_FILES = [
+  {t:'Лимонады',url:'https://disk.yandex.ru/i/o_vWJ3-y7pxotA'},
+  {t:'Пиццы',url:'https://disk.yandex.ru/i/ZnMrzfJbSSM3uQ'},
+  {t:'Вафли',url:'https://disk.yandex.ru/i/ecRHnxya3tA6Ig'}
+];
+const LAZY_FILES = [{t:'Ленивый ресторан дома',url:'https://disk.yandex.ru/d/3TNP-Pm91gD-RA'}];
+
+const CLUB_TEXT_MATERIALS = new Set(['nutrition-calories']);
 
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
 let currentTariff = 'premium';
+let currentUser = null;
+let activeMaterialSlug = null;
+let materialOrigin = {screen:'dashboard', section:null};
+const PUBLIC_SCREENS = new Set(['landing','login']);
 
 /* ═══════════ НАВИГАЦИЯ ═══════════ */
 const startMaterialHeadings={
@@ -1420,42 +1450,203 @@ const startMaterialHeadings={
   rules:['Правила заготовок','Что нельзя замораживать?','Что можно замораживать? и что замораживаю я','Основные правила заготовок','Тара: основные правила','Сроки хранения заготовок'],
   organization:['Организация пространства','Как организовывать пространство','В чем хранить заготовки','Вакууммация','Примечание','Лайфхаки','Предметы для организации пространства']
 };
-let materialOrigin = null;
-
-function openMaterial(slug, originScreen, categoryName){
-  const material=READER_MATERIALS[slug];
-  if(!material){
-    toast('Материал недоступен', true);
-    return;
+function renderStartMaterial(container,source,material){
+  const headings=new Set(startMaterialHeadings[material]||[]);
+  const shown=new Set();
+  let inProductsSection=false;
+  container.replaceChildren();
+  for(const block of source.trim().split(/\n\s*\n/)){
+    const lines=block.split('\n').map(line=>line.trim()).filter(Boolean);
+    if(!lines.length) continue;
+    const title=lines.join(' ').replace(/\s+/g,' ');
+    if(headings.has(title)){
+      if(material==='organization') inProductsSection=title==='Предметы для организации пространства';
+      if(shown.has(title)) continue;
+      shown.add(title);
+      const heading=document.createElement('h5');
+      heading.textContent=title;
+      container.append(heading);
+      continue;
+    }
+    const paragraph=document.createElement('p');
+    lines.forEach((line,index)=>{
+      if(index) paragraph.append(document.createElement('br'));
+      const product=inProductsSection && material==='organization'
+        ? line.match(/^(.+?)\s+—\s+(https?:\/\/\S+)$/u) : null;
+      if(product){
+        const link=document.createElement('a');
+        link.className='product-link';
+        link.href=product[2];
+        link.target='_blank';
+        link.rel='noopener noreferrer';
+        const name=document.createElement('strong');
+        name.textContent=product[1];
+        link.append(name);
+        paragraph.append(link);
+        return;
+      }
+      const important=/^(?:📌|❗|⚠️|‼️|Важно(?:\s|:)|Главный враг(?:\s|:)|Повторное замораживание исключено:|Замораживайте свежие продукты:|Возвращаем продукты обратно после полного высыхания)/u.test(line);
+      const label=!important && line.length<95 && line.endsWith(':') && !/^[•✓\d]/u.test(line);
+      if(important||label){
+        const mark=document.createElement(important?'em':'strong');
+        mark.textContent=line;
+        paragraph.append(mark);
+      }else{
+        paragraph.append(document.createTextNode(line));
+      }
+    });
+    container.append(paragraph);
   }
-  materialOrigin={screen:originScreen,category:categoryName||'',scrollY:window.scrollY};
-  showScreen('material-reader');
-  document.getElementById('materialReaderTitle').textContent=material.title;
-  document.getElementById('materialReaderSection').textContent=material.section;
-  document.getElementById('materialReaderByline').textContent=material.author ? 'Автор: '+material.author : 'Полный текст материала';
-  const source=document.getElementById('materialReaderSource');
-  source.href='./materials/'+slug+'.txt';
-  const status=document.getElementById('materialReaderStatus');
-  const content=document.getElementById('materialReaderContent');
-  status.hidden=false;
-  status.textContent='Загрузка материала…';
-  content.hidden=true;
-  content.textContent='';
-  loadReaderMaterial(slug);
 }
-
-async function loadReaderMaterial(slug){
-  const status=document.getElementById('materialReaderStatus');
-  const content=document.getElementById('materialReaderContent');
+async function loadStartMaterial(card){
+  if(!card.open || card.dataset.loaded==='true' || card.dataset.loading==='true') return;
+  const text=card.querySelector('.start-material-text');
+  card.dataset.loading='true';
+  text.textContent='Загрузка материала…';
+  const base=location.pathname==='/club' ? '/api/start-materials/' : './start-materials/';
   try{
-    const response=await fetch('./materials/'+slug+'.txt',{credentials:'same-origin',cache:'no-cache'});
+    const response=await fetch(base+card.dataset.material+'.txt',{credentials:'same-origin',cache:'no-cache'});
     if(!response.ok) throw new Error('HTTP '+response.status);
-    renderNutritionArticle(content,await response.text());
-    content.hidden=false;
-    status.hidden=true;
+    renderStartMaterial(text,await response.text(),card.dataset.material);
+    card.dataset.loaded='true';
   }catch(error){
     console.error('Не удалось загрузить материал',error);
-    status.textContent='Не удалось загрузить материал. Проверьте подключение и попробуйте открыть его ещё раз.';
+    text.textContent='Не удалось загрузить материал. Закройте и откройте карточку, чтобы повторить попытку.';
+  }finally{
+    delete card.dataset.loading;
+  }
+}
+
+function showScreen(id){
+  if(!PUBLIC_SCREENS.has(id) && !currentUser){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('screen-login').classList.add('active'); return; }
+  const target=document.getElementById('screen-'+id); if(!target) return;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); target.classList.add('active'); window.scrollTo(0,0);
+  if(id==='dashboard') renderNavGrid();
+  if(id==='recipes') renderAccordion('recipeCategoriesList', RECIPE_CATEGORIES);
+  if(id==='baking') renderAccordion('bakingCategoriesList', BAKING_CATEGORIES);
+  if(id==='holiday'){ renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday); renderHolidayFiles(); }
+  if(id==='smart'){renderVideoList('smartList',CLUB_VIDEOS.smart);renderFileList('smartFilesList',CLUB_FILES.smart)}
+  if(id==='ready-menu') renderVideoList('readyMenuList', CLUB_VIDEOS.readyMenu);
+  if(id==='broths'){ renderVideoList('brothsList', CLUB_VIDEOS.broths); renderFileList('brothsFilesList', CLUB_FILES.broths); }
+  if(id==='sauces'){ renderVideoList('saucesList', CLUB_VIDEOS.sauces); renderFileList('saucesFilesList', CLUB_FILES.sauces); }
+  if(id==='constructor'){renderVideoList('constructorList',CLUB_VIDEOS.constructor);renderFileList('constructorFilesList',CONSTRUCTOR_FILES)}
+  if(id==='lazy') renderFileList('lazyFilesList',LAZY_FILES);
+  if(id==='kids') renderFileList('kidsMaterialsList', KIDS_MATERIALS);
+  if(id==='health') renderHealth();
+  if(id==='hematologist') loadHematologist();
+  if(id==='rules') renderRules();
+  applyTariff();
+}
+
+function toggleMenu(){
+  document.getElementById('sideMenu').classList.toggle('open');
+  document.getElementById('menuOverlay').classList.toggle('open');
+}
+
+/* ═══════════ ВХОД / ВЫХОД ═══════════ */
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim().toLowerCase();
+  const password=document.getElementById('loginPassword').value;
+  if(!email || !email.includes('@')){ toast('Введите корректный email',true); return; }
+  if(!password){ toast('Введите постоянный пароль из письма',true); return; }
+  const button=document.querySelector('#screen-login .login-btn'); if(button) button.disabled=true;
+  try{
+    const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(data.message||'Неверный email или пароль');
+    currentUser=data; location.assign('/club');
+  }catch(error){ toast(error.message||'Неверный email или пароль',true); }
+  finally{ if(button) button.disabled=false; }
+}
+async function doLogout(){ try{ await fetch('/api/auth/logout',{method:'POST'}); }finally{ location.replace('/'); } }
+function formatProfileDate(value){ if(!value) return '—'; const date=new Date(value); return Number.isNaN(date.getTime())?'—':new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',year:'numeric'}).format(date); }
+function renderUser(){
+  if(!currentUser) return;
+  const displayName=currentUser.name||'Участник клуба';
+  const initials=displayName.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase()||currentUser.email[0].toUpperCase();
+  document.querySelectorAll('.header-avatar').forEach(el=>el.textContent=initials);
+  const values={profileName:displayName,profileEmail:currentUser.email,profileFullName:displayName,profileEmailRow:currentUser.email,profilePurchaseDate:formatProfileDate(currentUser.purchaseAt),profileAccessUntil:formatProfileDate(currentUser.accessUntil),profileStatus:'● Активна'};
+  Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value;}); currentTariff=currentUser.tariff||'premium'; applyTariff();
+}
+async function restoreSession(){
+  try{ const response=await fetch('/api/auth/me',{credentials:'same-origin'}); if(response.ok){currentUser=await response.json();renderUser();showScreen('dashboard');} else if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Если оплата прошла, данные для входа придут на почту.');} }
+  catch(error){ if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Если оплата прошла, проверьте почту и зайдите по email и паролю.');} }
+}
+
+/* ═══════════ РЕНДЕР: ГЛАВНАЯ СЕТКА РАЗДЕЛОВ ═══════════ */
+function renderNavGrid(){
+  const grid = document.getElementById('navGrid');
+  if(grid) grid.innerHTML = NAV_BLOCKS.map(b=>`
+    <div class="nav-card" onclick="showScreen('${b.id}')">
+      <i class="fas ${b.icon}"></i>
+      <h4>${b.title}</h4>
+      <p>${b.desc}</p>
+    </div>`).join('');
+
+  const sideList = document.getElementById('sideMenuBlocks');
+  if(sideList) sideList.innerHTML = NAV_BLOCKS.map(b=>`
+    <li><a href="#" onclick="showScreen('${b.id}');toggleMenu();return false"><i class="fas ${b.icon}"></i>${b.title}</a></li>`).join('');
+}
+
+/* ═══════════ ОТКРЫТИЕ ФАЙЛА ═══════════ */
+function openFile(url, title){
+  if(url==='https://disk.yandex.ru/d/CnmHLxvkOtGpPg'){
+    openDessertsPdf(url,title);
+    return;
+  }
+  if(url){
+    window.open(url, '_blank');
+    toast('Открываем файл: ' + title);
+  } else {
+    toast(MATERIAL_PENDING_NOTICE);
+  }
+}
+
+async function openDessertsPdf(publicKey,title){
+  try{
+    const query=new URLSearchParams({public_key:publicKey,path:'/Десерты в заготовки.pdf'});
+    const response=await fetch('https://cloud-api.yandex.net/v1/disk/public/resources/download?'+query,{cache:'no-store'});
+    if(!response.ok) throw new Error('PDF недоступен: '+response.status);
+    const {href}=await response.json();
+    if(!href || !href.startsWith('https://')) throw new Error('Ссылка на PDF не получена');
+    window.location.assign(href);
+    toast('Открываем PDF: '+title);
+  }catch(error){
+    console.error('Не удалось открыть PDF',error);
+    toast('Не удалось открыть PDF. Попробуйте ещё раз.',true);
+  }
+}
+
+function openClubMaterial(slug,title,originScreen,originSection,author){
+  if(!CLUB_TEXT_MATERIALS.has(slug)) return;
+  activeMaterialSlug=slug;
+  materialOrigin={screen:originScreen,section:originSection||null};
+  document.getElementById('materialReaderTitle').textContent=title;
+  document.getElementById('materialReaderSection').textContent=originSection || 'Материал клуба';
+  document.getElementById('materialReaderAuthor').textContent=author ? 'Автор: '+author : 'Материал клуба';
+  const source=document.getElementById('materialReaderSource');
+  source.href='/api/materials/'+slug+'.txt';
+  showScreen('material-reader');
+  loadClubMaterial(slug);
+}
+
+async function loadClubMaterial(slug){
+  const state=document.getElementById('materialReaderState');
+  const content=document.getElementById('materialReaderContent');
+  const retry=document.querySelector('.reader-retry');
+  if(!state||!content||!CLUB_TEXT_MATERIALS.has(slug)) return;
+  state.textContent='Загрузка материала…';
+  content.textContent='';
+  if(retry) retry.hidden=true;
+  try{
+    const response=await fetch('/api/materials/'+slug+'.txt',{credentials:'include',cache:'no-store'});
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    renderNutritionArticle(content,await response.text());
+    state.textContent='';
+  }catch(error){
+    console.error('Не удалось загрузить текстовый материал',error);
+    state.textContent='Не удалось загрузить материал. Проверьте подключение и попробуйте ещё раз.';
+    if(retry) retry.hidden=false;
   }
 }
 
@@ -1531,174 +1722,15 @@ function renderNutritionArticle(container,source){
 }
 
 function returnFromMaterial(){
-  const origin=materialOrigin||{screen:'dashboard',category:'',scrollY:0};
+  const origin=materialOrigin;
   showScreen(origin.screen);
-  if(origin.screen==='recipes' && origin.category){
-    const categoryIndex=RECIPE_CATEGORIES.findIndex(category=>category.name===origin.category);
-    const category=document.querySelector(`#recipeCategoriesList .cat-item[data-idx="${categoryIndex}"]`);
-    if(category) category.classList.add('open');
-  }
-  window.scrollTo(0,origin.scrollY);
-}
-
-function renderStartMaterial(container,source,material){
-  const headings=new Set(startMaterialHeadings[material]||[]);
-  const shown=new Set();
-  let inProductsSection=false;
-  container.replaceChildren();
-  for(const block of source.trim().split(/\n\s*\n/)){
-    const lines=block.split('\n').map(line=>line.trim()).filter(Boolean);
-    if(!lines.length) continue;
-    const title=lines.join(' ').replace(/\s+/g,' ');
-    if(headings.has(title)){
-      if(material==='organization') inProductsSection=title==='Предметы для организации пространства';
-      if(shown.has(title)) continue;
-      shown.add(title);
-      const heading=document.createElement('h5');
-      heading.textContent=title;
-      container.append(heading);
-      continue;
+  if(origin.section){
+    const category=[...document.querySelectorAll('#recipeCategoriesList .cat-item, #bakingCategoriesList .cat-item')]
+      .find(item=>item.querySelector('.cat-title')?.textContent.trim()===origin.section);
+    if(category){
+      category.parentElement.querySelectorAll('.cat-item').forEach(item=>item.classList.remove('open'));
+      category.classList.add('open');
     }
-    const paragraph=document.createElement('p');
-    lines.forEach((line,index)=>{
-      if(index) paragraph.append(document.createElement('br'));
-      const product=inProductsSection && material==='organization'
-        ? line.match(/^(.+?)\s+—\s+(https?:\/\/\S+)$/u) : null;
-      if(product){
-        const link=document.createElement('a');
-        link.className='product-link';
-        link.href=product[2];
-        link.target='_blank';
-        link.rel='noopener noreferrer';
-        const name=document.createElement('strong');
-        name.textContent=product[1];
-        link.append(name);
-        paragraph.append(link);
-        return;
-      }
-      const important=/^(?:📌|❗|⚠️|‼️|Важно(?:\s|:)|Главный враг(?:\s|:)|Повторное замораживание исключено:|Замораживайте свежие продукты:|Возвращаем продукты обратно после полного высыхания)/u.test(line);
-      const label=!important && line.length<95 && line.endsWith(':') && !/^[•✓\d]/u.test(line);
-      if(important||label){
-        const mark=document.createElement(important?'em':'strong');
-        mark.textContent=line;
-        paragraph.append(mark);
-      }else{
-        paragraph.append(document.createTextNode(line));
-      }
-    });
-    container.append(paragraph);
-  }
-}
-async function loadStartMaterial(card){
-  if(!card.open || card.dataset.loaded==='true' || card.dataset.loading==='true') return;
-  const text=card.querySelector('.start-material-text');
-  card.dataset.loading='true';
-  text.textContent='Загрузка материала…';
-  const base=location.pathname==='/club' ? '/api/start-materials/' : './start-materials/';
-  try{
-    const response=await fetch(base+card.dataset.material+'.txt',{credentials:'same-origin',cache:'no-cache'});
-    if(!response.ok) throw new Error('HTTP '+response.status);
-    renderStartMaterial(text,await response.text(),card.dataset.material);
-    card.dataset.loaded='true';
-  }catch(error){
-    console.error('Не удалось загрузить материал',error);
-    text.textContent='Не удалось загрузить материал. Закройте и откройте карточку, чтобы повторить попытку.';
-  }finally{
-    delete card.dataset.loading;
-  }
-}
-
-function showScreen(id){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('screen-'+id).classList.add('active');
-  window.scrollTo(0,0);
-  if(id==='dashboard') renderNavGrid();
-  if(id==='recipes') renderAccordion('recipeCategoriesList', RECIPE_CATEGORIES);
-  if(id==='baking-desserts') renderFileList('bakingDessertsList', [
-    {t:'Десерты в заготовки',url:'https://disk.yandex.ru/d/CnmHLxvkOtGpPg'}
-  ]);
-  if(id==='kids') renderFileList('kidsMaterialsList', [
-    {t:'Заготовки для детей',url:'https://disk.yandex.ru/i/em3krmfOgwk45w'},
-    {t:'Сладкие заготовки',url:'https://disk.yandex.ru/i/9Qz381Qfz2kQeA'},
-    {t:'Подборка формочек',url:'https://disk.yandex.ru/i/BrEpSFftnydJAQ'}
-  ]);
-  if(id==='holiday'){ 
-      renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday);
-      renderHolidayFiles(); 
-  }
-  if(id==='smart'){renderVideoList('smartList',CLUB_VIDEOS.smart);renderFileList('smartFilesList',CLUB_FILES.smart)}
-  if(id==='ready-menu') renderVideoList('readyMenuList', CLUB_VIDEOS.readyMenu);
-  if(id==='broths'){ 
-      renderVideoList('brothsList', CLUB_VIDEOS.broths);
-      renderFileList('brothsFilesList', CLUB_FILES.broths);
-  }
-  if(id==='sauces'){ 
-      renderVideoList('saucesList', CLUB_VIDEOS.sauces);
-      renderFileList('saucesFilesList', CLUB_FILES.sauces);
-  }
-  if(id==='constructor'){renderVideoList('constructorList',CLUB_VIDEOS.constructor);renderFileList('constructorFilesList',CLUB_FILES.constructor)}
-  if(id==='lazy') renderFileList('lazyFilesList',CLUB_FILES.lazy);
-  if(id==='health') renderHealth();
-  if(id==='hematologist') loadHematologist();
-  if(id==='rules') renderRules();
-  applyTariff();
-}
-
-function toggleMenu(){
-  document.getElementById('sideMenu').classList.toggle('open');
-  document.getElementById('menuOverlay').classList.toggle('open');
-}
-
-/* ═══════════ ВХОД / ВЫХОД ═══════════ */
-function doLogin(){
-  const email = document.getElementById('loginEmail').value.trim();
-  if(!email || !email.includes('@')){ toast('Введите корректный email', true); return; }
-  toast('Ссылка отправлена на '+email);
-  setTimeout(()=>showScreen('dashboard'), 800);
-}
-function doLogout(){ showScreen('landing'); toast('Вы вышли из аккаунта'); }
-
-/* ═══════════ РЕНДЕР: ГЛАВНАЯ СЕТКА РАЗДЕЛОВ ═══════════ */
-function renderNavGrid(){
-  const grid = document.getElementById('navGrid');
-  if(grid) grid.innerHTML = NAV_BLOCKS.map(b=>`
-    <div class="nav-card" onclick="showScreen('${b.id}')">
-      <i class="fas ${b.icon}"></i>
-      <h4>${b.title}</h4>
-      <p>${b.desc}</p>
-    </div>`).join('');
-
-  const sideList = document.getElementById('sideMenuBlocks');
-  if(sideList) sideList.innerHTML = NAV_BLOCKS.map(b=>`
-    <li><a href="#" onclick="showScreen('${b.id}');toggleMenu();return false"><i class="fas ${b.icon}"></i>${b.title}</a></li>`).join('');
-}
-
-/* ═══════════ ОТКРЫТИЕ ФАЙЛА ═══════════ */
-function openFile(url, title){
-  if(url==='https://disk.yandex.ru/d/CnmHLxvkOtGpPg'){
-    openDessertsPdf(url,title);
-    return;
-  }
-  if(url){
-    window.open(url, '_blank');
-    toast('Открываем файл: ' + title);
-  } else {
-    toast(MATERIAL_PENDING_NOTICE);
-  }
-}
-
-async function openDessertsPdf(publicKey,title){
-  try{
-    const query=new URLSearchParams({public_key:publicKey,path:'/Десерты в заготовки.pdf'});
-    const response=await fetch('https://cloud-api.yandex.net/v1/disk/public/resources/download?'+query,{cache:'no-store'});
-    if(!response.ok) throw new Error('PDF недоступен: '+response.status);
-    const {href}=await response.json();
-    if(!href || !href.startsWith('https://')) throw new Error('Ссылка на PDF не получена');
-    window.location.assign(href);
-    toast('Открываем PDF: '+title);
-  }catch(error){
-    console.error('Не удалось открыть PDF',error);
-    toast('Не удалось открыть PDF. Попробуйте ещё раз.',true);
   }
 }
 
@@ -1721,7 +1753,7 @@ function renderAccordion(containerId, categories){
         ${c.files?.length ? `<div class="mat-section">
           <div class="mat-label"><i class="fas fa-file-pdf"></i> Материалы (${c.files.length})</div>
           <div class="mat-grid">
-            ${c.files.map(f=>`<div class="mat-card" onclick="${f.slug?`openMaterial('${f.slug}','recipes','${c.name}')`:`openFile('${f.url || ''}', '${f.t}')`}"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.slug||f.url?f.d:MATERIAL_PENDING_NOTICE}</p></div></div>`).join('')}
+            ${c.files.map(f=>`<div class="mat-card" onclick="${f.slug ? `openClubMaterial('${f.slug}', '${f.t}', '${containerId==='bakingCategoriesList'?'baking':'recipes'}', '${c.name}', '${f.author||''}')` : `openFile('${f.url || ''}', '${f.t}')`}"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.slug||f.url?f.d:MATERIAL_PENDING_NOTICE}</p></div></div>`).join('')}
           </div>
         </div>` : ''}`;
     } else if(c.items){
@@ -1791,7 +1823,7 @@ function renderHealth(){
   const list = document.getElementById('healthList');
   if(!list) return;
   list.innerHTML = HEALTH_ITEMS.map((it,index)=>`
-    <${index===0?'a':'div'} class="mat-card${index===0?' health-link':''}" ${index===0?'href="#hematologist" onclick="showScreen(\'hematologist\');return false"':it.slug?`onclick="openMaterial('${it.slug}','health')"`:`onclick="toast('${MATERIAL_PENDING_NOTICE}')"`}>
+    <${index===0?'a':'div'} class="mat-card${index===0?' health-link':''}" ${index===0?'href="#hematologist" onclick="showScreen(\'hematologist\');return false"':it.slug?`role="button" tabindex="0" onclick="openClubMaterial('${it.slug}', '${it.t}', 'health', '', '${it.author||''}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openClubMaterial('${it.slug}', '${it.t}', 'health', '', '${it.author||''}')}"`:`onclick="toast('${MATERIAL_PENDING_NOTICE}')"`}>
       <div class="mat-thumb file"><i class="fas fa-file-alt"></i></div>
       <div class="mat-info"><h4>${it.t}</h4><p>${index===0||it.slug?it.d:MATERIAL_PENDING_NOTICE}</p></div>
     </${index===0?'a':'div'}>`).join('');
@@ -1871,6 +1903,7 @@ function toast(msg, err){
 /* ═══════════ INIT ═══════════ */
 renderNavGrid();
 applyTariff();
+restoreSession();
 </script>
 
 </body>

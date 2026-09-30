@@ -1,0 +1,6 @@
+[build]
+install_command = "npm install"
+
+[deploy]
+compute = "process"
+entry = "server.mjs"
