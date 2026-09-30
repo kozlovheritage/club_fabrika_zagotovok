@@ -1586,11 +1586,30 @@ function renderNavGrid(){
 
 /* ═══════════ ОТКРЫТИЕ ФАЙЛА ═══════════ */
 function openFile(url, title){
+  if(url==='https://disk.yandex.ru/d/CnmHLxvkOtGpPg'){
+    openDessertsPdf(url,title);
+    return;
+  }
   if(url){
     window.open(url, '_blank');
     toast('Открываем файл: ' + title);
   } else {
     toast(MATERIAL_PENDING_NOTICE);
+  }
+}
+
+async function openDessertsPdf(publicKey,title){
+  try{
+    const query=new URLSearchParams({public_key:publicKey,path:'/Десерты в заготовки.pdf'});
+    const response=await fetch('https://cloud-api.yandex.net/v1/disk/public/resources/download?'+query,{cache:'no-store'});
+    if(!response.ok) throw new Error('PDF недоступен: '+response.status);
+    const {href}=await response.json();
+    if(!href || !href.startsWith('https://')) throw new Error('Ссылка на PDF не получена');
+    window.location.assign(href);
+    toast('Открываем PDF: '+title);
+  }catch(error){
+    console.error('Не удалось открыть PDF',error);
+    toast('Не удалось открыть PDF. Попробуйте ещё раз.',true);
   }
 }
 
@@ -1660,7 +1679,7 @@ function renderFileList(containerId, files) {
     const list = document.getElementById(containerId);
     if(!list) return;
     list.innerHTML = files.map(f => `
-        <div class="mat-card" onclick="window.open('${f.url}','_blank'); toast('Открываем файл: ${f.t}')">
+        <div class="mat-card" onclick="openFile('${f.url}','${f.t}')">
             <div class="mat-thumb file"><i class="fas fa-file-pdf"></i></div>
             <div class="mat-info"><h4>${f.t}</h4><p>PDF-файл</p></div>
         </div>
