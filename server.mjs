@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import express from 'express';
 import multer from 'multer';
 import pg from 'pg';
-import {sendCredentialsEmail} from './email.mjs';
+import {buildPremiumPaidContent,sendCredentialsEmail} from './email.mjs';
 import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,normalizeBuyerName} from './checkout.mjs';
 
 const {Pool}=pg;
@@ -110,10 +110,7 @@ app.post('/api/checkout/session',async(req,res,next)=>{
     if(tariff==='premium')await pool.query('INSERT INTO club_checkout_orders (order_id,buyer_email,buyer_name) VALUES ($1,$2,$3)',[checkout.order_id,email,buyerName]);
     checkout.paid_content=tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+checkout.order_id
-      : 'Расширенный тариф клуба «Фабрика заготовок». Личный кабинет: '+PUBLIC_URL+
-        '/?login=1\nEmail для входа: '+email+
-        '\nПароль: '+premiumPasswordForOrder(checkout.order_id,process.env.AUTH_CREDENTIAL_KEY)+
-        '\nСохраните это письмо: данные для входа действуют бессрочно.';
+      : buildPremiumPaidContent(PUBLIC_URL,email,premiumPasswordForOrder(checkout.order_id,process.env.AUTH_CREDENTIAL_KEY));
     res.set('Cache-Control','no-store').json(checkout);
   }catch(error){next(error);}
 });

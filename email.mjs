@@ -1,4 +1,13 @@
 const subject = 'Доступ в клуб «Фабрика заготовок»';
+export const PREMIUM_TELEGRAM_URL = 'https://t.me/+Pc_CVDo-JtU1ODYy';
+
+export function buildPremiumPaidContent(siteUrl, email, password) {
+  return 'Расширенный тариф клуба «Фабрика заготовок». Личный кабинет: ' + siteUrl +
+    '/?login=1\nEmail для входа: ' + email +
+    '\nПароль: ' + password +
+    '\nTelegram-канал для участников расширенного тарифа: ' + PREMIUM_TELEGRAM_URL +
+    '\nСохраните это письмо: данные для входа действуют бессрочно.';
+}
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, char => ({
@@ -11,11 +20,14 @@ export async function sendCredentialsEmail(email, password, siteUrl) {
   const from = process.env.AUTH_FROM_EMAIL;
   const text = 'Ваш доступ в клуб открыт. Сайт: ' + siteUrl +
     '\nEmail: ' + email + '\nПароль: ' + password +
+    '\nTelegram-канал для участников расширенного тарифа: ' + PREMIUM_TELEGRAM_URL +
     '\n\nСохраните это письмо. Пароль постоянный и не меняется при повторной оплате.';
   const html = '<h2>Доступ в клуб «Фабрика заготовок» открыт</h2>' +
     '<p><a href="' + escapeHtml(siteUrl) + '">Открыть сайт клуба</a></p>' +
     '<p><b>Email:</b> ' + escapeHtml(email) +
     '<br><b>Пароль:</b> ' + escapeHtml(password) + '</p>' +
+    '<p>Telegram-канал для участников расширенного тарифа: <a href="' +
+      escapeHtml(PREMIUM_TELEGRAM_URL) + '">' + escapeHtml(PREMIUM_TELEGRAM_URL) + '</a></p>' +
     '<p>Сохраните это письмо. Пароль постоянный и не меняется при повторной оплате.</p>';
 
   let url;

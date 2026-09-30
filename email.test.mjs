@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {sendCredentialsEmail} from './email.mjs';
+import {buildPremiumPaidContent, PREMIUM_TELEGRAM_URL, sendCredentialsEmail} from './email.mjs';
+
+test('Prodamus premium paid content includes platform credentials and the direct Telegram invite', () => {
+  const content = buildPremiumPaidContent('https://club.example.org', 'customer@example.org', 'example-password');
+  assert.match(content, /Личный кабинет: https:\/\/club\.example\.org\/\?login=1/);
+  assert.match(content, /Email для входа: customer@example\.org/);
+  assert.match(content, /Пароль: example-password/);
+  assert.ok(content.includes('Telegram-канал для участников расширенного тарифа: ' + PREMIUM_TELEGRAM_URL));
+});
 
 test('NotiSend accepts one personalized email from a plain sender address', async () => {
   const originalFetch = globalThis.fetch;
@@ -23,6 +31,8 @@ test('NotiSend accepts one personalized email from a plain sender address', asyn
     assert.equal(body.payment, 'subscriber_priority');
     assert.match(body.text, /Пароль: example-password/);
     assert.match(body.html, /customer@example\.org/);
+    assert.ok(body.text.includes(PREMIUM_TELEGRAM_URL));
+    assert.ok(body.html.includes('href="' + PREMIUM_TELEGRAM_URL + '"'));
     return new Response(JSON.stringify({id: 1, status: 'queued'}), {status: 201});
   };
   try {
