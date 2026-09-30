@@ -246,7 +246,7 @@ app.get('/api/start-materials/:name.txt',async(req,res,next)=>{
     res.sendFile(fileURLToPath(new URL(`./start-materials/${req.params.name}.txt`,import.meta.url)));
   }catch(error){next(error);}
 });
-const textMaterialNames=new Set(['kids','kids-sweets','kids-molds','vegetables','summer-collection','desserts','sausages','waffles','nutrition-calories']);
+const textMaterialNames=new Set(['nutrition-calories']);
 app.get('/api/materials/:name.txt',async(req,res,next)=>{
   try{
     if(!await findSession(req))return res.status(401).json({message:'Войдите в клуб, чтобы открыть материал'});

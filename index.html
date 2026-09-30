@@ -1301,8 +1301,8 @@ const RECIPE_CATEGORIES = [
   {name:'Заготовки из овощей', icon:'fa-carrot', videos: CLUB_VIDEOS.recipes['Овощи'], files:[
     {t:'PDF: Рецепты из овощей (16 стр.)', d:'PDF, 2.9 МБ'},
     {t:'Таблица: Заморозка овощей', d:'PDF, 310 КБ'},
-    {t:'Овощи в заготовку 1', d:'Текстовый материал', slug:'vegetables'},
-    {t:'Сборник заготовок из овощей, фруктов и ягод, зелени', d:'Текстовый материал', slug:'summer-collection'}
+    {t:'Овощи в заготовку 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/wrihiv-PuqtjGA'},
+    {t:'Сборник заготовок из овощей, фруктов и ягод, зелени', d:'PDF-файл', url:'https://disk.yandex.ru/i/zBWbY-nCVa_EdQ'}
   ]},
   {name:'Заготовки из птицы', icon:'fa-drumstick-bite', videos: CLUB_VIDEOS.recipes['Птица'], files:[
     {t:'Заготовки из птицы 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/X_KVVTtzP9xBPQ'},
@@ -1323,11 +1323,11 @@ const RECIPE_CATEGORIES = [
   ]},
   {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты'], files:[{t:'PDF: Рецепты паштетов (8 стр.)', d:'PDF, 1.2 МБ'},{t:'Чек-лист: Хранение паштетов', d:'PDF, 200 КБ'}]},
   {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[
-    {t:'Колбаса', d:'Текстовый материал', slug:'sausages'}
+    {t:'Домашние колбасы в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/wVO3VjQAi1u4jg'}
   ]},
   {name:'Галеты', icon:'fa-cookie', videos: CLUB_VIDEOS.recipes['Галеты'], files:[{t:'Сборник «Галеты»', d:'PDF-файл', url:'https://disk.yandex.ru/d/00Un9tc0TtUKww'}]},
   {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[
-    {t:'Вафли', d:'Текстовый материал', slug:'waffles'}
+    {t:'Вафли в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/i/43tXB3s9sDZ3ow'}
   ]}
 ];
 
@@ -1337,7 +1337,7 @@ const BAKING_CATEGORIES = [
     {t:'Выпечка в заготовки 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/Pmqw8dVg70i2tg'}
   ]},
   {name:'Десерты', icon:'fa-ice-cream', videos:[], files:[
-    {t:'Десерты', d:'Текстовый материал', slug:'desserts'}
+    {t:'Десерты в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/CnmHLxvkOtGpPg'}
   ]}
 ];
 
@@ -1426,15 +1426,12 @@ const HEALTH_ITEMS = [
 ];
 
 const KIDS_MATERIALS = [
-  {t:'Для детей', d:'Текстовый материал', slug:'kids'},
-  {t:'Сладости для детей', d:'Текстовый материал', slug:'kids-sweets'},
-  {t:'Формочки для детских блюд', d:'Текстовый материал', slug:'kids-molds'}
+  {t:'Заготовки для детей', d:'PDF-файл', url:'https://disk.yandex.ru/i/em3krmfOgwk45w'},
+  {t:'Сладкие заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/i/9Qz381Qfz2kQeA'},
+  {t:'Подборка формочек', d:'PDF-файл', url:'https://disk.yandex.ru/i/BrEpSFftnydJAQ'}
 ];
 
-const CLUB_TEXT_MATERIALS = new Set([
-  'kids','kids-sweets','kids-molds','vegetables','summer-collection',
-  'desserts','sausages','waffles','nutrition-calories'
-]);
+const CLUB_TEXT_MATERIALS = new Set(['nutrition-calories']);
 
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
 let currentTariff = 'premium';
@@ -1514,7 +1511,7 @@ function showScreen(id){
   if(id==='broths'){ renderVideoList('brothsList', CLUB_VIDEOS.broths); renderFileList('brothsFilesList', CLUB_FILES.broths); }
   if(id==='sauces'){ renderVideoList('saucesList', CLUB_VIDEOS.sauces); renderFileList('saucesFilesList', CLUB_FILES.sauces); }
   if(id==='constructor') renderVideoList('constructorList', CLUB_VIDEOS.constructor);
-  if(id==='kids') renderClubMaterialCards('kidsMaterialsList', KIDS_MATERIALS, 'kids');
+  if(id==='kids') renderFileList('kidsMaterialsList', KIDS_MATERIALS);
   if(id==='health') renderHealth();
   if(id==='hematologist') loadHematologist();
   if(id==='rules') renderRules();
@@ -1698,16 +1695,6 @@ function renderFileList(containerId, files) {
             <div class="mat-info"><h4>${f.t}</h4><p>PDF-файл</p></div>
         </div>
     `).join('');
-}
-
-function renderClubMaterialCards(containerId,materials,originScreen){
-  const list=document.getElementById(containerId);
-  if(!list) return;
-  list.innerHTML=materials.map(material=>`
-    <div class="mat-card" role="button" tabindex="0" onclick="openClubMaterial('${material.slug}', '${material.t}', '${originScreen}', '', '${material.author||''}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openClubMaterial('${material.slug}', '${material.t}', '${originScreen}', '', '${material.author||''}')}">
-      <div class="mat-thumb file"><i class="fas fa-file-alt"></i></div>
-      <div class="mat-info"><h4>${material.t}</h4><p>${material.d}</p></div>
-    </div>`).join('');
 }
 
 /* ═══════════ РЕНДЕР: ФАЙЛЫ ПРАЗДНИЧНОГО МЕНЮ ═══════════ */
