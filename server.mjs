@@ -246,6 +246,15 @@ app.get('/api/start-materials/:name.txt',async(req,res,next)=>{
     res.sendFile(fileURLToPath(new URL(`./start-materials/${req.params.name}.txt`,import.meta.url)));
   }catch(error){next(error);}
 });
+const textMaterialNames=new Set(['kids','kids-sweets','kids-molds','vegetables','summer-collection','desserts','sausages','waffles','nutrition-calories']);
+app.get('/api/materials/:name.txt',async(req,res,next)=>{
+  try{
+    if(!await findSession(req))return res.status(401).json({message:'Войдите в клуб, чтобы открыть материал'});
+    if(!textMaterialNames.has(req.params.name))return res.status(404).end();
+    res.set('Cache-Control','private, no-store').type('text/plain; charset=utf-8');
+    res.sendFile(fileURLToPath(new URL(`./materials/${req.params.name}.txt`,import.meta.url)));
+  }catch(error){next(error);}
+});
 const hematologistParts=new Set(['1','2','3']);
 app.get('/api/hematologist/:part.txt',async(req,res,next)=>{
   try{
