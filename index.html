@@ -846,6 +846,28 @@ a{text-decoration:none;color:inherit}
 </div>
 </div>
 
+<!-- ═══════════ ЭКРАН: ВЫПЕЧКА И ДЕСЕРТЫ ═══════════ -->
+<div class="screen" id="screen-baking-desserts">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> вернуться назад</button>
+<div class="container" style="padding-top:20px">
+  <div class="welcome-block">
+    <div class="welcome-avatar"><i class="fas fa-ice-cream" style="color:var(--pink)"></i></div>
+    <div class="welcome-text">
+      <h3>Выпечка и десерты</h3>
+      <p>Полнотекстовые материалы о выпечке и десертах.</p>
+    </div>
+  </div>
+  <div class="section-label">Десерты</div>
+  <h2 class="section-title">материалы раздела</h2>
+  <div class="mat-grid" id="bakingDessertsList" style="margin:0 20px"></div>
+</div>
+</div>
+
 <!-- ═══════════ ЭКРАН: БУЛЬОНЫ ═══════════ -->
 <div class="screen" id="screen-broths">
 <header class="app-header">
@@ -929,9 +951,9 @@ a{text-decoration:none;color:inherit}
       <p>Заготовки, перекусы и меню, которые понравятся даже самым привередливым едокам.</p>
     </div>
   </div>
-  <div class="section-label">В разработке</div>
-  <h2 class="section-title">материалы для этого блока</h2>
-  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материалы этого раздела скоро появятся</div></div>
+  <div class="section-label">Материалы</div>
+  <h2 class="section-title">для детей</h2>
+  <div class="mat-grid" id="kidsMaterialsList" style="margin:0 20px"></div>
 </div>
 </div>
 
@@ -1099,6 +1121,28 @@ a{text-decoration:none;color:inherit}
 </div>
 </div>
 
+<!-- ═══════════ ЭКРАН: ЧТЕНИЕ МАТЕРИАЛА ═══════════ -->
+<div class="screen" id="screen-material-reader">
+<header class="app-header">
+  <button class="burger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+  <div class="header-logo">Фабрика <span>заготовок</span></div>
+  <div class="header-avatar" onclick="showScreen('profile')">АМ</div>
+</header>
+<button class="back-btn" onclick="returnFromMaterial()"><i class="fas fa-arrow-left"></i> вернуться к разделу</button>
+<div class="container" style="padding-top:20px">
+  <div class="section-label" id="materialReaderSection">Материал клуба</div>
+  <article class="material-reader-card">
+    <h1 class="material-reader-title" id="materialReaderTitle"></h1>
+    <p class="material-reader-byline" id="materialReaderByline"></p>
+    <a class="material-reader-source" id="materialReaderSource" target="_blank" rel="noopener noreferrer">
+      <i class="fas fa-arrow-up-right-from-square"></i> Открыть текстовую версию
+    </a>
+    <div class="material-reader-status" id="materialReaderStatus" role="status" aria-live="polite">Загрузка материала…</div>
+    <pre class="material-reader-content" id="materialReaderContent" hidden></pre>
+  </article>
+</div>
+</div>
+
 <!-- ═══════════ ЭКРАН: ПРОФИЛЬ ═══════════ -->
 <div class="screen" id="screen-profile">
 <header class="app-header">
@@ -1218,6 +1262,7 @@ const CLUB_FILES = {
 /* ═══════════ ДАННЫЕ: РАЗДЕЛЫ КЛУБА ═══════════ */
 const NAV_BLOCKS = [
   {id:'recipes', title:'Рецепты', icon:'fa-utensils', desc:'Заготовки, выпечка, паштеты и другое'},
+  {id:'baking-desserts', title:'Выпечка и десерты', icon:'fa-ice-cream', desc:'Материалы о выпечке и десертах'},
   {id:'broths', title:'Бульоны', icon:'fa-mug-hot', desc:'Бульоны-концентраты'},
   {id:'sauces', title:'Соусы', icon:'fa-jar', desc:'Авторские соусы'},
   {id:'constructor', title:'Конструктор', icon:'fa-cubes', desc:'Вафли, лимонады, пицца'},
@@ -1230,9 +1275,27 @@ const NAV_BLOCKS = [
   {id:'health', title:'Для здоровья', icon:'fa-heartbeat', desc:'Питание, нутрициология, лайфхаки'}
 ];
 
+/* ═══════════ ПОЛНОТЕКСТОВЫЕ МАТЕРИАЛЫ (STATIC) ═══════════ */
+const READER_MATERIALS = {
+  kids: {title:'Заготовки для детей', section:'Для детей'},
+  'kids-sweets': {title:'Детские сладости', section:'Для детей'},
+  'kids-molds': {title:'Формочки для детских заготовок', section:'Для детей'},
+  vegetables: {title:'Овощи в заготовку 1', section:'Рецепты · Заготовки из овощей'},
+  'summer-collection': {title:'Сборник заготовок из овощей, фруктов и ягод, зелени', section:'Рецепты · Заготовки из овощей'},
+  desserts: {title:'Десерты', section:'Рецепты · Десерты'},
+  sausages: {title:'Колбаса', section:'Рецепты · Колбаса'},
+  waffles: {title:'Вафли', section:'Рецепты · Вафли'},
+  'nutrition-calories': {title:'Питание и калорийность', section:'Для здоровья', author:'Яна'}
+};
+
 /* ═══════════ ДАННЫЕ: РЕЦЕПТЫ ═══════════ */
 const RECIPE_CATEGORIES = [
-  {name:'Заготовки из овощей', icon:'fa-carrot', videos: CLUB_VIDEOS.recipes['Овощи'], files:[{t:'PDF: Рецепты из овощей (16 стр.)', d:'PDF, 2.9 МБ'},{t:'Таблица: Заморозка овощей', d:'PDF, 310 КБ'}]},
+  {name:'Заготовки из овощей', icon:'fa-carrot', videos: CLUB_VIDEOS.recipes['Овощи'], files:[
+    {t:'Овощи в заготовку 1', d:'Полный текст', slug:'vegetables'},
+    {t:'Сборник заготовок из овощей, фруктов и ягод, зелени', d:'Полный текст', slug:'summer-collection'},
+    {t:'PDF: Рецепты из овощей (16 стр.)', d:'PDF, 2.9 МБ'},
+    {t:'Таблица: Заморозка овощей', d:'PDF, 310 КБ'}
+  ]},
   {name:'Заготовки из птицы', icon:'fa-drumstick-bite', videos: CLUB_VIDEOS.recipes['Птица'], files:[
     {t:'Заготовки из птицы 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/X_KVVTtzP9xBPQ'},
     {t:'Заготовки из птицы 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/AuRjhJqVv-Vh7w'},
@@ -1255,10 +1318,10 @@ const RECIPE_CATEGORIES = [
     {t:'Выпечка в заготовки 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/Pmqw8dVg70i2tg'}
   ]},
   {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты'], files:[{t:'PDF: Рецепты паштетов (8 стр.)', d:'PDF, 1.2 МБ'},{t:'Чек-лист: Хранение паштетов', d:'PDF, 200 КБ'}]},
-  {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[]},
+  {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[{t:'Колбаса', d:'Полный текст', slug:'sausages'}]},
   {name:'Галеты', icon:'fa-cookie', videos: CLUB_VIDEOS.recipes['Галеты'], files:[{t:'Сборник «Галеты»', d:'PDF-файл', url:'https://disk.yandex.ru/d/00Un9tc0TtUKww'}]},
-  {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[]},
-  {name:'Десерты', icon:'fa-ice-cream', soon:true}
+  {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[{t:'Вафли', d:'Полный текст', slug:'waffles'}]},
+  {name:'Десерты', icon:'fa-ice-cream', videos:[], files:[{t:'Десерты', d:'Полный текст', slug:'desserts'}]}
 ];
 
 /* ═══════════ ДАННЫЕ: ПРАЗДНИЧНЫЙ СТОЛ ═══════════ */
@@ -1343,7 +1406,8 @@ const HOLIDAY_FILES = [
 const HEALTH_ITEMS = [
   {t:'Азбука питания от гематолога: от анализов до тарелки', d:'Материал'},
   {t:'Нутрициологическая памятка на каждый день', d:'Материал'},
-  {t:'Мои лайфхаки в питании для поддержания формы', d:'Материал'}
+  {t:'Мои лайфхаки в питании для поддержания формы', d:'Материал'},
+  {t:'Питание и калорийность', d:'Статья · Яна', slug:'nutrition-calories'}
 ];
 
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
@@ -1356,6 +1420,56 @@ const startMaterialHeadings={
   rules:['Правила заготовок','Что нельзя замораживать?','Что можно замораживать? и что замораживаю я','Основные правила заготовок','Тара: основные правила','Сроки хранения заготовок'],
   organization:['Организация пространства','Как организовывать пространство','В чем хранить заготовки','Вакууммация','Примечание','Лайфхаки','Предметы для организации пространства']
 };
+let materialOrigin = null;
+
+function openMaterial(slug, originScreen, categoryName){
+  const material=READER_MATERIALS[slug];
+  if(!material){
+    toast('Материал недоступен', true);
+    return;
+  }
+  materialOrigin={screen:originScreen,category:categoryName||'',scrollY:window.scrollY};
+  showScreen('material-reader');
+  document.getElementById('materialReaderTitle').textContent=material.title;
+  document.getElementById('materialReaderSection').textContent=material.section;
+  document.getElementById('materialReaderByline').textContent=material.author ? 'Автор: '+material.author : 'Полный текст материала';
+  const source=document.getElementById('materialReaderSource');
+  source.href='./materials/'+slug+'.txt';
+  const status=document.getElementById('materialReaderStatus');
+  const content=document.getElementById('materialReaderContent');
+  status.hidden=false;
+  status.textContent='Загрузка материала…';
+  content.hidden=true;
+  content.textContent='';
+  loadReaderMaterial(slug);
+}
+
+async function loadReaderMaterial(slug){
+  const status=document.getElementById('materialReaderStatus');
+  const content=document.getElementById('materialReaderContent');
+  try{
+    const response=await fetch('./materials/'+slug+'.txt',{credentials:'same-origin',cache:'no-cache'});
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    content.textContent=await response.text();
+    content.hidden=false;
+    status.hidden=true;
+  }catch(error){
+    console.error('Не удалось загрузить материал',error);
+    status.textContent='Не удалось загрузить материал. Проверьте подключение и попробуйте открыть его ещё раз.';
+  }
+}
+
+function returnFromMaterial(){
+  const origin=materialOrigin||{screen:'dashboard',category:'',scrollY:0};
+  showScreen(origin.screen);
+  if(origin.screen==='recipes' && origin.category){
+    const categoryIndex=RECIPE_CATEGORIES.findIndex(category=>category.name===origin.category);
+    const category=document.querySelector(`#recipeCategoriesList .cat-item[data-idx="${categoryIndex}"]`);
+    if(category) category.classList.add('open');
+  }
+  window.scrollTo(0,origin.scrollY);
+}
+
 function renderStartMaterial(container,source,material){
   const headings=new Set(startMaterialHeadings[material]||[]);
   const shown=new Set();
@@ -1413,6 +1527,14 @@ function showScreen(id){
   window.scrollTo(0,0);
   if(id==='dashboard') renderNavGrid();
   if(id==='recipes') renderAccordion('recipeCategoriesList', RECIPE_CATEGORIES);
+  if(id==='baking-desserts') renderReaderCards('bakingDessertsList', [
+    {slug:'desserts',title:'Десерты'}
+  ],'baking-desserts');
+  if(id==='kids') renderReaderCards('kidsMaterialsList', [
+    {slug:'kids',title:'Заготовки для детей'},
+    {slug:'kids-sweets',title:'Детские сладости'},
+    {slug:'kids-molds',title:'Формочки для детских заготовок'}
+  ],'kids');
   if(id==='holiday'){ 
       renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday);
       renderAccordion('holidayCategoriesList', HOLIDAY_CATEGORIES); 
@@ -1474,6 +1596,16 @@ function openFile(url, title){
   }
 }
 
+function renderReaderCards(containerId, materials, originScreen, categoryName){
+  const list=document.getElementById(containerId);
+  if(!list) return;
+  list.innerHTML=materials.map(material=>`
+    <div class="mat-card" role="button" tabindex="0" onclick="openMaterial('${material.slug}','${originScreen}','${categoryName||''}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openMaterial('${material.slug}','${originScreen}','${categoryName||''}')}">
+      <div class="mat-thumb file"><i class="fas fa-file-alt"></i></div>
+      <div class="mat-info"><h4>${material.title}</h4><p>Полный текст</p></div>
+    </div>`).join('');
+}
+
 /* ═══════════ РЕНДЕР: АККОРДЕОН (рецепты / праздник) ═══════════ */
 function renderAccordion(containerId, categories){
   const list = document.getElementById(containerId);
@@ -1484,16 +1616,16 @@ function renderAccordion(containerId, categories){
       bodyHtml = `<div class="soon-note"><i class="fas fa-hourglass-half"></i> Материалы этого раздела скоро появятся</div>`;
     } else if(c.videos){
       bodyHtml = `
-        <div class="mat-section">
+        ${c.videos.length ? `<div class="mat-section">
           <div class="mat-label"><i class="fas fa-video"></i> Видео (${c.videos.length})</div>
           <div class="mat-grid">
             ${c.videos.map(v=>`<div class="mat-card" onclick="playVideo('${v.title || v.t}', '${v.id}')"><div class="mat-thumb"><i class="fas fa-play"></i></div><div class="mat-info"><h4>${v.title || v.t}</h4><p>Видео</p></div></div>`).join('')}
           </div>
-        </div>
+        </div>` : ''}
         <div class="mat-section">
           <div class="mat-label"><i class="fas fa-file-pdf"></i> Материалы (${c.files ? c.files.length : 0})</div>
           <div class="mat-grid">
-            ${(c.files || []).map(f=>`<div class="mat-card" onclick="openFile('${f.url || ''}', '${f.t}')"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.d}</p></div></div>`).join('')}
+            ${(c.files || []).map(f=>`<div class="mat-card" onclick="${f.slug?`openMaterial('${f.slug}','recipes','${c.name}')`:`openFile('${f.url || ''}', '${f.t}')`}"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.d}</p></div></div>`).join('')}
           </div>
         </div>`;
     } else if(c.items){
@@ -1563,7 +1695,7 @@ function renderHealth(){
   const list = document.getElementById('healthList');
   if(!list) return;
   list.innerHTML = HEALTH_ITEMS.map((it,index)=>`
-    <${index===0?'a':'div'} class="mat-card${index===0?' health-link':''}" ${index===0?'href="#hematologist" onclick="showScreen(\'hematologist\');return false"':`onclick="toast('Открываем материал: ${it.t}')"`}>
+    <${index===0?'a':'div'} class="mat-card${index===0?' health-link':''}" ${index===0?'href="#hematologist" onclick="showScreen(\'hematologist\');return false"':it.slug?`onclick="openMaterial('${it.slug}','health')"`:`onclick="toast('Открываем материал: ${it.t}')"`}>
       <div class="mat-thumb file"><i class="fas fa-file-alt"></i></div>
       <div class="mat-info"><h4>${it.t}</h4><p>${it.d}</p></div>
     </${index===0?'a':'div'}>`).join('');
