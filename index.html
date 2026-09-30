@@ -461,35 +461,6 @@ a{text-decoration:none;color:inherit}
 .landing-title span{color:var(--pink)}
 .landing-sub{font-size:1rem;color:var(--text);max-width:500px;margin:0 auto 28px}
 
-.tariff-cards{display:flex;flex-direction:column;gap:16px;margin:0 20px 40px}
-.tariff-card{
-  background:var(--white);
-  border-radius:var(--r);
-  padding:28px 24px;
-  box-shadow:var(--shadow);
-  position:relative;
-  transition:var(--tr);
-}
-.tariff-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg)}
-.tariff-card.featured{
-  background:linear-gradient(135deg,#fff 0%,var(--pink-soft) 100%);
-  border:2px solid var(--pink);
-}
-.tariff-popular{
-  position:absolute;top:-12px;right:20px;
-  background:var(--pink);color:var(--white);
-  padding:4px 14px;border-radius:50px;
-  font-size:.72rem;font-weight:700;letter-spacing:.05em;
-}
-.tariff-name{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:600;color:var(--text-mid);margin-bottom:4px}
-.tariff-price{font-size:1.8rem;font-weight:800;color:var(--pink);margin-bottom:16px}
-.tariff-price small{font-size:.85rem;font-weight:500;color:var(--text-light)}
-.tariff-features{list-style:none;margin-bottom:20px}
-.tariff-features li{padding:8px 0;font-size:.9rem;color:var(--text-mid);display:flex;align-items:flex-start;gap:10px}
-.tariff-features li i{color:var(--pink);margin-top:3px;flex-shrink:0}
-.tariff-features li.disabled{opacity:.4}
-.tariff-features li.disabled i{color:var(--text-light)}
-
 .login-screen{
   display:flex;align-items:center;justify-content:center;
   min-height:100vh;padding:24px;
@@ -586,7 +557,6 @@ a{text-decoration:none;color:inherit}
   .categories{margin:0 40px 40px}
   .welcome-block{margin:0 40px 32px}
   .profile-card{margin:0 40px 32px}
-  .tariff-cards{margin:0 40px 40px}
   .app-footer{padding:60px 40px 32px}
   .mat-grid{grid-template-columns:repeat(2,1fr)}
   .nav-grid{grid-template-columns:repeat(3,1fr);margin:0 40px 32px}
@@ -601,7 +571,6 @@ a{text-decoration:none;color:inherit}
   .categories{max-width:900px;margin:0 auto 40px}
   .welcome-block{max-width:900px;margin:0 auto 32px}
   .profile-card{max-width:900px;margin:0 auto 32px}
-  .tariff-cards{max-width:900px;margin:0 auto 40px;display:grid;grid-template-columns:1fr 1fr}
   .section-label,.section-title{max-width:900px;margin-left:auto;margin-right:auto}
   .nav-grid{max-width:900px;margin:0 auto 32px}
   .start-card{max-width:900px;margin:0 auto 28px}
@@ -612,7 +581,7 @@ a{text-decoration:none;color:inherit}
 </head>
 <body>
 
-<!-- ═══════════ ЭКРАН: ЛЕНДИНГ / ТАРИФЫ ═══════════ -->
+<!-- ═══════════ ЭКРАН: ЛЕНДИНГ / ВХОД ═══════════ -->
 <div class="screen active" id="screen-landing">
 <div class="landing-hero">
   <div class="landing-logo">Фабрика <span>заготовок</span></div>
@@ -622,35 +591,6 @@ a{text-decoration:none;color:inherit}
     <i class="fas fa-arrow-right"></i> Выбрать тариф
   </a>
   <button type="button" class="login-back" onclick="showScreen('login')">Уже есть доступ? Войти</button>
-</div>
-
-<div class="section-label" style="text-align:center">Тарифы</div>
-<h2 class="section-title" style="text-align:center">Выберите свой формат</h2>
-
-<div class="tariff-cards">
-  <div class="tariff-card">
-    <div class="tariff-name">Базовый</div>
-    <div class="tariff-price">5 990 ₽ <small>один раз · доступ навсегда</small></div>
-    <ul class="tariff-features">
-      <li><i class="fas fa-check"></i> До 120 рецептов заготовок</li>
-      <li><i class="fas fa-check"></i> До 250 рецептов приготовления к столу</li>
-      <li><i class="fas fa-check"></i> Видео и PDF-сборники в закрытом Telegram-канале</li>
-      <li class="disabled"><i class="fas fa-lock"></i> Без доступа к платформе и чату кураторов</li>
-    </ul>
-    <a class="login-btn" href="https://sales-platform-clubfabrika3.ru/#pricing">Выбрать тариф</a>
-  </div>
-  <div class="tariff-card featured">
-    <div class="tariff-popular">Популярный</div>
-    <div class="tariff-name">Расширенный</div>
-    <div class="tariff-price">6 790 ₽ <small>один раз · доступ навсегда</small></div>
-    <ul class="tariff-features">
-      <li><i class="fas fa-check"></i> 180+ рецептов заготовок</li>
-      <li><i class="fas fa-check"></i> 450+ рецептов приготовления к столу</li>
-      <li><i class="fas fa-check"></i> Видео и PDF-сборники на платформе</li>
-      <li><i class="fas fa-check"></i> Чат и поддержка кураторов</li>
-    </ul>
-    <a class="login-btn" href="https://sales-platform-clubfabrika3.ru/#pricing">Выбрать тариф</a>
-  </div>
 </div>
 
 <div class="app-footer">
@@ -1219,8 +1159,7 @@ a{text-decoration:none;color:inherit}
     <div class="profile-row"><span class="pl">Email</span><span class="pv" id="profileEmailRow">—</span></div>
     <div class="profile-row"><span class="pl">Дата покупки клуба</span><span class="pv" id="profilePurchaseDate">—</span></div>
     <div class="profile-row"><span class="pl">Тариф</span><span class="pv"><span class="tariff-badge premium" id="profileTariff">Расширенный</span></span></div>
-    <div class="profile-row"><span class="pl">Статус доступа</span><span class="pv" id="profileStatus" style="color:#2e7d32">● Активен</span></div>
-    <div class="profile-row"><span class="pl">Доступ до</span><span class="pv" id="profileAccessUntil">—</span></div>
+    <div class="profile-row"><span class="pl">Доступ</span><span class="pv" style="color:#2e7d32">Бессрочно</span></div>
   </div>
   <div style="margin:0 20px;display:flex;flex-direction:column;gap:12px">
     <button class="login-btn" onclick="showScreen('dashboard')"><i class="fas fa-arrow-left"></i> Вернуться в кабинет</button>
@@ -1564,7 +1503,7 @@ function renderUser(){
   const displayName=currentUser.name||'Участник клуба';
   const initials=displayName.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase()||currentUser.email[0].toUpperCase();
   document.querySelectorAll('.header-avatar').forEach(el=>el.textContent=initials);
-  const values={profileName:displayName,profileEmail:currentUser.email,profileFullName:displayName,profileEmailRow:currentUser.email,profilePurchaseDate:formatProfileDate(currentUser.purchaseAt),profileAccessUntil:formatProfileDate(currentUser.accessUntil),profileStatus:'● Активна'};
+  const values={profileName:displayName,profileEmail:currentUser.email,profileFullName:displayName,profileEmailRow:currentUser.email,profilePurchaseDate:formatProfileDate(currentUser.purchaseAt)};
   Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value;}); currentTariff=currentUser.tariff||'premium'; applyTariff();
 }
 async function restoreSession(){
