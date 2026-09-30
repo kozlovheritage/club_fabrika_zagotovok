@@ -6,7 +6,7 @@ import express from 'express';
 import multer from 'multer';
 import pg from 'pg';
 import {sendCredentialsEmail} from './email.mjs';
-import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice} from './checkout.mjs';
+import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,normalizeBuyerName} from './checkout.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -34,6 +34,7 @@ const schema=[
   "CREATE TABLE IF NOT EXISTS club_webhook_events (event_id TEXT PRIMARY KEY, payload JSONB NOT NULL, received_at TIMESTAMPTZ NOT NULL DEFAULT now())",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS credential_email_ciphertext TEXT",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS credential_claimed_at TIMESTAMPTZ",
+  "CREATE TABLE IF NOT EXISTS club_checkout_orders (order_id TEXT PRIMARY KEY, buyer_email TEXT NOT NULL, buyer_name TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
   "UPDATE club_users SET access_until=NULL WHERE tariff='premium' AND status='active' AND access_until IS NOT NULL"
 ];
 function normalizeEmail(value){return String(value||'').trim().toLowerCase();}
@@ -91,6 +92,8 @@ app.post('/api/checkout/session',async(req,res,next)=>{
   if(tariff!=='basic'&&tariff!=='premium')return res.status(400).json({message:'Неизвестный тариф'});
   const email=normalizeEmail(req.body?.email);
   if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({message:'Укажите email для письма с доступом'});
+  const buyerName=normalizeBuyerName(req.body?.buyerName);
+  if(!buyerName)return res.status(400).json({message:'Укажите имя и фамилию'});
   let quote;
   try{quote=quotePrice(tariff,req.body?.promo??'');}
   catch(error){return res.status(400).json({message:error.message});}
@@ -102,8 +105,9 @@ app.post('/api/checkout/session',async(req,res,next)=>{
       const existing=await pool.query("SELECT 1 FROM club_users WHERE (email=$1 OR login_email=$1) AND password_hash IS NOT NULL LIMIT 1",[email]);
       if(existing.rowCount)return res.status(409).json({message:'У вас уже есть доступ по этому email. Войдите в клуб или обратитесь в службу заботы, если забыли пароль.'});
     }
-    const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY,process.env,email,quote.codes.join(' '));
+    const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY,process.env,email,quote.codes.join(' '),buyerName);
     if(!checkout)return res.status(503).json({message:'Оплата пока недоступна'});
+    await pool.query('INSERT INTO club_checkout_orders (order_id,buyer_email,buyer_name) VALUES ($1,$2,$3)',[checkout.order_id,email,buyerName]);
     checkout.paid_content=tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+checkout.order_id
       : 'Расширенный тариф клуба «Фабрика заготовок». Личный кабинет: '+PUBLIC_URL+
@@ -172,6 +176,12 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
     const email=normalizeEmail(payload.customer_email);
     const orderId=String(payload.order_num||payload.order_id||'').trim();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!orderId)return res.status(422).send('customer_email and order_id are required');
+    let savedName=null;
+    if(checkout.requiresSavedName){
+      const order=await pool.query('SELECT buyer_name FROM club_checkout_orders WHERE order_id=$1 AND buyer_email=$2',[orderId,email]);
+      if(!order.rowCount)return res.status(422).send('Checkout name not found');
+      savedName=order.rows[0].buyer_name;
+    }
     const eventId=sha256('prodamus:'+orderId);
     if(checkout.tariff==='basic'){
       await pool.query('INSERT INTO club_webhook_events (event_id,payload) VALUES ($1,$2::jsonb) ON CONFLICT (event_id) DO NOTHING',[eventId,JSON.stringify({tariff:'basic',source:'site',handledBy:'prodamus'})]);
@@ -191,7 +201,7 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
         if(checkout.orderId){
           const password=premiumPasswordForOrder(checkout.orderId,process.env.AUTH_CREDENTIAL_KEY);
           const passwordHash=await hashPassword(password);
-          const customerName=payload.customer_name?String(payload.customer_name).trim():null;
+          const customerName=checkout.requiresSavedName?savedName:(payload.customer_name?String(payload.customer_name).trim():null);
           await client.query("INSERT INTO club_users (email,login_email,password_tag,name,password_hash,tariff,access_until,purchase_at,status) VALUES ($1,$2,$3,$4,$5,'premium',NULL,now(),'active') ON CONFLICT (email) DO NOTHING",['order:'+checkout.orderId,email,sha256('club-order-password:'+password),customerName,passwordHash]);
         }else{
         let passwordHash=existing?.password_hash||null;
@@ -218,7 +228,7 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
 app.get('/access/basic/:orderId',async(req,res,next)=>{
   try{
     const orderId=String(req.params.orderId||'');
-    if(!/^fz3-b-[a-z0-9-]{45,125}$/.test(orderId))return res.status(404).send('Доступ пока недоступен');
+    if(!/^fz[34]-b-[a-z0-9-]{45,125}$/.test(orderId))return res.status(404).send('Доступ пока недоступен');
     const event=await pool.query("SELECT 1 FROM club_webhook_events WHERE event_id=$1 AND payload->>'tariff'='basic' LIMIT 1",[sha256('prodamus:'+orderId)]);
     if(!event.rowCount)return res.status(404).send('Оплата пока не подтверждена. Если вы уже оплатили, попробуйте открыть ссылку через несколько минут.');
     const invite=basicInviteUrl();

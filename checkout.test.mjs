@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createCheckout, identifyCheckout, premiumPasswordForOrder, quotePrice} from './checkout.mjs';
+import {createCheckout, identifyCheckout, premiumPasswordForOrder, quotePrice, normalizeBuyerName} from './checkout.mjs';
 
 const key = 'test-key-for-authenticated-order-identifiers';
 const env = {BASIC_PRICE_RUB: '5900', PREMIUM_PRICE_RUB: '6800'};
@@ -77,3 +77,31 @@ test('each premium order has a stable, different password, unavailable for basic
   assert.equal(premiumPasswordForOrder(createCheckout('basic', key, env, 'buyer@example.org').order_id, key), null);
   assert.equal(createCheckout('premium', key, env, 'not-an-email'), null);
 });
+
+test('buyer name must contain given name and surname', () => {
+  assert.equal(normalizeBuyerName('  Анна   Петрова  '), 'Анна Петрова');
+  assert.equal(normalizeBuyerName('Мария Анна Иванова-Петрова'), 'Мария Анна Иванова-Петрова');
+  for (const value of ['', 'Анна', 'Анна 5', '<b>Анна Петрова</b>', 'X'.repeat(121) + ' Иванова', null]) {
+    assert.equal(normalizeBuyerName(value), null);
+  }
+});
+
+for (const tariff of ['basic', 'premium']) {
+  test(`${tariff}: a named order retains verified price/email and requires the saved name`, () => {
+    const order = createCheckout(tariff, key, env, 'Buyer@Example.org', 'SKIDKA1C', '  Анна   Петрова ');
+    assert.match(order.order_id, /^fz4-/);
+    assert.equal(order.customer_name, 'Анна Петрова');
+    assert.equal(order.customer_email, 'buyer@example.org');
+    const paid = {
+      order_num: order.order_id, customer_email: order.customer_email,
+      customer_name: 'Чужое Имя', products: order.products, sum: order.products[0].price
+    };
+    assert.deepEqual(identifyCheckout(paid, key), {
+      kind: 'site', tariff, orderId: order.order_id, email: 'buyer@example.org', requiresSavedName: true
+    });
+    assert.equal(identifyCheckout({...paid, sum: '1.00'}, key).kind, 'invalid');
+    assert.equal(identifyCheckout({...paid, customer_email: 'other@example.org'}, key).kind, 'invalid');
+    assert.equal(createCheckout(tariff, key, env, 'buyer@example.org', '', 'Анна'), null);
+    if (tariff === 'premium') assert.match(premiumPasswordForOrder(order.order_id, key), /^Fz-[A-Za-z0-9_-]{18}$/);
+  });
+}
