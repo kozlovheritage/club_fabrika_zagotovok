@@ -1284,14 +1284,6 @@ const NAV_BLOCKS = [
 
 /* ═══════════ ПОЛНОТЕКСТОВЫЕ МАТЕРИАЛЫ (STATIC) ═══════════ */
 const READER_MATERIALS = {
-  kids: {title:'Заготовки для детей', section:'Для детей'},
-  'kids-sweets': {title:'Детские сладости', section:'Для детей'},
-  'kids-molds': {title:'Формочки для детских заготовок', section:'Для детей'},
-  vegetables: {title:'Овощи в заготовку 1', section:'Рецепты · Заготовки из овощей'},
-  'summer-collection': {title:'Сборник заготовок из овощей, фруктов и ягод, зелени', section:'Рецепты · Заготовки из овощей'},
-  desserts: {title:'Десерты', section:'Рецепты · Десерты'},
-  sausages: {title:'Колбаса', section:'Рецепты · Колбаса'},
-  waffles: {title:'Вафли', section:'Рецепты · Вафли'},
   'nutrition-calories': {title:'Нутрициологическая памятка на каждый день', section:'Для здоровья', author:'Яна'}
 };
 const MATERIAL_PENDING_NOTICE = 'Материал в разработке, будет доступен 11 октября';
@@ -1299,8 +1291,8 @@ const MATERIAL_PENDING_NOTICE = 'Материал в разработке, бу�
 /* ═══════════ ДАННЫЕ: РЕЦЕПТЫ ═══════════ */
 const RECIPE_CATEGORIES = [
   {name:'Заготовки из овощей', icon:'fa-carrot', videos: CLUB_VIDEOS.recipes['Овощи'], files:[
-    {t:'Овощи в заготовку 1', d:'Полный текст', slug:'vegetables'},
-    {t:'Сборник заготовок из овощей, фруктов и ягод, зелени', d:'Полный текст', slug:'summer-collection'},
+    {t:'Овощи в заготовку 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/wrihiv-PuqtjGA'},
+    {t:'Сборник заготовок из овощей, фруктов и ягод, зелени', d:'PDF-файл', url:'https://disk.yandex.ru/i/zBWbY-nCVa_EdQ'},
     {t:'PDF: Рецепты из овощей (16 стр.)', d:'PDF, 2.9 МБ'},
     {t:'Таблица: Заморозка овощей', d:'PDF, 310 КБ'}
   ]},
@@ -1326,10 +1318,10 @@ const RECIPE_CATEGORIES = [
     {t:'Выпечка в заготовки 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/Pmqw8dVg70i2tg'}
   ]},
   {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты'], files:[{t:'PDF: Рецепты паштетов (8 стр.)', d:'PDF, 1.2 МБ'},{t:'Чек-лист: Хранение паштетов', d:'PDF, 200 КБ'}]},
-  {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[{t:'Колбаса', d:'Полный текст', slug:'sausages'}]},
+  {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[{t:'Домашние колбасы в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/wVO3VjQAi1u4jg'}]},
   {name:'Галеты', icon:'fa-cookie', videos: CLUB_VIDEOS.recipes['Галеты'], files:[{t:'Сборник «Галеты»', d:'PDF-файл', url:'https://disk.yandex.ru/d/00Un9tc0TtUKww'}]},
-  {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[{t:'Вафли', d:'Полный текст', slug:'waffles'}]},
-  {name:'Десерты', icon:'fa-ice-cream', videos:[], files:[{t:'Десерты', d:'Полный текст', slug:'desserts'}]}
+  {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[{t:'Вафли в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/i/43tXB3s9sDZ3ow'}]},
+  {name:'Десерты', icon:'fa-ice-cream', videos:[], files:[{t:'Десерты в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/CnmHLxvkOtGpPg'}]}
 ];
 
 /* ═══════════ ДАННЫЕ: ПРАЗДНИЧНЫЙ СТОЛ ═══════════ */
@@ -1533,14 +1525,14 @@ function showScreen(id){
   window.scrollTo(0,0);
   if(id==='dashboard') renderNavGrid();
   if(id==='recipes') renderAccordion('recipeCategoriesList', RECIPE_CATEGORIES);
-  if(id==='baking-desserts') renderReaderCards('bakingDessertsList', [
-    {slug:'desserts',title:'Десерты'}
-  ],'baking-desserts');
-  if(id==='kids') renderReaderCards('kidsMaterialsList', [
-    {slug:'kids',title:'Заготовки для детей'},
-    {slug:'kids-sweets',title:'Детские сладости'},
-    {slug:'kids-molds',title:'Формочки для детских заготовок'}
-  ],'kids');
+  if(id==='baking-desserts') renderFileList('bakingDessertsList', [
+    {t:'Десерты в заготовки',url:'https://disk.yandex.ru/d/CnmHLxvkOtGpPg'}
+  ]);
+  if(id==='kids') renderFileList('kidsMaterialsList', [
+    {t:'Заготовки для детей',url:'https://disk.yandex.ru/i/em3krmfOgwk45w'},
+    {t:'Сладкие заготовки',url:'https://disk.yandex.ru/i/9Qz381Qfz2kQeA'},
+    {t:'Подборка формочек',url:'https://disk.yandex.ru/i/BrEpSFftnydJAQ'}
+  ]);
   if(id==='holiday'){ 
       renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday);
       renderAccordion('holidayCategoriesList', HOLIDAY_CATEGORIES); 
@@ -1600,16 +1592,6 @@ function openFile(url, title){
   } else {
     toast(MATERIAL_PENDING_NOTICE);
   }
-}
-
-function renderReaderCards(containerId, materials, originScreen, categoryName){
-  const list=document.getElementById(containerId);
-  if(!list) return;
-  list.innerHTML=materials.map(material=>`
-    <div class="mat-card" role="button" tabindex="0" onclick="openMaterial('${material.slug}','${originScreen}','${categoryName||''}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openMaterial('${material.slug}','${originScreen}','${categoryName||''}')}">
-      <div class="mat-thumb file"><i class="fas fa-file-alt"></i></div>
-      <div class="mat-info"><h4>${material.title}</h4><p>Полный текст</p></div>
-    </div>`).join('');
 }
 
 /* ═══════════ РЕНДЕР: АККОРДЕОН (рецепты / праздник) ═══════════ */
