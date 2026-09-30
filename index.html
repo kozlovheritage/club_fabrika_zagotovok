@@ -355,6 +355,14 @@ a{text-decoration:none;color:inherit}
 .material-reader h2{font-family:'Cormorant Garamond',serif;font-size:clamp(1.45rem,4vw,2rem);line-height:1.25;color:var(--text-mid);margin:0 0 8px}
 .material-reader-meta{color:var(--text-light);font-size:.82rem;margin-bottom:20px}
 .material-reader-content{font-size:1rem;line-height:1.8;color:var(--text-mid);white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal}
+.material-reader-content{white-space:normal}
+.material-reader-content h3{font-size:1.3rem;line-height:1.35;color:var(--text-mid);margin:28px 0 12px}
+.material-reader-content h4{font-size:1.08rem;line-height:1.4;color:var(--text-mid);margin:22px 0 10px}
+.material-reader-content p{margin:0 0 15px}
+.material-reader-content ul,.material-reader-content ol{padding-left:24px;margin:0 0 16px}
+.material-reader-content li{padding-left:3px;margin:6px 0}
+.material-reader-content li ul{margin:6px 0 10px}
+.material-reader-content .nutrition-illustration{background:var(--pink-bg);border-left:3px solid var(--pink);border-radius:8px;padding:12px 16px;margin:18px 0;color:var(--text-mid);font-size:.9rem}
 .material-reader-state{padding:16px 0;color:var(--text-light);line-height:1.6}
 .material-reader-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
 .material-reader-actions a,.material-reader-actions button{border:1px solid #e7ced2;border-radius:100px;padding:9px 14px;color:var(--text-mid);font:600 .82rem 'Manrope',sans-serif}
@@ -976,6 +984,8 @@ a{text-decoration:none;color:inherit}
   </div>
   <div class="section-label">Видео</div>
   <div class="mat-grid" id="constructorList" style="margin:0 0 32px"></div>
+  <div class="section-label">Материалы</div>
+  <div class="mat-grid" id="constructorFilesList" style="margin:0 0 32px"></div>
 </div>
 </div>
 
@@ -1038,7 +1048,8 @@ a{text-decoration:none;color:inherit}
       <p>Ресторанные блюда без лишних усилий — на основе ваших заготовок.</p>
     </div>
   </div>
-  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материал в разработке, будет доступен 11 октября</div></div>
+  <div class="section-label">Материалы</div>
+  <div class="mat-grid" id="lazyFilesList" style="margin:0 0 32px"></div>
 </div>
 </div>
 
@@ -1467,6 +1478,13 @@ const KIDS_MATERIALS = [
   {t:'Подборка формочек', d:'PDF-файл', url:'https://disk.yandex.ru/i/BrEpSFftnydJAQ'}
 ];
 
+const CONSTRUCTOR_FILES = [
+  {t:'Лимонады',url:'https://disk.yandex.ru/i/o_vWJ3-y7pxotA'},
+  {t:'Пиццы',url:'https://disk.yandex.ru/i/ZnMrzfJbSSM3uQ'},
+  {t:'Вафли',url:'https://disk.yandex.ru/i/ecRHnxya3tA6Ig'}
+];
+const LAZY_FILES = [{t:'Ленивый ресторан дома',url:'https://disk.yandex.ru/d/3TNP-Pm91gD-RA'}];
+
 const CLUB_TEXT_MATERIALS = new Set(['nutrition-calories']);
 
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
@@ -1562,7 +1580,8 @@ function showScreen(id){
   if(id==='ready-menu') renderVideoList('readyMenuList', CLUB_VIDEOS.readyMenu);
   if(id==='broths'){ renderVideoList('brothsList', CLUB_VIDEOS.broths); renderFileList('brothsFilesList', CLUB_FILES.broths); }
   if(id==='sauces'){ renderVideoList('saucesList', CLUB_VIDEOS.sauces); renderFileList('saucesFilesList', CLUB_FILES.sauces); }
-  if(id==='constructor') renderVideoList('constructorList', CLUB_VIDEOS.constructor);
+  if(id==='constructor'){renderVideoList('constructorList',CLUB_VIDEOS.constructor);renderFileList('constructorFilesList',CONSTRUCTOR_FILES)}
+  if(id==='lazy') renderFileList('lazyFilesList',LAZY_FILES);
   if(id==='kids') renderFileList('kidsMaterialsList', KIDS_MATERIALS);
   if(id==='health') renderHealth();
   if(id==='hematologist') loadHematologist();
@@ -1673,12 +1692,83 @@ async function loadClubMaterial(slug){
   try{
     const response=await fetch('/api/materials/'+slug+'.txt',{credentials:'include',cache:'no-store'});
     if(!response.ok) throw new Error('HTTP '+response.status);
-    content.textContent=await response.text();
+    renderNutritionArticle(content,await response.text());
     state.textContent='';
   }catch(error){
     console.error('Не удалось загрузить текстовый материал',error);
     state.textContent='Не удалось загрузить материал. Проверьте подключение и попробуйте ещё раз.';
     if(retry) retry.hidden=false;
+  }
+}
+
+function appendNutritionInline(element,text){
+  const tokens=/\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|(?<![\p{L}\p{N}])\*([^\s*](?:[^*]*[^\s*])?)\*(?![\p{L}\p{N}])/gu;
+  let last=0;
+  for(const match of text.matchAll(tokens)){
+    element.append(document.createTextNode(text.slice(last,match.index)));
+    const mark=document.createElement(match[1]||match[2]?'strong':'em');
+    if(match[1]){
+      const em=document.createElement('em');
+      em.textContent=match[1];
+      mark.append(em);
+    }else{
+      mark.textContent=match[2]||match[3];
+    }
+    element.append(mark);
+    last=match.index+match[0].length;
+  }
+  element.append(document.createTextNode(text.slice(last)));
+}
+
+function renderNutritionArticle(container,source){
+  container.replaceChildren();
+  let list=null,sublist=null,lastItem=null,paragraph=null;
+  const lines=source.replace(/\r\n?/g,'\n').trim().split('\n');
+  for(let i=0;i<lines.length;i++){
+    const raw=lines[i],line=raw.trim();
+    if(!line){list=null;sublist=null;paragraph=null;continue}
+    const heading=line.match(/^(#{2,3})\s+(.+)$/u);
+    if(heading||i===0){
+      list=null;sublist=null;lastItem=null;paragraph=null;
+      const title=document.createElement(heading&&heading[1]==='###'?'h4':'h3');
+      appendNutritionInline(title,heading?heading[2]:line);
+      container.append(title);
+      continue;
+    }
+    const illustration=line.match(/^\[Изображение[^:\]]*:\s*(.+)\]$/u);
+    if(illustration){
+      list=null;sublist=null;lastItem=null;paragraph=null;
+      const note=document.createElement('aside');
+      note.className='nutrition-illustration';
+      note.textContent='Иллюстрация: '+illustration[1];
+      container.append(note);
+      continue;
+    }
+    const bullet=raw.match(/^(\s*)(?:([•-])|(\d+)\.)\s+(.+)$/u);
+    if(bullet){
+      paragraph=null;
+      const nested=bullet[1].length>=2 && !bullet[3] && lastItem;
+      if(nested){
+        if(!sublist){sublist=document.createElement('ul');lastItem.append(sublist)}
+      }else{
+        const tag=bullet[3]?'ol':'ul';
+        if(!list||list.tagName.toLowerCase()!==tag){
+          list=document.createElement(tag);
+          if(tag==='ol') list.start=Number(bullet[3]);
+          container.append(list);
+        }
+        sublist=null;
+      }
+      const item=document.createElement('li');
+      appendNutritionInline(item,bullet[4]);
+      (nested?sublist:list).append(item);
+      if(!nested) lastItem=item;
+      continue;
+    }
+    list=null;sublist=null;lastItem=null;
+    if(!paragraph){paragraph=document.createElement('p');container.append(paragraph)}
+    else paragraph.append(document.createElement('br'));
+    appendNutritionInline(paragraph,line);
   }
 }
 
