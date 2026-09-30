@@ -618,9 +618,10 @@ a{text-decoration:none;color:inherit}
   <div class="landing-logo">Фабрика <span>заготовок</span></div>
   <h1 class="landing-title">Готовь <span>меньше</span>,<br>ешь вкуснее</h1>
   <p class="landing-sub">Заготовки на неделю за один день. Полуфабрикаты, заморозка, соусы — всё, чтобы питаться вкусно и не стоять у плиты.</p>
-  <button class="login-btn" style="max-width:280px;margin:0 auto" onclick="showScreen('login')">
-    <i class="fas fa-arrow-right"></i> Получить доступ
-  </button>
+  <a class="login-btn" style="max-width:280px;margin:0 auto" href="https://sales-platform-clubfabrika3.ru/#pricing">
+    <i class="fas fa-arrow-right"></i> Выбрать тариф
+  </a>
+  <button type="button" class="login-back" onclick="showScreen('login')">Уже есть доступ? Войти</button>
 </div>
 
 <div class="section-label" style="text-align:center">Тарифы</div>
@@ -629,28 +630,26 @@ a{text-decoration:none;color:inherit}
 <div class="tariff-cards">
   <div class="tariff-card">
     <div class="tariff-name">Базовый</div>
-    <div class="tariff-price">2 900 ₽ <small>/ месяц</small></div>
+    <div class="tariff-price">5 990 ₽ <small>один раз · доступ навсегда</small></div>
     <ul class="tariff-features">
-      <li><i class="fas fa-check"></i> Доступ к каналу с рецептами</li>
-      <li><i class="fas fa-check"></i> Список покупок на неделю</li>
-      <li><i class="fas fa-check"></i> Пошаговые инструкции</li>
-      <li><i class="fas fa-check"></i> Бот техподдержки</li>
-      <li class="disabled"><i class="fas fa-lock"></i> Чат участников</li>
+      <li><i class="fas fa-check"></i> До 120 рецептов заготовок</li>
+      <li><i class="fas fa-check"></i> До 250 рецептов приготовления к столу</li>
+      <li><i class="fas fa-check"></i> Видео и PDF-сборники в закрытом Telegram-канале</li>
+      <li class="disabled"><i class="fas fa-lock"></i> Без доступа к платформе и чату кураторов</li>
     </ul>
-    <button class="login-btn" onclick="showScreen('login')">Присоединиться</button>
+    <a class="login-btn" href="https://sales-platform-clubfabrika3.ru/#pricing">Выбрать тариф</a>
   </div>
   <div class="tariff-card featured">
     <div class="tariff-popular">Популярный</div>
     <div class="tariff-name">Расширенный</div>
-    <div class="tariff-price">4 900 ₽ <small>/ месяц</small></div>
+    <div class="tariff-price">6 790 ₽ <small>один раз · доступ навсегда</small></div>
     <ul class="tariff-features">
-      <li><i class="fas fa-check"></i> Всё из базового тарифа</li>
-      <li><i class="fas fa-check"></i> Чат участников клуба</li>
-      <li><i class="fas fa-check"></i> Прямая связь с Верой</li>
-      <li><i class="fas fa-check"></i> Эксклюзивные рецепты</li>
-      <li><i class="fas fa-check"></i> Разборы ваших заготовок</li>
+      <li><i class="fas fa-check"></i> 180+ рецептов заготовок</li>
+      <li><i class="fas fa-check"></i> 450+ рецептов приготовления к столу</li>
+      <li><i class="fas fa-check"></i> Видео и PDF-сборники на платформе</li>
+      <li><i class="fas fa-check"></i> Чат и поддержка кураторов</li>
     </ul>
-    <button class="login-btn" onclick="showScreen('login')">Присоединиться</button>
+    <a class="login-btn" href="https://sales-platform-clubfabrika3.ru/#pricing">Выбрать тариф</a>
   </div>
 </div>
 
@@ -661,17 +660,17 @@ a{text-decoration:none;color:inherit}
       <div class="footer-col">
         <h4>Документы</h4>
         <ul>
-          <li><a href="#">Оферта</a></li>
-          <li><a href="#">Политика обработки ПД</a></li>
-          <li><a href="#">Согласие на рассылку</a></li>
+          <li><a href="https://disk.yandex.ru/i/F9KEtKAMrIzKzw" target="_blank" rel="noopener noreferrer">Оферта</a></li>
+          <li><a href="https://disk.yandex.ru/i/vIxEZ0HkXsj42Q" target="_blank" rel="noopener noreferrer">Политика обработки ПД</a></li>
+          <li><a href="https://disk.yandex.ru/i/TpVA_h_RWP1UyQ" target="_blank" rel="noopener noreferrer">Согласие на рассылку</a></li>
         </ul>
       </div>
       <div class="footer-col">
         <h4>Контакты</h4>
         <ul>
-          <li><a href="#">Telegram</a></li>
-          <li><a href="#">ВКонтакте</a></li>
-          <li><a href="#">Почта</a></li>
+          <li><a href="https://t.me/zabota_veramlgn" target="_blank" rel="noopener noreferrer">Служба заботы в Telegram</a></li>
+          <li><a href="https://vk.ru/im/channels/-234363549" target="_blank" rel="noopener noreferrer">ВКонтакте</a></li>
+          <li><a href="mailto:zabotaveramlgn@yandex.ru">Почта</a></li>
         </ul>
       </div>
     </div>
@@ -1220,7 +1219,7 @@ a{text-decoration:none;color:inherit}
     <div class="profile-row"><span class="pl">Email</span><span class="pv" id="profileEmailRow">—</span></div>
     <div class="profile-row"><span class="pl">Дата покупки клуба</span><span class="pv" id="profilePurchaseDate">—</span></div>
     <div class="profile-row"><span class="pl">Тариф</span><span class="pv"><span class="tariff-badge premium" id="profileTariff">Расширенный</span></span></div>
-    <div class="profile-row"><span class="pl">Статус подписки</span><span class="pv" id="profileStatus" style="color:#2e7d32">● Активна</span></div>
+    <div class="profile-row"><span class="pl">Статус доступа</span><span class="pv" id="profileStatus" style="color:#2e7d32">● Активен</span></div>
     <div class="profile-row"><span class="pl">Доступ до</span><span class="pv" id="profileAccessUntil">—</span></div>
   </div>
   <div style="margin:0 20px;display:flex;flex-direction:column;gap:12px">
