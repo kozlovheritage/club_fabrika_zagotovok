@@ -168,14 +168,37 @@ a{text-decoration:none;color:inherit}
   font-weight:700;font-size:1rem;
   box-shadow:var(--shadow);
   transition:var(--tr);
-  position:relative;
+  position:relative;width:100%;text-align:center;
 }
 .tg-btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.tg-btn:focus-visible{outline:3px solid var(--pink);outline-offset:3px}
 .tg-btn i{color:var(--pink);font-size:1.2rem}
 .tg-btn.locked{opacity:.55}
 .tg-btn.locked::after{
   content:'🔒';position:absolute;right:20px;font-size:.9rem;
 }
+.club-links-dialog{
+  position:fixed;inset:0;margin:auto;width:min(420px,calc(100% - 32px));
+  max-height:calc(100dvh - 32px);padding:0;border:0;border-radius:22px;
+  background:var(--white);color:var(--text-mid);box-shadow:var(--shadow-lg);
+}
+.club-links-dialog::backdrop{background:rgba(30,24,30,.55)}
+.club-links-panel{position:relative;padding:30px 24px 26px}
+.club-links-dialog h2{font-family:'Cormorant Garamond',serif;font-size:1.9rem;line-height:1.1;margin:0 36px 8px 0}
+.club-links-dialog p{font-size:.9rem;color:var(--text-light);margin:0 0 22px}
+.club-links-close{position:absolute;top:17px;right:18px;color:var(--text-mid);font-size:1.7rem;line-height:1;padding:4px 8px}
+.club-links-choice{
+  display:flex;align-items:center;gap:12px;width:100%;min-height:56px;
+  padding:14px 16px;margin-top:10px;border:1px solid var(--border);
+  border-radius:var(--r-sm);background:var(--pink-soft);color:var(--text-mid);
+  font-size:.95rem;font-weight:700;text-align:left;transition:var(--tr);
+}
+.club-links-choice:hover:not(:disabled){border-color:var(--pink);background:var(--white)}
+.club-links-choice i{color:var(--pink);font-size:1.15rem}
+.club-links-choice small{margin-left:auto;font-size:.78rem;color:var(--text-light)}
+.club-links-choice[hidden]{display:none}
+.club-links-choice:disabled{opacity:.65;cursor:not-allowed}
+.club-links-close:focus-visible,.club-links-choice:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
 
 .section-label{
   font-size:.72rem;font-weight:700;letter-spacing:.12em;
@@ -695,7 +718,7 @@ a{text-decoration:none;color:inherit}
     <li><a href="#" onclick="showScreen('profile');toggleMenu();return false"><i class="fas fa-user"></i>Профиль</a></li>
   </ul>
   <div style="margin-top:20px;padding:16px;background:var(--pink-soft);border-radius:var(--r-sm);font-size:.85rem;color:var(--text-mid)">
-    Возникли проблемы? Пишите в <a href="#" style="color:var(--pink);font-weight:700">службу поддержки</a>
+    Возникли проблемы? Пишите в <a href="https://t.me/help_club_fabrika_zagotovok_bot" target="_blank" rel="noopener noreferrer" style="color:var(--pink);font-weight:700">службу заботы</a>
   </div>
 </aside>
 
@@ -709,15 +732,15 @@ a{text-decoration:none;color:inherit}
 </div>
 
 <div class="telegram-buttons">
-  <a href="https://t.me/+adFXuYWs8IxkODJi" target="_blank" rel="noopener noreferrer" class="tg-btn">
-    <i class="fab fa-telegram"></i><span>telegram-канал клуба</span>
-  </a>
-  <a href="https://t.me/fabrika_chat" target="_blank" class="tg-btn" id="chatBtn1">
-    <i class="fab fa-telegram"></i><span>общий чат участников</span>
-  </a>
-  <a href="https://t.me/fabrika_support_bot" target="_blank" class="tg-btn">
-    <i class="fab fa-telegram"></i><span>служба поддержки</span>
-  </a>
+  <button type="button" class="tg-btn" onclick="openClubLinks('channel')">
+    <i class="fas fa-bullhorn" aria-hidden="true"></i><span>Канал клуба</span>
+  </button>
+  <button type="button" class="tg-btn" id="chatBtn1" onclick="openClubLinks('chat')">
+    <i class="fas fa-comments" aria-hidden="true"></i><span>Чат участников</span>
+  </button>
+  <button type="button" class="tg-btn" onclick="openClubLinks('care')">
+    <i class="fas fa-headset" aria-hidden="true"></i><span>Служба заботы</span>
+  </button>
 </div>
 
 <div class="start-card" onclick="showScreen('start')">
@@ -747,10 +770,9 @@ a{text-decoration:none;color:inherit}
         </ul>
       </div>
       <div class="footer-col">
-        <h4>Служба поддержки</h4>
+        <h4>Служба заботы</h4>
         <ul>
-          <li><a href="#">Время работы: 10:00–18:00 МСК</a></li>
-          <li><a href="https://t.me/fabrika_support_bot">Написать в поддержку</a></li>
+          <li><a href="https://t.me/help_club_fabrika_zagotovok_bot" target="_blank" rel="noopener noreferrer">Служба заботы</a></li>
         </ul>
       </div>
     </div>
@@ -1205,6 +1227,17 @@ a{text-decoration:none;color:inherit}
         <div class="video-wrapper" id="videoModalPlayer"></div>
     </div>
 </div>
+
+<dialog class="club-links-dialog" id="clubLinksDialog" aria-labelledby="clubLinksTitle" onclick="if(event.target===this) this.close()">
+  <div class="club-links-panel">
+    <button type="button" class="club-links-close" onclick="document.getElementById('clubLinksDialog').close()" aria-label="Закрыть">&times;</button>
+    <h2 id="clubLinksTitle"></h2>
+    <p>Выберите удобную платформу</p>
+    <a class="club-links-choice" id="clubLinksTelegram" target="_blank" rel="noopener noreferrer"><i class="fab fa-telegram" aria-hidden="true"></i><span id="clubLinksTelegramLabel"></span></a>
+    <a class="club-links-choice" id="clubLinksMax" target="_blank" rel="noopener noreferrer"><i class="fas fa-comment-dots" aria-hidden="true"></i><span id="clubLinksMaxLabel"></span></a>
+    <button type="button" class="club-links-choice" id="clubLinksMaxPending" disabled hidden><i class="fas fa-comment-dots" aria-hidden="true"></i><span>Служба заботы в MAX</span><small>Скоро</small></button>
+  </div>
+</dialog>
 
 <div class="toast" id="toast"></div>
 
@@ -1761,16 +1794,38 @@ function closeVideoModal(e) {
 }
 
 /* ═══════════ ТАРИФЫ ═══════════ */
+const CLUB_LINKS={
+  channel:{title:'Канал клуба',telegram:{label:'Канал в Telegram',url:'https://t.me/+adFXuYWs8IxkODJi'},max:{label:'Канал в MAX',url:'https://max.ru/join/_ZT7GtZh8OU1dJy02P0IGuOSMGmtaKuIG4RoYuZKvdU'}},
+  chat:{title:'Чат участников',telegram:{label:'Чат в Telegram',url:'https://t.me/+gOVdE78-CPQ5NWYy'},max:{label:'Чат в MAX',url:'https://max.ru/join/bHgAR9ib8XuWgJ9Am0mcb0eAz2H7wI2ugutu54otqns'}},
+  care:{title:'Служба заботы',telegram:{label:'Служба заботы в Telegram',url:'https://t.me/help_club_fabrika_zagotovok_bot'},max:{label:'Служба заботы в MAX',url:null}}
+};
+function openClubLinks(kind){
+  if(kind==='chat' && currentTariff==='basic'){
+    toast('Чат доступен только в расширенном тарифе',true);
+    return;
+  }
+  const links=CLUB_LINKS[kind];
+  if(!links) return;
+  const dialog=document.getElementById('clubLinksDialog');
+  document.getElementById('clubLinksTitle').textContent=links.title;
+  const telegram=document.getElementById('clubLinksTelegram');
+  telegram.href=links.telegram.url;
+  document.getElementById('clubLinksTelegramLabel').textContent=links.telegram.label;
+  const max=document.getElementById('clubLinksMax');
+  const pending=document.getElementById('clubLinksMaxPending');
+  max.hidden=!links.max.url;
+  pending.hidden=!!links.max.url;
+  if(links.max.url) max.href=links.max.url;
+  else max.removeAttribute('href');
+  document.getElementById('clubLinksMaxLabel').textContent=links.max.label;
+  dialog.showModal();
+}
+
 function applyTariff(){
   const chatBtns = document.querySelectorAll('#chatBtn1');
   chatBtns.forEach(btn=>{
-    if(currentTariff==='basic'){
-      btn.classList.add('locked');
-      btn.onclick = (e)=>{e.preventDefault(); toast('Чат доступен только в расширенном тарифе', true);};
-    } else {
-      btn.classList.remove('locked');
-      btn.onclick = null;
-    }
+    btn.classList.toggle('locked',currentTariff==='basic');
+    btn.setAttribute('aria-disabled',currentTariff==='basic'?'true':'false');
   });
   const badge = document.getElementById('profileTariff');
   if(badge){
