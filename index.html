@@ -1017,6 +1017,8 @@ a{text-decoration:none;color:inherit}
   </div>
   <div class="section-label">Видео</div>
   <div class="mat-grid" id="smartList" style="margin:0 0 32px"></div>
+  <div class="section-label">Материалы</div>
+  <div class="mat-grid" id="smartFilesList" style="margin:0 0 32px"></div>
 </div>
 </div>
 
@@ -1085,10 +1087,6 @@ a{text-decoration:none;color:inherit}
   <div class="section-label">Материалы</div>
   <h2 class="section-title">файлы для скачивания</h2>
   <div class="mat-grid" id="holidayFilesList" style="margin:0 20px 32px"></div>
-
-  <div class="section-label">Праздничное меню</div>
-  <h2 class="section-title">рецепты, посуда и декор</h2>
-  <div class="categories" id="holidayCategoriesList"></div>
 </div>
 </div>
 
@@ -1303,6 +1301,11 @@ const CLUB_VIDEOS = {
 
 /* ═══════════ ДАННЫЕ: PDF-ФАЙЛЫ (Яндекс.Диск) ═══════════ */
 const CLUB_FILES = {
+    smart: [
+        {t: "Сборник 1", url: "https://disk.yandex.ru/i/UG2c9fU2egfFig"},
+        {t: "Сборник 2", url: "https://disk.yandex.ru/i/Js-WVEJIeA0feg"},
+        {t: "Сборник 3", url: "https://disk.yandex.ru/i/8b7ojsoG-8N1ng"}
+    ],
     constructor: [
         {t: "Лимонады", url: "https://disk.yandex.ru/i/o_vWJ3-y7pxotA"},
         {t: "Пиццы", url: "https://disk.yandex.ru/i/ZnMrzfJbSSM3uQ"},
@@ -1344,10 +1347,8 @@ const MATERIAL_PENDING_NOTICE = 'Материал в разработке, бу�
 /* ═══════════ ДАННЫЕ: РЕЦЕПТЫ ═══════════ */
 const RECIPE_CATEGORIES = [
   {name:'Заготовки из овощей', icon:'fa-carrot', videos: CLUB_VIDEOS.recipes['Овощи'], files:[
-    {t:'Овощи в заготовку 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/wrihiv-PuqtjGA'},
-    {t:'Сборник заготовок из овощей, фруктов и ягод, зелени', d:'PDF-файл', url:'https://disk.yandex.ru/i/zBWbY-nCVa_EdQ'},
-    {t:'PDF: Рецепты из овощей (16 стр.)', d:'PDF, 2.9 МБ'},
-    {t:'Таблица: Заморозка овощей', d:'PDF, 310 КБ'}
+    {t:'Овощи в заготовку', d:'PDF-файл', url:'https://disk.yandex.ru/i/wrihiv-PuqtjGA'},
+    {t:'Сборник заготовок из овощей, фруктов и ягод, зелени', d:'PDF-файл', url:'https://disk.yandex.ru/i/zBWbY-nCVa_EdQ'}
   ]},
   {name:'Заготовки из птицы', icon:'fa-drumstick-bite', videos: CLUB_VIDEOS.recipes['Птица'], files:[
     {t:'Заготовки из птицы 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/X_KVVTtzP9xBPQ'},
@@ -1370,63 +1371,11 @@ const RECIPE_CATEGORIES = [
     {t:'Выпечка в заготовки 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/OfKEt3dNOm6QiQ'},
     {t:'Выпечка в заготовки 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/Pmqw8dVg70i2tg'}
   ]},
-  {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты'], files:[{t:'PDF: Рецепты паштетов (8 стр.)', d:'PDF, 1.2 МБ'},{t:'Чек-лист: Хранение паштетов', d:'PDF, 200 КБ'}]},
+  {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты']},
   {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[{t:'Домашние колбасы в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/wVO3VjQAi1u4jg'}]},
   {name:'Галеты', icon:'fa-cookie', videos: CLUB_VIDEOS.recipes['Галеты'], files:[{t:'Сборник «Галеты»', d:'PDF-файл', url:'https://disk.yandex.ru/d/00Un9tc0TtUKww'}]},
   {name:'Вафли', icon:'fa-stroopwafel', videos: CLUB_VIDEOS.recipes['Вафли'], files:[{t:'Вафли в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/i/43tXB3s9sDZ3ow'}]},
   {name:'Десерты', icon:'fa-ice-cream', videos:[], files:[{t:'Десерты в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/CnmHLxvkOtGpPg'}]}
-];
-
-/* ═══════════ ДАННЫЕ: ПРАЗДНИЧНЫЙ СТОЛ ═══════════ */
-const HOLIDAY_CATEGORIES = [
-  {name:'Заготовки', icon:'fa-box-open', items:[
-    {t:'Ростбиф', d:'Мясная заготовка, до 3 мес. в морозилке'},
-    {t:'Грудинка', d:'Пряная свиная закуска'},
-    {t:'Паштет', d:'Из куриной печени'},
-    {t:'Свекольная рыба слабой соли', d:'Засолка со свеклой'},
-    {t:'Профитроли', d:'Заготовка теста-основы'},
-    {t:'Свекольные блины', d:'Розовые блины для роллов'},
-    {t:'Вишнёвый конфитюр', d:'Для профитролей и десертов'},
-    {t:'Подготовка овощей', d:'Запечённые корнеплоды и перец'}
-  ]},
-  {name:'Салаты', icon:'fa-leaf', items:[
-    {t:'Оливье с ростбифом и свежим горошком', d:'Салат'},
-    {t:'"Тбилиси" с запечённым перцем', d:'Салат'},
-    {t:'Салат с лососем и авокадо', d:'Слоёный салат'},
-    {t:'Роллы "Под шубой"', d:'Рулет из свекольных блинов'},
-    {t:'Салат с ростбифом', d:'Руккола, пармезан, орехи'}
-  ]},
-  {name:'Закуски', icon:'fa-utensils', items:[
-    {t:'Рулетики с ростбифом', d:'Творожный сыр и руккола'},
-    {t:'Рулетики из перца с сыром и орехами', d:'Брынза, фисташки'},
-    {t:'Профитроли с тар-таром из запечённого перца', d:''},
-    {t:'Профитроли с паштетом и вишнёвым конфитюром', d:''},
-    {t:'Мини-брускетта с грудинкой', d:''},
-    {t:'Брускетта с тар-таром из лосося', d:''},
-    {t:'Мини-сэндвичи с ростбифом', d:''},
-    {t:'Рулеты с красной рыбой', d:''}
-  ]},
-  {name:'Горячее и гарниры', icon:'fa-fire-burner', items:[
-    {t:'Пряная свинина "Глинтвейн"', d:'Горячее'},
-    {t:'Томлёные ребра "BBQ"', d:'Горячее'},
-    {t:'Глазированная курица с апельсинами', d:'Горячее'},
-    {t:'Мраморный террин', d:'Горячее из рыбы'},
-    {t:'Картофель бэби с розмарином и пармезаном', d:'Гарнир'},
-    {t:'Цветная капуста с копчёной паприкой', d:'Гарнир'},
-    {t:'Батат дор-блю с фисташками', d:'Гарнир'}
-  ]},
-  {name:'Десерты', icon:'fa-birthday-cake', items:[
-    {t:'Ленивый рулет-медовик', d:'Десерт'},
-    {t:'Профитроли с кремом и конфитюром', d:'Десерт'},
-    {t:'Тарталетки с грушей и дор-блю', d:'Десерт'}
-  ]},
-  {name:'Посуда и декор', icon:'fa-gem', items:[
-    {t:'Сервировочные блюда', d:'Подборка для подачи'},
-    {t:'Креманки и салатники', d:'Подборка для подачи'},
-    {t:'Формы для салата', d:'Металлические кольца'},
-    {t:'Декор стола', d:'Скатерти, свечи, подсвечники, вазы'},
-    {t:'Декор закусок', d:'Шпажки, кондитерские мешки, кунжут, миндаль, сусальное золото'}
-  ]}
 ];
 
 /* ═══════════ ДАННЫЕ: ТАБЛИЧКА ХРАНЕНИЯ ═══════════ */
@@ -1675,10 +1624,9 @@ function showScreen(id){
   ]);
   if(id==='holiday'){ 
       renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday);
-      renderAccordion('holidayCategoriesList', HOLIDAY_CATEGORIES); 
       renderHolidayFiles(); 
   }
-  if(id==='smart') renderVideoList('smartList', CLUB_VIDEOS.smart);
+  if(id==='smart'){renderVideoList('smartList',CLUB_VIDEOS.smart);renderFileList('smartFilesList',CLUB_FILES.smart)}
   if(id==='ready-menu') renderVideoList('readyMenuList', CLUB_VIDEOS.readyMenu);
   if(id==='broths'){ 
       renderVideoList('brothsList', CLUB_VIDEOS.broths);
@@ -1770,12 +1718,12 @@ function renderAccordion(containerId, categories){
             ${c.videos.map(v=>`<div class="mat-card" onclick="playVideo('${v.title || v.t}', '${v.id}')"><div class="mat-thumb"><i class="fas fa-play"></i></div><div class="mat-info"><h4>${v.title || v.t}</h4><p>Видео</p></div></div>`).join('')}
           </div>
         </div>` : ''}
-        <div class="mat-section">
-          <div class="mat-label"><i class="fas fa-file-pdf"></i> Материалы (${c.files ? c.files.length : 0})</div>
+        ${c.files?.length ? `<div class="mat-section">
+          <div class="mat-label"><i class="fas fa-file-pdf"></i> Материалы (${c.files.length})</div>
           <div class="mat-grid">
-            ${(c.files || []).map(f=>`<div class="mat-card" onclick="${f.slug?`openMaterial('${f.slug}','recipes','${c.name}')`:`openFile('${f.url || ''}', '${f.t}')`}"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.slug||f.url?f.d:MATERIAL_PENDING_NOTICE}</p></div></div>`).join('')}
+            ${c.files.map(f=>`<div class="mat-card" onclick="${f.slug?`openMaterial('${f.slug}','recipes','${c.name}')`:`openFile('${f.url || ''}', '${f.t}')`}"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.slug||f.url?f.d:MATERIAL_PENDING_NOTICE}</p></div></div>`).join('')}
           </div>
-        </div>`;
+        </div>` : ''}`;
     } else if(c.items){
       bodyHtml = `
         <div class="mat-section">
