@@ -132,7 +132,7 @@ function renderHematologist(source) {
         continue;
       }
       const sectionNode = hematologistNode('section', undefined, 'hematologist-section');
-      sectionNode.append(hematologistNode('h3', `Блок ${section}. ${match[2]}`));
+      sectionNode.append(hematologistNode('h3', `Блок ${section - 1}. ${match[2]}`));
       sections.append(sectionNode);
       target = sectionNode;
       if (section === 6) appendHematologistTable(target);
