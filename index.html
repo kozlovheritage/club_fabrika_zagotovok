@@ -1017,7 +1017,7 @@ a{text-decoration:none;color:inherit}
       <p>Ресторанные блюда без лишних усилий — на основе ваших заготовок.</p>
     </div>
   </div>
-  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материалы этого раздела скоро появятся</div></div>
+  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материал в разработке, будет доступен 11 октября</div></div>
 </div>
 </div>
 
@@ -1088,7 +1088,7 @@ a{text-decoration:none;color:inherit}
       <p>Как превратить навык заготовок в источник дохода.</p>
     </div>
   </div>
-  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материалы этого раздела скоро появятся</div></div>
+  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материал в разработке, будет доступен 11 октября</div></div>
 </div>
 </div>
 
@@ -1298,6 +1298,7 @@ const NAV_BLOCKS = [
   {id:'earning', title:'Заработок на заготовках', icon:'fa-coins', desc:'Как зарабатывать на заготовках'},
   {id:'health', title:'Для здоровья', icon:'fa-heartbeat', desc:'Питание, нутрициология, лайфхаки'}
 ];
+const MATERIAL_PENDING_NOTICE = 'Материал в разработке, будет доступен 11 октября';
 
 /* ═══════════ ДАННЫЕ: РЕЦЕПТЫ ═══════════ */
 const RECIPE_CATEGORIES = [
@@ -1582,7 +1583,7 @@ function openFile(url, title){
     window.open(url, '_blank');
     toast('Открываем файл: ' + title);
   } else {
-    toast('Открываем: ' + title);
+    toast(MATERIAL_PENDING_NOTICE);
   }
 }
 
@@ -1639,7 +1640,7 @@ function renderAccordion(containerId, categories){
   list.innerHTML = categories.map((c,i)=>{
     let bodyHtml = '';
     if(c.soon){
-      bodyHtml = `<div class="soon-note"><i class="fas fa-hourglass-half"></i> Материалы этого раздела скоро появятся</div>`;
+      bodyHtml = `<div class="soon-note"><i class="fas fa-hourglass-half"></i> ${MATERIAL_PENDING_NOTICE}</div>`;
     } else if(c.videos){
       bodyHtml = `
         ${c.videos.length ? `<div class="mat-section">
@@ -1651,14 +1652,14 @@ function renderAccordion(containerId, categories){
         <div class="mat-section">
           <div class="mat-label"><i class="fas fa-file-pdf"></i> Материалы (${c.files ? c.files.length : 0})</div>
           <div class="mat-grid">
-            ${(c.files || []).map(f=>`<div class="mat-card" onclick="${f.slug ? `openClubMaterial('${f.slug}', '${f.t}', '${containerId==='bakingCategoriesList'?'baking':'recipes'}', '${c.name}', '${f.author||''}')` : `openFile('${f.url || ''}', '${f.t}')`}"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.d}</p></div></div>`).join('')}
+            ${(c.files || []).map(f=>`<div class="mat-card" onclick="${f.slug ? `openClubMaterial('${f.slug}', '${f.t}', '${containerId==='bakingCategoriesList'?'baking':'recipes'}', '${c.name}', '${f.author||''}')` : `openFile('${f.url || ''}', '${f.t}')`}"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.slug||f.url?f.d:MATERIAL_PENDING_NOTICE}</p></div></div>`).join('')}
           </div>
         </div>`;
     } else if(c.items){
       bodyHtml = `
         <div class="mat-section">
           <div class="mat-grid">
-            ${c.items.map(it=>`<div class="mat-card" onclick="toast('Открываем: ${it.t}')"><div class="mat-thumb"><i class="fas fa-utensils"></i></div><div class="mat-info"><h4>${it.t}</h4><p>${it.d||''}</p></div></div>`).join('')}
+            ${c.items.map(it=>`<div class="mat-card" onclick="toast('${MATERIAL_PENDING_NOTICE}')"><div class="mat-thumb"><i class="fas fa-utensils"></i></div><div class="mat-info"><h4>${it.t}</h4><p>${MATERIAL_PENDING_NOTICE}</p></div></div>`).join('')}
           </div>
         </div>`;
     }
@@ -1731,9 +1732,9 @@ function renderHealth(){
   const list = document.getElementById('healthList');
   if(!list) return;
   list.innerHTML = HEALTH_ITEMS.map((it,index)=>`
-    <${index===0?'a':'div'} class="mat-card${index===0?' health-link':''}" ${index===0?'href="#hematologist" onclick="showScreen(\'hematologist\');return false"':it.slug?`role="button" tabindex="0" onclick="openClubMaterial('${it.slug}', '${it.t}', 'health', '', '${it.author||''}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openClubMaterial('${it.slug}', '${it.t}', 'health', '', '${it.author||''}')}"`:`onclick="toast('Открываем материал: ${it.t}')"`}>
+    <${index===0?'a':'div'} class="mat-card${index===0?' health-link':''}" ${index===0?'href="#hematologist" onclick="showScreen(\'hematologist\');return false"':it.slug?`role="button" tabindex="0" onclick="openClubMaterial('${it.slug}', '${it.t}', 'health', '', '${it.author||''}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openClubMaterial('${it.slug}', '${it.t}', 'health', '', '${it.author||''}')}"`:`onclick="toast('${MATERIAL_PENDING_NOTICE}')"`}>
       <div class="mat-thumb file"><i class="fas fa-file-alt"></i></div>
-      <div class="mat-info"><h4>${it.t}</h4><p>${it.d}</p></div>
+      <div class="mat-info"><h4>${it.t}</h4><p>${index===0||it.slug?it.d:MATERIAL_PENDING_NOTICE}</p></div>
     </${index===0?'a':'div'}>`).join('');
 }
 
