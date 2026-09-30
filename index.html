@@ -250,6 +250,9 @@ a{text-decoration:none;color:inherit}
 .start-step .link-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;color:var(--pink);font-weight:700;font-size:.85rem; cursor: pointer;}
 .start-material-content{margin:0 22px;padding:18px 0 22px;border-top:1px solid var(--border)}
 .start-material-text{overflow-wrap:anywhere;color:var(--text);font-size:.88rem;line-height:1.65}
+.start-material-text .product-link{color:var(--pink-dark);text-decoration:underline;text-underline-offset:3px}
+.start-material-text .product-link:hover{color:var(--pink)}
+.start-material-text .product-link:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
 .start-material-text h5{font-size:1.04rem;font-weight:700;color:var(--text-mid);line-height:1.35;margin:20px 0 8px}
 .start-material-text h5:first-child{margin-top:0}
 .start-material-text p{font-size:inherit;white-space:pre-wrap;margin:0 0 12px}
@@ -1504,12 +1507,14 @@ function returnFromMaterial(){
 function renderStartMaterial(container,source,material){
   const headings=new Set(startMaterialHeadings[material]||[]);
   const shown=new Set();
+  let inProductsSection=false;
   container.replaceChildren();
   for(const block of source.trim().split(/\n\s*\n/)){
     const lines=block.split('\n').map(line=>line.trim()).filter(Boolean);
     if(!lines.length) continue;
     const title=lines.join(' ').replace(/\s+/g,' ');
     if(headings.has(title)){
+      if(material==='organization') inProductsSection=title==='Предметы для организации пространства';
       if(shown.has(title)) continue;
       shown.add(title);
       const heading=document.createElement('h5');
@@ -1520,6 +1525,20 @@ function renderStartMaterial(container,source,material){
     const paragraph=document.createElement('p');
     lines.forEach((line,index)=>{
       if(index) paragraph.append(document.createElement('br'));
+      const product=inProductsSection && material==='organization'
+        ? line.match(/^(.+?)\s+—\s+(https?:\/\/\S+)$/u) : null;
+      if(product){
+        const link=document.createElement('a');
+        link.className='product-link';
+        link.href=product[2];
+        link.target='_blank';
+        link.rel='noopener noreferrer';
+        const name=document.createElement('strong');
+        name.textContent=product[1];
+        link.append(name);
+        paragraph.append(link);
+        return;
+      }
       const important=/^(?:📌|❗|⚠️|‼️|Важно(?:\s|:)|Главный враг(?:\s|:)|Повторное замораживание исключено:|Замораживайте свежие продукты:|Возвращаем продукты обратно после полного высыхания)/u.test(line);
       const label=!important && line.length<95 && line.endsWith(':') && !/^[•✓\d]/u.test(line);
       if(important||label){
