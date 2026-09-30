@@ -1,9 +1,35 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createCheckout, identifyCheckout, premiumPasswordForOrder} from './checkout.mjs';
+import {createCheckout, identifyCheckout, premiumPasswordForOrder, quotePrice} from './checkout.mjs';
 
 const key = 'test-key-for-authenticated-order-identifiers';
 const env = {BASIC_PRICE_RUB: '5900', PREMIUM_PRICE_RUB: '6800'};
+
+test('each promotion has the agreed standalone price; only SKIDKA1C can repeat', () => {
+  const prices = [
+    ['', 6790, 5990],
+    ['CLUBB3', 5990, 5190],
+    ['FABRIKA1R', 3400, 2700],
+    ['FABRIKA1B', 4500, 3500],
+    ['FABRIKA2Pr', 1690, 1490],
+    ['FABRIKAB2P', 2190, 1990],
+    ['SKIDKA1C', 6200, 5400],
+    ['SKIDKA1C SKIDKA1C', 5610, 4810]
+  ];
+  for (const [code, premium, basic] of prices) {
+    assert.equal(quotePrice('premium', code).priceRub, premium, code + ' premium');
+    assert.equal(quotePrice('basic', code).priceRub, basic, code + ' basic');
+    const order = createCheckout('premium', key, env, 'buyer@example.org', code);
+    assert.equal(order.products[0].price, premium.toFixed(2));
+    assert.equal(identifyCheckout({
+      order_num: order.order_id, customer_email: order.customer_email,
+      products: order.products, sum: order.products[0].price
+    }, key).kind, 'site');
+  }
+  for (const input of ['CLUBB3 SKIDKA1C', 'FABRIKA1B FABRIKA2Pr', 'SKIDKA1C SKIDKA1C SKIDKA1C', 'CLUBB3 CLUBB3', 'UNKNOWN']) {
+    assert.throws(() => quotePrice('basic', input), /промокод|суммировать|кодов/i, input);
+  }
+});
 
 for (const tariff of ['basic', 'premium']) {
   test(`${tariff}: only the expected paid product is accepted`, () => {
@@ -21,7 +47,7 @@ for (const tariff of ['basic', 'premium']) {
 
 test('other Prodamus orders stay outside the site checkout flow', () => {
   assert.deepEqual(identifyCheckout({order_id: 'chatbot-order'}, key, env), {kind: 'external'});
-  assert.equal(createCheckout('premium', key, {}), null);
+  assert.equal(createCheckout('premium', '', {}), null);
 });
 
 for (const tariff of ['basic', 'premium']) {

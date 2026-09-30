@@ -13,9 +13,34 @@ function priceCents(value) {
   return Number.isSafeInteger(result) && result > 0 ? result : null;
 }
 
-function configuredPrice(tariff, env) {
-  const value = env[tariff === 'basic' ? 'BASIC_PRICE_RUB' : 'PREMIUM_PRICE_RUB'];
-  return priceCents(value);
+// Active phase: presales. Later phase changes must also update the sales site's displayed prices.
+const CURRENT_PRICES = {premium: 6790, basic: 5990};
+const FIXED_PRICES = {
+  CLUBB3: {premium: 5990, basic: 5190},
+  FABRIKA1R: {premium: 3400, basic: 2700},
+  FABRIKA1B: {premium: 4500, basic: 3500},
+  FABRIKA2PR: {premium: 1690, basic: 1490},
+  FABRIKAB2P: {premium: 2190, basic: 1990}
+};
+
+export function quotePrice(tariff, promoInput = '') {
+  if (!PRODUCTS[tariff]) throw new Error('Неизвестный тариф');
+  if (typeof promoInput !== 'string' || promoInput.length > 100) throw new Error('Некорректный промокод');
+  const codes = promoInput.trim().toUpperCase().split(/[\s,;]+/u).filter(Boolean);
+  if (codes.length > 2) throw new Error('Можно применить не более двух кодов SKIDKA1C');
+  const basePriceRub = CURRENT_PRICES[tariff];
+  let priceRub = basePriceRub;
+  if (codes.length) {
+    if (codes.every(code => code === 'SKIDKA1C')) {
+      priceRub -= 590 * codes.length;
+    } else if (codes.length === 1 && FIXED_PRICES[codes[0]]) {
+      priceRub = FIXED_PRICES[codes[0]][tariff];
+    } else {
+      throw new Error(codes.some(code => !FIXED_PRICES[code] && code !== 'SKIDKA1C')
+        ? 'Промокод не найден' : 'Эти промокоды нельзя суммировать');
+    }
+  }
+  return {basePriceRub, priceRub, discountRub: basePriceRub - priceRub, codes};
 }
 
 function orderSignature(prefix, key) {
@@ -38,9 +63,9 @@ export function premiumPasswordForOrder(orderId, key) {
     .update('club-premium-password:' + orderId).digest('base64url').slice(0, 18);
 }
 
-export function createCheckout(tariff, key, env = process.env, buyerEmail) {
+export function createCheckout(tariff, key, env = process.env, buyerEmail, promoInput = '') {
   const product = PRODUCTS[tariff];
-  const cents = product && configuredPrice(tariff, env);
+  const cents = product && quotePrice(tariff, promoInput).priceRub * 100;
   if (!cents || !key) return null;
   const email = buyerEmail === undefined ? null : normalizedEmail(buyerEmail);
   if (buyerEmail !== undefined && !email) return null;

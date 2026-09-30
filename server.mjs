@@ -6,7 +6,7 @@ import express from 'express';
 import multer from 'multer';
 import pg from 'pg';
 import {sendCredentialsEmail} from './email.mjs';
-import {createCheckout,identifyCheckout,premiumPasswordForOrder} from './checkout.mjs';
+import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice} from './checkout.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -91,6 +91,9 @@ app.post('/api/checkout/session',async(req,res,next)=>{
   if(tariff!=='basic'&&tariff!=='premium')return res.status(400).json({message:'Неизвестный тариф'});
   const email=normalizeEmail(req.body?.email);
   if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({message:'Укажите email для письма с доступом'});
+  let quote;
+  try{quote=quotePrice(tariff,req.body?.promo??'');}
+  catch(error){return res.status(400).json({message:error.message});}
   if(tariff==='basic'&&process.env.BASIC_CHECKOUT_ENABLED!=='true')return res.status(503).json({message:'Оплата базового тарифа пока недоступна'});
   const invite=tariff==='basic'&&basicInviteUrl();
   if(tariff==='basic'&&!invite)return res.status(503).json({message:'Доступ в Telegram-клуб пока не настроен'});
@@ -99,7 +102,7 @@ app.post('/api/checkout/session',async(req,res,next)=>{
       const existing=await pool.query("SELECT 1 FROM club_users WHERE (email=$1 OR login_email=$1) AND password_hash IS NOT NULL LIMIT 1",[email]);
       if(existing.rowCount)return res.status(409).json({message:'У вас уже есть доступ по этому email. Войдите в клуб или обратитесь в службу заботы, если забыли пароль.'});
     }
-    const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY,process.env,email);
+    const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY,process.env,email,quote.codes.join(' '));
     if(!checkout)return res.status(503).json({message:'Оплата пока недоступна'});
     checkout.paid_content=tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+checkout.order_id
