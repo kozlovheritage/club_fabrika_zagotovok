@@ -92,8 +92,8 @@ app.post('/api/checkout/session',async(req,res,next)=>{
   if(tariff!=='basic'&&tariff!=='premium')return res.status(400).json({message:'Неизвестный тариф'});
   const email=normalizeEmail(req.body?.email);
   if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({message:'Укажите email для письма с доступом'});
-  const buyerName=normalizeBuyerName(req.body?.buyerName);
-  if(!buyerName)return res.status(400).json({message:'Укажите имя и фамилию'});
+  const buyerName=tariff==='premium'?normalizeBuyerName(req.body?.buyerName):null;
+  if(tariff==='premium'&&!buyerName)return res.status(400).json({message:'Укажите имя и фамилию'});
   let quote;
   try{quote=quotePrice(tariff,req.body?.promo??'');}
   catch(error){return res.status(400).json({message:error.message});}
@@ -105,9 +105,9 @@ app.post('/api/checkout/session',async(req,res,next)=>{
       const existing=await pool.query("SELECT 1 FROM club_users WHERE (email=$1 OR login_email=$1) AND password_hash IS NOT NULL LIMIT 1",[email]);
       if(existing.rowCount)return res.status(409).json({message:'У вас уже есть доступ по этому email. Войдите в клуб или обратитесь в службу заботы, если забыли пароль.'});
     }
-    const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY,process.env,email,quote.codes.join(' '),buyerName);
+    const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY,process.env,email,quote.codes.join(' '),tariff==='premium'?buyerName:undefined);
     if(!checkout)return res.status(503).json({message:'Оплата пока недоступна'});
-    await pool.query('INSERT INTO club_checkout_orders (order_id,buyer_email,buyer_name) VALUES ($1,$2,$3)',[checkout.order_id,email,buyerName]);
+    if(tariff==='premium')await pool.query('INSERT INTO club_checkout_orders (order_id,buyer_email,buyer_name) VALUES ($1,$2,$3)',[checkout.order_id,email,buyerName]);
     checkout.paid_content=tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+checkout.order_id
       : 'Расширенный тариф клуба «Фабрика заготовок». Личный кабинет: '+PUBLIC_URL+
