@@ -244,13 +244,29 @@ a{text-decoration:none;color:inherit}
 .start-step p{font-size:.86rem;color:var(--text)}
 .start-step .link-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;color:var(--pink);font-weight:700;font-size:.85rem; cursor: pointer;}
 .start-material-content{margin:0 22px;padding:18px 0 22px;border-top:1px solid var(--border)}
-.start-material-text{overflow-wrap:anywhere;color:var(--text);font-size:.88rem;line-height:1.65}
-.start-material-text .product-link{color:var(--pink-dark);text-decoration:underline;text-underline-offset:3px}
-.start-material-text .product-link:hover{color:var(--pink)}
+.start-material-text{overflow-wrap:anywhere;color:var(--text);font-size:.95rem;line-height:1.7}
+.start-material-text .product-list{list-style:none;padding:0;margin:14px 0}
+.start-material-text .product-list li{margin:0 0 10px;padding:0}
+.start-material-text .product-link{display:block;min-height:48px;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--cream);color:var(--pink-dark);text-decoration:none;touch-action:manipulation}
+.start-material-text .product-link strong{display:block;line-height:1.5}
+.start-material-text .product-link-action{display:block;margin-top:5px;font-size:.85rem;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.start-material-text .product-link:hover{color:var(--pink);border-color:var(--pink)}
 .start-material-text .product-link:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
 .start-material-text h5{font-size:1.04rem;font-weight:700;color:var(--text-mid);line-height:1.35;margin:20px 0 8px}
 .start-material-text h5:first-child{margin-top:0}
-.start-material-text p{font-size:inherit;white-space:pre-wrap;margin:0 0 12px}
+.start-material-text h6{font-size:inherit;font-weight:700;color:var(--text-mid);line-height:1.5;margin:16px 0 6px}
+.start-material-text p{font-size:inherit;margin:0 0 12px}
+.start-material-text ul,.start-material-text ol{padding-left:24px;margin:8px 0 18px}
+.start-material-text li{margin:0 0 9px;padding-left:3px}
+.start-material-text li p{margin:5px 0 0}
+.start-material-text .lecture-steps{list-style:none;padding:0}
+.start-material-text .lecture-steps li{padding:10px 0 10px 14px;border-left:3px solid var(--pink-light)}
+.start-material-text .lecture-note{padding:14px 16px;background:var(--pink-light);border-radius:12px}
+.start-material-text .lecture-table-wrap{max-width:100%;overflow-x:auto;margin:14px 0 20px;border:1px solid var(--border);border-radius:12px}
+.start-material-text table{width:100%;border-collapse:collapse;font-size:.9rem;line-height:1.5}
+.start-material-text th,.start-material-text td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+.start-material-text th{background:var(--cream);font-weight:700;color:var(--text-mid)}
+.start-material-text tr:last-child td{border-bottom:0}
 .start-material-text strong{font-weight:700}
 .start-material-text em{font-style:italic}
 .start-material-content button.link-btn{border:0;background:none;padding:0;font-family:inherit}
@@ -1323,7 +1339,7 @@ const BAKING_CATEGORIES = [
     {t:'Выпечка в заготовки 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/Pmqw8dVg70i2tg'}
   ]},
   {name:'Десерты', icon:'fa-ice-cream', videos:[], files:[
-    {t:'Десерты в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/CnmHLxvkOtGpPg'}
+    {t:'Десерты в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/i/T-DH8tu0P_ZOSQ'}
   ]}
 ];
 
@@ -1384,56 +1400,125 @@ const PUBLIC_SCREENS = new Set(['landing','login']);
 /* ═══════════ НАВИГАЦИЯ ═══════════ */
 const startMaterialHeadings={
   revision:['Основные правила ревизии','Ревизия холодильника','Отмываем холодильник','Заполняем холодильник','Ревизия сухих продуктов'],
-  menu:['Планирование меню','Планирование закупки','Мои лайфхаки разумной закупки:','Как определить размер закупки для заготовки основных блюд ☝️','Мои лайфхаки по питанию'],
+  menu:['Планирование меню','Планирование закупки','Мои лайфхаки разумной закупки:','Как определить размер закупки для заготовки основных блюд ☝️','Мои лайфхаки по питанию и меню','Мои лайфхаки по питанию'],
   rules:['Правила заготовок','Что нельзя замораживать?','Что можно замораживать? и что замораживаю я','Основные правила заготовок','Тара: основные правила','Сроки хранения заготовок'],
   organization:['Организация пространства','Как организовывать пространство','В чем хранить заготовки','Вакууммация','Примечание','Лайфхаки','Предметы для организации пространства']
 };
+function appendStartInline(element,text){
+  const label=text.match(/^([^:]{1,65}:)(\s+.*)?$/u);
+  if(label){
+    const strong=document.createElement('strong');
+    strong.textContent=label[1];
+    element.append(strong,document.createTextNode(label[2]||''));
+  }else{
+    element.append(document.createTextNode(text));
+  }
+}
 function renderStartMaterial(container,source,material){
   const headings=new Set(startMaterialHeadings[material]||[]);
   const shown=new Set();
-  let inProductsSection=false;
+  let list=null,listKind=null;
   container.replaceChildren();
-  for(const block of source.trim().split(/\n\s*\n/)){
+  for(const block of source.replace(/\r\n?/g,'\n').trim().split(/\n\s*\n/)){
     const lines=block.split('\n').map(line=>line.trim()).filter(Boolean);
     if(!lines.length) continue;
     const title=lines.join(' ').replace(/\s+/g,' ');
     if(headings.has(title)){
-      if(material==='organization') inProductsSection=title==='Предметы для организации пространства';
       if(shown.has(title)) continue;
       shown.add(title);
+      list=null;listKind=null;
       const heading=document.createElement('h5');
       heading.textContent=title;
       container.append(heading);
       continue;
     }
-    const paragraph=document.createElement('p');
-    lines.forEach((line,index)=>{
-      if(index) paragraph.append(document.createElement('br'));
-      const product=inProductsSection && material==='organization'
-        ? line.match(/^(.+?)\s+—\s+(https?:\/\/\S+)$/u) : null;
+    let paragraph=null,lastItem=null,table=null,tableBody=null;
+    for(const line of lines){
+      const product=material==='organization' ? line.match(/^(.+?)\s+[—–-]\s+(https?:\/\/\S+)$/u) : null;
       if(product){
+        paragraph=null;lastItem=null;
+        if(listKind!=='products'){
+          list=document.createElement('ul');list.className='product-list';listKind='products';container.append(list);
+        }
+        const item=document.createElement('li');
         const link=document.createElement('a');
-        link.className='product-link';
-        link.href=product[2];
-        link.target='_blank';
-        link.rel='noopener noreferrer';
-        const name=document.createElement('strong');
-        name.textContent=product[1];
-        link.append(name);
-        paragraph.append(link);
-        return;
+        const url=new URL(product[2]);
+        if(url.protocol==='http:' && /(^|\.)(wildberries\.ru|ozon\.ru)$/u.test(url.hostname)) url.protocol='https:';
+        link.className='product-link';link.href=url.href;
+        link.rel='noreferrer';
+        const name=document.createElement('strong');name.textContent=product[1];
+        const action=document.createElement('span');action.className='product-link-action';action.textContent='Открыть товар';
+        link.append(name,action);item.append(link);list.append(item);
+        continue;
       }
-      const important=/^(?:📌|❗|⚠️|‼️|Важно(?:\s|:)|Главный враг(?:\s|:)|Повторное замораживание исключено:|Замораживайте свежие продукты:|Возвращаем продукты обратно после полного высыхания)/u.test(line);
-      const label=!important && line.length<95 && line.endsWith(':') && !/^[•✓\d]/u.test(line);
-      if(important||label){
-        const mark=document.createElement(important?'em':'strong');
-        mark.textContent=line;
-        paragraph.append(mark);
+      if(line.includes('|')){
+        paragraph=null;lastItem=null;list=null;listKind=null;
+        if(!table){
+          const wrap=document.createElement('div');wrap.className='lecture-table-wrap';
+          table=document.createElement('table');table.setAttribute('aria-label','Сроки хранения заготовок');
+          tableBody=document.createElement('tbody');table.append(tableBody);wrap.append(table);container.append(wrap);
+        }
+        const cells=line.split('|').map(cell=>cell.trim());
+        const header=cells[1]==='Срок хранения';
+        const row=document.createElement('tr');
+        for(const text of cells){
+          const cell=document.createElement(header?'th':'td');cell.textContent=text;
+          if(header) cell.scope='col';
+          row.append(cell);
+        }
+        tableBody.append(row);
+        continue;
+      }
+      if(table && line==='Молочные продукты'){
+        const row=document.createElement('tr'),cell=document.createElement('th');
+        cell.colSpan=2;cell.textContent=line;row.append(cell);tableBody.append(row);
+        continue;
+      }
+      table=null;tableBody=null;
+      const step=line.match(/^Шаг\s+(\d+)\s*:\s*(.*)$/u);
+      const numbered=line.match(/^(\d+)[.)]\s+(.+)$/u);
+      const bullet=line.match(/^[•✓-]\s+(.+)$/u);
+      if(step||numbered||bullet){
+        paragraph=null;
+        const kind=step?'steps':numbered?'ordered':'bullets';
+        if(listKind!==kind){
+          list=document.createElement(bullet?'ul':'ol');listKind=kind;
+          if(step) list.className='lecture-steps';
+          if(step||numbered) list.start=Number((step||numbered)[1]);
+          container.append(list);
+        }
+        const item=document.createElement('li');
+        if(step||numbered) item.value=Number((step||numbered)[1]);
+        if(step){
+          const label=document.createElement('strong');label.textContent='Шаг '+step[1]+':';item.append(label);
+          if(step[2]){const p=document.createElement('p');appendStartInline(p,step[2]);item.append(p)}
+        }else{
+          appendStartInline(item,numbered?numbered[2]:bullet[1]);
+        }
+        list.append(item);lastItem=item;
+        continue;
+      }
+      if(line.length<95 && line.endsWith(':')){
+        paragraph=null;lastItem=null;list=null;listKind=null;
+        const heading=document.createElement('h6');heading.textContent=line;container.append(heading);
+        continue;
+      }
+      if(lastItem){
+        let p=lastItem.querySelector('p');
+        if(!p){p=document.createElement('p');lastItem.append(p)}
+        else p.append(document.createTextNode(' '));
+        appendStartInline(p,line);
+        continue;
+      }
+      list=null;listKind=null;
+      if(!paragraph){
+        paragraph=document.createElement('p');container.append(paragraph);
+        if(/^(?:📌|❗|⚠️|‼️|Важно(?:\s|:)|Главный враг(?:\s|:)|Повторное замораживание исключено:|Замораживайте свежие продукты:|Возвращаем продукты обратно после полного высыхания)/u.test(line)) paragraph.className='lecture-note';
       }else{
-        paragraph.append(document.createTextNode(line));
+        paragraph.append(document.createTextNode(' '));
       }
-    });
-    container.append(paragraph);
+      appendStartInline(paragraph,line);
+    }
   }
 }
 async function loadStartMaterial(card){
@@ -1529,29 +1614,13 @@ function renderNavGrid(){
 /* ═══════════ ОТКРЫТИЕ ФАЙЛА ═══════════ */
 function openFile(url, title){
   if(url==='https://disk.yandex.ru/d/CnmHLxvkOtGpPg'){
-    openDessertsPdf(url,title);
-    return;
+    url='https://disk.yandex.ru/i/T-DH8tu0P_ZOSQ';
   }
   if(url){
     window.open(url, '_blank');
     toast('Открываем файл: ' + title);
   } else {
     toast(MATERIAL_PENDING_NOTICE);
-  }
-}
-
-async function openDessertsPdf(publicKey,title){
-  try{
-    const query=new URLSearchParams({public_key:publicKey,path:'/Десерты в заготовки.pdf'});
-    const response=await fetch('https://cloud-api.yandex.net/v1/disk/public/resources/download?'+query,{cache:'no-store'});
-    if(!response.ok) throw new Error('PDF недоступен: '+response.status);
-    const {href}=await response.json();
-    if(!href || !href.startsWith('https://')) throw new Error('Ссылка на PDF не получена');
-    window.location.assign(href);
-    toast('Открываем PDF: '+title);
-  }catch(error){
-    console.error('Не удалось открыть PDF',error);
-    toast('Не удалось открыть PDF. Попробуйте ещё раз.',true);
   }
 }
 
