@@ -13,21 +13,35 @@ test('each promotion has the agreed standalone price; only SKIDKA1C can repeat',
     ['FABRIKA1B', 4500, 3500],
     ['FABRIKA2Pr', 1690, 1490],
     ['FABRIKAB2P', 2190, 1990],
-    ['SKIDKA1C', 6200, 5400],
-    ['SKIDKA1C SKIDKA1C', 5610, 4810]
+    ['SKIDKA1C', 5690, 4990],
+    ['SKIDKA1C SKIDKA1C', 5390, 4890]
   ];
   for (const [code, premium, basic] of prices) {
     assert.equal(quotePrice('premium', code).priceRub, premium, code + ' premium');
     assert.equal(quotePrice('basic', code).priceRub, basic, code + ' basic');
-    const order = createCheckout('premium', key, env, 'buyer@example.org', code);
-    assert.equal(order.products[0].price, premium.toFixed(2));
-    assert.equal(identifyCheckout({
-      order_num: order.order_id, customer_email: order.customer_email,
-      products: order.products, sum: order.products[0].price
-    }, key).kind, 'site');
+    for (const [tariff, expected] of [['premium', premium], ['basic', basic]]) {
+      const order = createCheckout(tariff, key, env, 'buyer@example.org', code);
+      assert.equal(order.products[0].price, expected.toFixed(2));
+      assert.equal(identifyCheckout({
+        order_num: order.order_id, customer_email: order.customer_email,
+        products: order.products, sum: order.products[0].price
+      }, key).kind, 'site');
+    }
   }
   for (const input of ['CLUBB3 SKIDKA1C', 'FABRIKA1B FABRIKA2Pr', 'SKIDKA1C SKIDKA1C SKIDKA1C', 'CLUBB3 CLUBB3', 'UNKNOWN']) {
     assert.throws(() => quotePrice('basic', input), /промокод|суммировать|кодов/i, input);
+  }
+});
+
+test('collection tiers normalize case and separators and retain active-phase discounts', () => {
+  for (const [tariff, first, second] of [['premium', 1100, 1400], ['basic', 1000, 1100]]) {
+    assert.equal(quotePrice(tariff, '  skidka1c  ').discountRub, first);
+    for (const input of ['skidka1c SKIDKA1C', 'SKIDKA1C,skidka1c', 'SKIDKA1C;SKIDKA1C']) {
+      assert.equal(quotePrice(tariff, input).discountRub, second);
+    }
+    for (const input of ['SKIDKA1C FABRIKA1R', 'FABRIKAB2P SKIDKA1C', 'SKIDKA1C SKIDKA1C SKIDKA1C']) {
+      assert.throws(() => quotePrice(tariff, input));
+    }
   }
 });
 

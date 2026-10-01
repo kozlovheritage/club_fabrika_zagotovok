@@ -15,6 +15,10 @@ function priceCents(value) {
 
 // Active phase: presales. Later phase changes must also update the sales site's displayed prices.
 const CURRENT_PRICES = {premium: 6790, basic: 5990};
+const COLLECTION_DISCOUNTS = {
+  premium: [1100, 1400],
+  basic: [1000, 1100]
+};
 const FIXED_PRICES = {
   CLUBB3: {premium: 5990, basic: 5190},
   FABRIKA1R: {premium: 3400, basic: 2700},
@@ -32,7 +36,7 @@ export function quotePrice(tariff, promoInput = '') {
   let priceRub = basePriceRub;
   if (codes.length) {
     if (codes.every(code => code === 'SKIDKA1C')) {
-      priceRub -= 590 * codes.length;
+      priceRub -= COLLECTION_DISCOUNTS[tariff][codes.length - 1];
     } else if (codes.length === 1 && FIXED_PRICES[codes[0]]) {
       priceRub = FIXED_PRICES[codes[0]][tariff];
     } else {
