@@ -24,7 +24,7 @@ const FIXED_PRICES = {
   FABRIKA1R: {premium: 3400, basic: 2700},
   FABRIKA1B: {premium: 4500, basic: 3500},
   FABRIKA2PR: {premium: 1690, basic: 1490},
-  FABRIKAB2P: {premium: 2190, basic: 1990}
+  FABRIKAB2P: {premium: 2390, basic: 1490}
 };
 
 export function quotePrice(tariff, promoInput = '') {

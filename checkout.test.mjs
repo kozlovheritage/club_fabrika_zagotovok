@@ -12,7 +12,7 @@ test('each promotion has the agreed standalone price; only SKIDKA1C can repeat',
     ['FABRIKA1R', 3400, 2700],
     ['FABRIKA1B', 4500, 3500],
     ['FABRIKA2Pr', 1690, 1490],
-    ['FABRIKAB2P', 2190, 1990],
+    ['FABRIKAB2P', 2390, 1490],
     ['SKIDKA1C', 5690, 4990],
     ['SKIDKA1C SKIDKA1C', 5390, 4890]
   ];
