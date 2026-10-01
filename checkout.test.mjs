@@ -9,7 +9,7 @@ test('each promotion has the agreed standalone price; only SKIDKA1C can repeat',
   const prices = [
     ['', 6790, 5990],
     ['CLUBB3', 5990, 5190],
-    ['FABRIKA1R', 3400, 2700],
+    ['FABRIKA1R', 3890, 2890],
     ['FABRIKA1B', 4500, 3500],
     ['FABRIKA2Pr', 1690, 1490],
     ['FABRIKAB2P', 2390, 1490],
