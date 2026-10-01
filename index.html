@@ -378,7 +378,7 @@ a{text-decoration:none;color:inherit}
 .material-reader-content ul,.material-reader-content ol{padding-left:24px;margin:0 0 16px}
 .material-reader-content li{padding-left:3px;margin:6px 0}
 .material-reader-content li ul{margin:6px 0 10px}
-.material-reader-content .nutrition-illustration{background:var(--pink-bg);border-left:3px solid var(--pink);border-radius:8px;padding:12px 16px;margin:18px 0;color:var(--text-mid);font-size:.9rem}
+.material-reader-content .nutrition-author-photo{display:block;width:100%;max-width:360px;height:auto;margin:20px auto 24px;border-radius:16px}
 .material-reader-state{padding:16px 0;color:var(--text-light);line-height:1.6}
 .material-reader-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
 .material-reader-actions a,.material-reader-actions button{border:1px solid #e7ced2;border-radius:100px;padding:9px 14px;color:var(--text-mid);font:600 .82rem 'Manrope',sans-serif}
@@ -866,7 +866,7 @@ a{text-decoration:none;color:inherit}
     <div class="welcome-avatar"><i class="fas fa-bread-slice" style="color:var(--pink)"></i></div>
     <div class="welcome-text">
       <h3>Выпечка и десерты</h3>
-      <p>Видео и материалы по выпечке, а также отдельная подборка десертов.</p>
+      <p>Рецепты выпечки и десертов, подходящих для заготовки в морозилку</p>
     </div>
   </div>
   <div class="section-label">Материалы клуба</div>
@@ -888,7 +888,7 @@ a{text-decoration:none;color:inherit}
     <div class="welcome-avatar"><i class="fas fa-mug-hot" style="color:var(--pink)"></i></div>
     <div class="welcome-text">
       <h3>Бульоны</h3>
-      <p>Бульоны-концентраты — основа для супов, соусов и ризотто. Готовим один раз — используем неделю.</p>
+      <p>Бульоны-концентраты — полезная основа для сотни разных блюд! В сборнике 4 основных рецепта концентрата со всеми тонкостями приготовления</p>
     </div>
   </div>
   <div class="section-label">Видео</div>
@@ -979,7 +979,7 @@ a{text-decoration:none;color:inherit}
     <div class="welcome-avatar"><i class="fas fa-lightbulb" style="color:var(--pink)"></i></div>
     <div class="welcome-text">
       <h3>Смарт-заготовки</h3>
-      <p>Три части, в каждой — видео и файл с материалами.</p>
+      <p>Соединяем заготовки друг с другом по методу «конструктор» и получаем вкусные блюда за считанные минуты!</p>
     </div>
   </div>
   <div class="section-label">Видео</div>
@@ -1684,20 +1684,23 @@ function renderNutritionArticle(container,source){
     const raw=lines[i],line=raw.trim();
     if(!line){list=null;sublist=null;paragraph=null;continue}
     const heading=line.match(/^(#{2,3})\s+(.+)$/u);
-    if(heading||i===0){
+    if(heading){
       list=null;sublist=null;lastItem=null;paragraph=null;
       const title=document.createElement(heading&&heading[1]==='###'?'h4':'h3');
       appendNutritionInline(title,heading?heading[2]:line);
       container.append(title);
       continue;
     }
-    const illustration=line.match(/^\[Изображение[^:\]]*:\s*(.+)\]$/u);
-    if(illustration){
+    const authorPhoto=line.match(/^!\[([^\]]*)\]\((\/health\/nutrition-yana\.jpg)\)$/u);
+    if(authorPhoto){
       list=null;sublist=null;lastItem=null;paragraph=null;
-      const note=document.createElement('aside');
-      note.className='nutrition-illustration';
-      note.textContent='Иллюстрация: '+illustration[1];
-      container.append(note);
+      const photo=document.createElement('img');
+      photo.className='nutrition-author-photo';
+      photo.src=authorPhoto[2];
+      photo.alt=authorPhoto[1];
+      photo.width=1280;photo.height=1275;
+      photo.decoding='async';
+      container.append(photo);
       continue;
     }
     const bullet=raw.match(/^(\s*)(?:([•-])|(\d+)\.)\s+(.+)$/u);

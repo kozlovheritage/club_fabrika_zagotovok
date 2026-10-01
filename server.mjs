@@ -274,7 +274,7 @@ app.get('/api/hematologist/:part.txt',async(req,res,next)=>{
     res.sendFile(fileURLToPath(new URL(`./health/hematologist-${req.params.part}.txt`,import.meta.url)));
   }catch(error){next(error);}
 });
-app.get(['/health/hematologist.js','/health/hematologist.jpg'],async(req,res,next)=>{
+app.get(['/health/hematologist.js','/health/hematologist.jpg','/health/nutrition-yana.jpg'],async(req,res,next)=>{
   try{
     if(!await findSession(req))return res.status(401).end();
     res.set('Cache-Control','private, no-store');
