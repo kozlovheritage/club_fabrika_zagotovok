@@ -375,6 +375,7 @@ a{text-decoration:none;color:inherit}
 .material-reader-content h3{font-size:1.3rem;line-height:1.35;color:var(--text-mid);margin:28px 0 12px}
 .material-reader-content h4{font-size:1.08rem;line-height:1.4;color:var(--text-mid);margin:22px 0 10px}
 .material-reader-content p{margin:0 0 15px}
+.material-reader-content a{color:var(--pink-dark);text-decoration:underline;text-underline-offset:3px}
 .material-reader-content ul,.material-reader-content ol{padding-left:24px;margin:0 0 16px}
 .material-reader-content li{padding-left:3px;margin:6px 0}
 .material-reader-content li ul{margin:6px 0 10px}
@@ -1633,6 +1634,7 @@ function openClubMaterial(slug,title,originScreen,originSection,author){
   document.getElementById('materialReaderAuthor').textContent=author ? 'Автор: '+author : 'Материал клуба';
   const source=document.getElementById('materialReaderSource');
   source.href='/api/materials/'+slug+'.txt';
+  source.hidden=slug==='nutrition-calories';
   showScreen('material-reader');
   loadClubMaterial(slug);
 }
@@ -1701,6 +1703,17 @@ function renderNutritionArticle(container,source){
       photo.width=1280;photo.height=1275;
       photo.decoding='async';
       container.append(photo);
+      continue;
+    }
+    const social=line.match(/^(Instagram(?:\s+\([^)]*\))?|Telegram|YouTube):\s*((?:https:\/\/)?(?:instagram\.com|t\.me|www\.youtube\.com)\/[A-Za-z0-9_@/.-]+)$/u);
+    if(social){
+      list=null;sublist=null;lastItem=null;paragraph=null;
+      const row=document.createElement('p'),link=document.createElement('a');
+      row.append(document.createTextNode(social[1]+': '));
+      link.href=social[2].startsWith('https://')?social[2]:'https://'+social[2];
+      link.textContent=social[2];
+      link.target='_blank';link.rel='noopener noreferrer';
+      row.append(link);container.append(row);
       continue;
     }
     const bullet=raw.match(/^(\s*)(?:([•-])|(\d+)\.)\s+(.+)$/u);
