@@ -117,14 +117,24 @@ app.post('/api/checkout/session',async(req,res,next)=>{
 app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
 const failedLogins=new Map();
 app.get('/api/auth/me',requireAuth,(req,res)=>res.json({email:req.user.email,name:req.user.name,tariff:req.user.tariff,purchaseAt:req.user.purchase_at,accessUntil:req.user.access_until}));
-app.post('/api/auth/login',async(req,res,next)=>{
+app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),async(req,res,next)=>{
+  const formLogin=req.is('application/x-www-form-urlencoded');
+  const fail=(status,message)=>formLogin
+    ?res.status(status).type('html').send(renderLoginPage(message))
+    :res.status(status).json({message});
+  if(formLogin&&req.get('Origin')){
+    try{
+      const origin=new URL(req.get('Origin'));
+      if(origin.origin!==new URL(PUBLIC_URL).origin&&origin.host!==req.get('host'))return fail(403,'Откройте форму входа на сайте клуба');
+    }catch{return fail(403,'Откройте форму входа на сайте клуба');}
+  }
   const email=normalizeEmail(req.body?.email);const password=String(req.body?.password||'');
-  if(email.length>254||password.length>256)return res.status(400).json({message:'Неверный email или пароль'});
-  if(!email||!password)return res.status(400).json({message:'Введите email и пароль'});
+  if(email.length>254||password.length>256)return fail(400,'Неверный email или пароль');
+  if(!email||!password)return fail(400,'Введите email и пароль');
   try{
     if(failedLogins.size>10000){for(const [oldKey,value] of failedLogins){if(value.until<Date.now())failedLogins.delete(oldKey);}if(failedLogins.size>10000)failedLogins.clear();}
     const key=req.ip+':'+email;const record=failedLogins.get(key);
-    if(record?.until>Date.now()&&record.count>=10)return res.status(429).json({message:'Слишком много попыток. Повторите вход через 15 минут'});
+    if(record?.until>Date.now()&&record.count>=10)return fail(429,'Слишком много попыток. Повторите вход через 15 минут');
     const result=await pool.query("SELECT email,name,password_hash,tariff,purchase_at,access_until FROM club_users WHERE email=$1 AND status='active' AND tariff='premium' AND (access_until IS NULL OR access_until>now())",[email]);
     let user=result.rows[0];
     let authenticated=user&&await verifyPassword(password,user.password_hash);
@@ -133,11 +143,12 @@ app.post('/api/auth/login',async(req,res,next)=>{
       user=purchased.rows[0];
       authenticated=user&&await verifyPassword(password,user.password_hash);
     }
-    if(!authenticated){const current=failedLogins.get(key);failedLogins.set(key,{count:(current?.until>Date.now()?current.count:0)+1,until:Date.now()+15*60000});return res.status(401).json({message:'Неверный email или пароль'});}
+    if(!authenticated){const current=failedLogins.get(key);failedLogins.set(key,{count:(current?.until>Date.now()?current.count:0)+1,until:Date.now()+15*60000});return fail(401,'Неверный email или пароль');}
     failedLogins.delete(key);
     const sessionToken=randomToken();
     await pool.query("INSERT INTO club_sessions (token_hash,email,expires_at) VALUES ($1,$2,now()+($3 * interval '1 day'))",[sha256(sessionToken),user.email,SESSION_DAYS]);
     res.setHeader('Set-Cookie',cookieHeader('club_session',sessionToken,SESSION_DAYS*86400));
+    if(formLogin)return res.redirect(303,'/club');
     res.json({email:user.login_email||user.email,name:user.name,tariff:user.tariff,purchaseAt:user.purchase_at,accessUntil:user.access_until});
   }catch(error){next(error);}
 });
@@ -239,10 +250,20 @@ const memberHtml=await readFile(new URL('./index.html',import.meta.url),'utf8');
 const memberMarker='<!-- ═══════════ ЭКРАН: ЛИЧНЫЙ КАБИНЕТ (ГЛАВНАЯ) ═══════════ -->';
 if(!memberHtml.includes(memberMarker))throw new Error('Public page boundary not found');
 const guestHtml=memberHtml.split(memberMarker)[0]+"<div id=\"toast\" class=\"toast\" role=\"status\"></div>\n<script>\nfunction showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('screen-'+id).classList.add('active');window.scrollTo(0,0);}\nfunction toast(message,error){const node=document.getElementById('toast');node.textContent=message;node.className='toast show'+(error?' err':'');setTimeout(()=>node.className='toast',4000);}\nasync function doLogin(){\n  const email=document.getElementById('loginEmail').value.trim().toLowerCase();\n  const password=document.getElementById('loginPassword').value;\n  if(!email||!password)return toast('Введите email и пароль из письма',true);\n  const button=document.querySelector('#screen-login .login-btn');button.disabled=true;\n  try{\n    const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});\n    const data=await response.json();\n    if(!response.ok)throw new Error(data.message||'Не удалось войти');\n    location.assign('/club');\n  }catch(error){toast(error.message||'Не удалось войти',true);button.disabled=false;}\n}\nif(new URLSearchParams(location.search).has('paid')){showScreen('login');toast('Если оплата прошла, письмо с данными для входа придёт на вашу почту.');}\nelse if(new URLSearchParams(location.search).has('login'))showScreen('login');\n</script></body></html>";
+const loginHtml=guestHtml
+  .replace('<div class="screen active" id="screen-landing">','<div class="screen" id="screen-landing">')
+  .replace('<div class="screen" id="screen-login">','<div class="screen active" id="screen-login">');
+function renderLoginPage(message=''){
+  if(!message)return loginHtml;
+  const safe=String(message).replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+  return loginHtml.replace('<p class="login-note" id="loginMessage">Данные для входа придут на почту после успешной оплаты.</p>',
+    '<p class="login-note" id="loginMessage" role="alert">'+safe+'</p>');
+}
 app.get('/vera-hero.png',(req,res)=>res.sendFile(fileURLToPath(new URL('./vera-hero.png',import.meta.url))));
 app.get(['/', '/index.html'],async(req,res,next)=>{
   try{
     res.set('Cache-Control','no-store');
+    if(Object.hasOwn(req.query,'login')||Object.hasOwn(req.query,'paid'))return res.set('Cache-Control','no-store').type('html').send(renderLoginPage());
     if(await findSession(req))return res.redirect('/club');
     res.type('html').send(guestHtml);
   }catch(error){next(error);}

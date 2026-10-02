@@ -607,7 +607,7 @@ a{text-decoration:none;color:inherit}
   <a class="login-btn" style="max-width:280px;margin:0 auto" href="https://sales-platform-clubfabrika3.ru/#pricing">
     <i class="fas fa-arrow-right"></i> Выбрать тариф
   </a>
-  <button type="button" class="login-back" onclick="showScreen('login')">Уже есть доступ? Войти</button>
+  <a class="login-back" style="display:block" href="/?login=1">Уже есть доступ? Войти</a>
 </div>
 
 <div class="app-footer">
@@ -642,19 +642,21 @@ a{text-decoration:none;color:inherit}
     <div class="login-card">
       <div class="login-logo">Фабрика <span>заготовок</span></div>
       <p class="login-sub">Введите email и постоянный пароль из письма после оплаты.</p>
+      <form method="post" action="/api/auth/login">
       <div class="login-field">
          <label for="loginEmail">Ваш email</label>
-         <input type="email" id="loginEmail" placeholder="example@mail.ru" autocomplete="email">
+         <input type="email" id="loginEmail" name="email" placeholder="example@mail.ru" autocomplete="email" required maxlength="254">
        </div>
        <div class="login-field">
          <label for="loginPassword">Постоянный пароль</label>
-         <input type="password" id="loginPassword" placeholder="Пароль из письма" autocomplete="current-password">
+         <input type="password" id="loginPassword" name="password" placeholder="Пароль из письма" autocomplete="current-password" required maxlength="256">
        </div>
-      <button class="login-btn" onclick="doLogin()">
+      <button type="submit" class="login-btn">
         <i class="fas fa-arrow-right"></i> Войти в кабинет
       </button>
+      </form>
       <p class="login-note" id="loginMessage">Данные для входа придут на почту после успешной оплаты.</p>
-      <div class="login-back" onclick="showScreen('landing')">← На главную</div>
+      <a class="login-back" style="display:block" href="/">← На главную</a>
     </div>
   </div>
 </div>
