@@ -36,6 +36,7 @@ const schema=[
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS credential_email_ciphertext TEXT",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS credential_claimed_at TIMESTAMPTZ",
   "CREATE TABLE IF NOT EXISTS club_checkout_orders (order_id TEXT PRIMARY KEY, buyer_email TEXT NOT NULL, buyer_name TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+  "CREATE TABLE IF NOT EXISTS club_login_diagnostics (incident TEXT PRIMARY KEY, metadata JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
   "UPDATE club_users SET access_until=NULL WHERE tariff='premium' AND status='active' AND access_until IS NOT NULL"
 ];
 function normalizeEmail(value){return String(value||'').trim().toLowerCase();}
@@ -157,9 +158,15 @@ app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),asyn
         accountLookupSucceeded=true;
       }catch{}
       const diagnostic=describeRejectedLogin({email,password,activePasswordTags});
-      console.warn(JSON.stringify({event:'club_login_rejected',incident,
+      const metadata={event:'club_login_rejected',incident,
         emailKey:emailDiagnosticKey(email,credentialKey()),formLogin:Boolean(formLogin),
-        accountLookupSucceeded,hasActiveAccount,...diagnostic}));
+        accountLookupSucceeded,hasActiveAccount,...diagnostic};
+      try{
+        await pool.query('INSERT INTO club_login_diagnostics (incident,metadata) VALUES ($1,$2::jsonb)',[incident,JSON.stringify(metadata)]);
+      }catch{
+        console.warn(JSON.stringify({event:'club_login_diagnostic_storage_unavailable',incident}));
+      }
+      console.warn(JSON.stringify(metadata));
       return fail(401,'Неверный email или пароль. '+rejectedLoginHint(diagnostic)+' Код проверки: '+incident);
     }
     failedLogins.delete(key);
@@ -264,10 +271,15 @@ app.get('/access/basic/:orderId',async(req,res,next)=>{
 });
 
 // The public page contains only landing and login markup, never members' recipes or data.
-const memberHtml=await readFile(new URL('./index.html',import.meta.url),'utf8');
+const sourceMemberHtml=await readFile(new URL('./index.html',import.meta.url),'utf8');
+// /club is already authorized on the server. Never initially show the sales
+// landing while the browser restores its profile or if its script fails.
+const memberHtml=sourceMemberHtml
+  .replace('<div class="screen active" id="screen-landing">','<div class="screen" id="screen-landing">')
+  .replace('<div class="screen" id="screen-dashboard">','<div class="screen active" id="screen-dashboard">');
 const memberMarker='<!-- ═══════════ ЭКРАН: ЛИЧНЫЙ КАБИНЕТ (ГЛАВНАЯ) ═══════════ -->';
 if(!memberHtml.includes(memberMarker))throw new Error('Public page boundary not found');
-const guestHtml=memberHtml.split(memberMarker)[0]+"<div id=\"toast\" class=\"toast\" role=\"status\"></div>\n<script>\nfunction showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('screen-'+id).classList.add('active');window.scrollTo(0,0);}\nfunction toast(message,error){const node=document.getElementById('toast');node.textContent=message;node.className='toast show'+(error?' err':'');setTimeout(()=>node.className='toast',4000);}\nasync function doLogin(){\n  const email=document.getElementById('loginEmail').value.trim().toLowerCase();\n  const password=document.getElementById('loginPassword').value;\n  if(!email||!password)return toast('Введите email и пароль из письма',true);\n  const button=document.querySelector('#screen-login .login-btn');button.disabled=true;\n  try{\n    const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});\n    const data=await response.json();\n    if(!response.ok)throw new Error(data.message||'Не удалось войти');\n    location.assign('/club');\n  }catch(error){toast(error.message||'Не удалось войти',true);button.disabled=false;}\n}\nif(new URLSearchParams(location.search).has('paid')){showScreen('login');toast('Если оплата прошла, письмо с данными для входа придёт на вашу почту.');}\nelse if(new URLSearchParams(location.search).has('login'))showScreen('login');\n</script></body></html>";
+const guestHtml=sourceMemberHtml.split(memberMarker)[0]+"<div id=\"toast\" class=\"toast\" role=\"status\"></div>\n<script>\nfunction showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('screen-'+id).classList.add('active');window.scrollTo(0,0);}\nfunction toast(message,error){const node=document.getElementById('toast');node.textContent=message;node.className='toast show'+(error?' err':'');setTimeout(()=>node.className='toast',4000);}\nasync function doLogin(){\n  const email=document.getElementById('loginEmail').value.trim().toLowerCase();\n  const password=document.getElementById('loginPassword').value;\n  if(!email||!password)return toast('Введите email и пароль из письма',true);\n  const button=document.querySelector('#screen-login .login-btn');button.disabled=true;\n  try{\n    const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});\n    const data=await response.json();\n    if(!response.ok)throw new Error(data.message||'Не удалось войти');\n    location.assign('/club');\n  }catch(error){toast(error.message||'Не удалось войти',true);button.disabled=false;}\n}\nif(new URLSearchParams(location.search).has('paid')){showScreen('login');toast('Если оплата прошла, письмо с данными для входа придёт на вашу почту.');}\nelse if(new URLSearchParams(location.search).has('login'))showScreen('login');\n</script></body></html>";
 const loginHtml=guestHtml
   .replace('<div class="screen active" id="screen-landing">','<div class="screen" id="screen-landing">')
   .replace('<div class="screen" id="screen-login">','<div class="screen active" id="screen-login">');
