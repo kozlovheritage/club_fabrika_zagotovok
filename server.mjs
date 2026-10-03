@@ -8,6 +8,7 @@ import pg from 'pg';
 import {buildPremiumPaidContent,sendCredentialsEmail} from './email.mjs';
 import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,normalizeBuyerName} from './checkout.mjs';
 import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './login-diagnostics.mjs';
+import {createJourney,parseJourney,stageMetadata,browserContext,journeyHtml} from './login-journey.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -19,6 +20,9 @@ const SESSION_DAYS=Number(process.env.SESSION_DAYS||30);
 const COOKIE_SECURE=process.env.COOKIE_SECURE!=='false'&&process.env.NODE_ENV==='production';
 const SALES_ORIGINS=(process.env.SALES_ORIGINS||'https://sales-club-fabrika-zagotovok-kozlovheritage.onreza.app').split(',').map(x=>x.trim()).filter(Boolean);
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.PGSSL==='false'?false:{rejectUnauthorized:false}});
+const diagnosticPool=new Pool({connectionString:process.env.DATABASE_URL,
+  ssl:process.env.PGSSL==='false'?false:{rejectUnauthorized:false},
+  max:2,connectionTimeoutMillis:800,statement_timeout:800,idleTimeoutMillis:10000});
 if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL is required');
 if(!PUBLIC_URL||!/^https:\/\//.test(PUBLIC_URL))throw new Error('PUBLIC_URL must be an HTTPS site address');
 credentialKey();
@@ -74,6 +78,46 @@ async function initDatabase(){for(const statement of schema)await pool.query(sta
 async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT COALESCE(u.login_email,u.email) AS email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.tariff='premium' AND (u.access_until IS NULL OR u.access_until>now())",[sha256(raw)]);return result.rows[0]||null;}
 async function requireAuth(req,res,next){try{const user=await findSession(req);if(!user)return res.status(401).json({message:'Сессия истекла'});req.user=user;next();}catch(error){next(error);}}
 
+let pendingDiagnostics=0;
+const diagnosticRates=new Map();
+function diagnosticCookie(req){
+  try{return parseJourney(parseCookies(req.headers.cookie).club_login_trace,credentialKey());}catch{return null;}
+}
+function requestJourney(req){
+  return parseJourney(req.body?._login_trace,credentialKey())||diagnosticCookie(req);
+}
+function setJourneyCookie(res,journey){res.append('Set-Cookie',cookieHeader('club_login_trace',journey.token,1800));}
+async function recordJourney(journey,stage,details={},client=false){
+  const event=stageMetadata(stage,details,client);
+  if(!journey||!event)return;
+  const metadata={event:'club_login_journey',incident:journey.incident,
+    ...(event.emailKey?{emailKey:event.emailKey}:{}),lastStage:event.stage,
+    timeline:[{...event,at:new Date().toISOString()}]};
+  if(pendingDiagnostics>=8)return;
+  pendingDiagnostics+=1;
+  let timeout;
+  const write=diagnosticPool.query(`INSERT INTO club_login_diagnostics (incident,metadata)
+      VALUES ($1,$2::jsonb) ON CONFLICT (incident) DO UPDATE SET
+      metadata=club_login_diagnostics.metadata || (EXCLUDED.metadata - 'timeline') ||
+        jsonb_build_object('timeline',(SELECT jsonb_agg(item ORDER BY ord)
+          FROM jsonb_array_elements(COALESCE(club_login_diagnostics.metadata->'timeline','[]'::jsonb)
+            || (EXCLUDED.metadata->'timeline')) WITH ORDINALITY AS events(item,ord)
+          WHERE ord>GREATEST(0,jsonb_array_length(COALESCE(club_login_diagnostics.metadata->'timeline','[]'::jsonb))+1-40)))`,
+      [journey.incident,JSON.stringify(metadata)]).catch(()=>{
+    console.warn(JSON.stringify({event:'club_login_journey_storage_unavailable',incident:journey.incident,stage}));
+  }).finally(()=>{pendingDiagnostics-=1;});
+  await Promise.race([write,new Promise(resolve=>{timeout=setTimeout(resolve,150);})]);
+  clearTimeout(timeout);
+}
+function allowDiagnosticRequest(req,journey){
+  const now=Date.now();
+  if(diagnosticRates.size>10000)for(const [key,value] of diagnosticRates)if(value.until<now)diagnosticRates.delete(key);
+  if(diagnosticRates.size>10000)return false;
+  const key=req.ip+':'+(journey?.incident||'new');let value=diagnosticRates.get(key);
+  if(!value||value.until<now){value={count:0,until:now+60000};diagnosticRates.set(key,value);}
+  return ++value.count<=90;
+}
+
 app.use(express.json({limit:'1mb'}));
 app.use(express.urlencoded({extended:true,limit:'1mb'}));
 app.get('/api/health',(req,res)=>res.json({ok:true}));
@@ -117,14 +161,36 @@ app.post('/api/checkout/session',async(req,res,next)=>{
   }catch(error){next(error);}
 });
 app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
+app.post('/api/auth/diagnostics',async(req,res)=>{
+  let origin;
+  try{origin=new URL(req.get('Origin')||'').origin;}catch{return res.status(403).end();}
+  if(origin!==new URL(PUBLIC_URL).origin&&origin!==req.protocol+'://'+req.get('host'))return res.status(403).end();
+  const journey=parseJourney(req.body?.token,credentialKey());
+  const event=stageMetadata(req.body?.stage,req.body,true);
+  if(!journey||!event)return res.status(400).end();
+  if(!allowDiagnosticRequest(req,journey))return res.status(429).end();
+  await recordJourney(journey,event.stage,{...event,...browserContext(req.get('User-Agent'))},true);
+  return res.status(204).end();
+});
+const journeyScript=await readFile(new URL('./login-journey.js',import.meta.url),'utf8');
+app.get('/login-journey.js',(req,res)=>res.set('Cache-Control','no-store')
+  .type('application/javascript').send(journeyScript));
 const failedLogins=new Map();
 app.get('/api/auth/me',requireAuth,(req,res)=>res.json({email:req.user.email,name:req.user.name,tariff:req.user.tariff,purchaseAt:req.user.purchase_at,accessUntil:req.user.access_until}));
 app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),async(req,res,next)=>{
   res.set('Cache-Control','no-store');
   const formLogin=req.is('application/x-www-form-urlencoded');
-  const fail=(status,message)=>formLogin
-    ?res.status(status).type('html').send(renderLoginPage(message,normalizeEmail(req.body?.email)))
-    :res.status(status).json({message});
+  const journey=requestJourney(req);
+  if(journey)setJourneyCookie(res,journey);
+  const fail=async(status,message,rejectionIncident)=>{
+    await recordJourney(journey,'login_rejected',{httpStatus:status,rejectionIncident});
+    return formLogin
+      ?res.status(status).type('html').send(journeyHtml(renderLoginPage(message,normalizeEmail(req.body?.email)),journey,'login'))
+      :res.status(status).json({message,...(journey?{diagnosticCode:journey.incident}:{})});
+  };
+  await recordJourney(journey,'login_request_received',{...browserContext(req.get('User-Agent')),
+    emailKey:emailDiagnosticKey(normalizeEmail(req.body?.email),credentialKey()),
+    formLogin:Boolean(formLogin),traceCookiePresent:Boolean(diagnosticCookie(req))});
   if(formLogin&&req.get('Origin')){
     try{
       const origin=new URL(req.get('Origin'));
@@ -167,15 +233,19 @@ app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),asyn
         console.warn(JSON.stringify({event:'club_login_diagnostic_storage_unavailable',incident}));
       }
       console.warn(JSON.stringify(metadata));
-      return fail(401,'Неверный email или пароль. '+rejectedLoginHint(diagnostic)+' Код проверки: '+incident);
+      return fail(401,'Неверный email или пароль. '+rejectedLoginHint(diagnostic)+' Код проверки: '+(journey?.incident||incident),incident);
     }
     failedLogins.delete(key);
+    await recordJourney(journey,'auth_accepted');
     const sessionToken=randomToken();
     await pool.query("INSERT INTO club_sessions (token_hash,email,expires_at) VALUES ($1,$2,now()+($3 * interval '1 day'))",[sha256(sessionToken),user.email,SESSION_DAYS]);
-    res.setHeader('Set-Cookie',cookieHeader('club_session',sessionToken,SESSION_DAYS*86400));
+    const diagnosticCookies=res.getHeader('Set-Cookie')||[];
+    res.setHeader('Set-Cookie',[cookieHeader('club_session',sessionToken,SESSION_DAYS*86400),
+      ...(Array.isArray(diagnosticCookies)?diagnosticCookies:[diagnosticCookies])]);
+    await recordJourney(journey,'session_issued');
     if(formLogin)return res.redirect(303,'/club');
     res.json({email:user.login_email||user.email,name:user.name,tariff:user.tariff,purchaseAt:user.purchase_at,accessUntil:user.access_until});
-  }catch(error){next(error);}
+  }catch(error){await recordJourney(journey,'login_server_error',{httpStatus:500});next(error);}
 });
 app.post('/api/auth/logout',async(req,res,next)=>{try{const raw=parseCookies(req.headers.cookie).club_session;if(raw)await pool.query('DELETE FROM club_sessions WHERE token_hash=$1',[sha256(raw)]);res.setHeader('Set-Cookie',clearCookieHeader('club_session'));res.json({ok:true});}catch(error){next(error);}});
 async function deliverPendingCredentials(email){
@@ -297,7 +367,14 @@ app.get('/vera-hero.png',(req,res)=>res.sendFile(fileURLToPath(new URL('./vera-h
 app.get(['/', '/index.html'],async(req,res,next)=>{
   try{
     res.set('Cache-Control','no-store');
-    if(Object.hasOwn(req.query,'login')||Object.hasOwn(req.query,'paid'))return res.set('Cache-Control','no-store').type('html').send(renderLoginPage('',normalizeEmail(req.query.email)));
+    if(Object.hasOwn(req.query,'login')||Object.hasOwn(req.query,'paid')){
+      if(!allowDiagnosticRequest(req,diagnosticCookie(req)))
+        return res.type('html').send(renderLoginPage('',normalizeEmail(req.query.email)));
+      const journey=diagnosticCookie(req)||createJourney(credentialKey());
+      setJourneyCookie(res,journey);
+      await recordJourney(journey,'form_served',browserContext(req.get('User-Agent')));
+      return res.type('html').send(journeyHtml(renderLoginPage('',normalizeEmail(req.query.email)),journey,'login'));
+    }
     if(await findSession(req))return res.redirect('/club');
     res.type('html').send(guestHtml);
   }catch(error){next(error);}
@@ -337,11 +414,22 @@ app.get(['/health/hematologist.js','/health/hematologist.jpg','/health/nutrition
   }catch(error){next(error);}
 });
 app.get('/club',async(req,res,next)=>{
+  const journey=diagnosticCookie(req);
   try{
-    if(!await findSession(req))return res.redirect('/?login=1');
-    res.set('Cache-Control','no-store').type('html').send(memberHtml);
+    await recordJourney(journey,'cabinet_request_received');
+    if(!await findSession(req)){
+      await recordJourney(journey,'session_missing');
+      return res.redirect('/?login=1');
+    }
+    await recordJourney(journey,'session_confirmed');
+    res.set('Cache-Control','no-store').type('html').send(journeyHtml(memberHtml,journey,'club'));
   }catch(error){next(error);}
 });
-app.use((error,req,res,next)=>{console.error(error);if(res.headersSent)return next(error);res.status(500).json({message:'Внутренняя ошибка сервера'});});
+app.use((error,req,res,next)=>{
+  if(req.path.startsWith('/api/auth'))console.error(JSON.stringify({event:'club_auth_request_error'}));
+  else console.error(error);
+  if(res.headersSent)return next(error);
+  res.status(500).json({message:'Внутренняя ошибка сервера'});
+});
 await initDatabase();
 app.listen(PORT,'0.0.0.0',()=>console.log('Club server listening on '+PORT));
