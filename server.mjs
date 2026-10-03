@@ -7,6 +7,7 @@ import multer from 'multer';
 import pg from 'pg';
 import {buildPremiumPaidContent,sendCredentialsEmail} from './email.mjs';
 import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,normalizeBuyerName} from './checkout.mjs';
+import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './login-diagnostics.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -118,9 +119,10 @@ app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next();
 const failedLogins=new Map();
 app.get('/api/auth/me',requireAuth,(req,res)=>res.json({email:req.user.email,name:req.user.name,tariff:req.user.tariff,purchaseAt:req.user.purchase_at,accessUntil:req.user.access_until}));
 app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),async(req,res,next)=>{
+  res.set('Cache-Control','no-store');
   const formLogin=req.is('application/x-www-form-urlencoded');
   const fail=(status,message)=>formLogin
-    ?res.status(status).type('html').send(renderLoginPage(message))
+    ?res.status(status).type('html').send(renderLoginPage(message,normalizeEmail(req.body?.email)))
     :res.status(status).json({message});
   if(formLogin&&req.get('Origin')){
     try{
@@ -143,7 +145,23 @@ app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),asyn
       user=purchased.rows[0];
       authenticated=user&&await verifyPassword(password,user.password_hash);
     }
-    if(!authenticated){const current=failedLogins.get(key);failedLogins.set(key,{count:(current?.until>Date.now()?current.count:0)+1,until:Date.now()+15*60000});return fail(401,'Неверный email или пароль');}
+    if(!authenticated){
+      const current=failedLogins.get(key);
+      failedLogins.set(key,{count:(current?.until>Date.now()?current.count:0)+1,until:Date.now()+15*60000});
+      const incident='L-'+crypto.randomBytes(4).toString('hex').toUpperCase();
+      let activePasswordTags=[],hasActiveAccount=null,accountLookupSucceeded=false;
+      try{
+        const known=await pool.query("SELECT password_tag FROM club_users WHERE (email=$1 OR login_email=$1) AND status='active' AND tariff='premium' AND (access_until IS NULL OR access_until>now()) LIMIT 20",[email]);
+        activePasswordTags=known.rows.map(row=>row.password_tag);
+        hasActiveAccount=known.rowCount>0;
+        accountLookupSucceeded=true;
+      }catch{}
+      const diagnostic=describeRejectedLogin({email,password,activePasswordTags});
+      console.warn(JSON.stringify({event:'club_login_rejected',incident,
+        emailKey:emailDiagnosticKey(email,credentialKey()),formLogin:Boolean(formLogin),
+        accountLookupSucceeded,hasActiveAccount,...diagnostic}));
+      return fail(401,'Неверный email или пароль. '+rejectedLoginHint(diagnostic)+' Код проверки: '+incident);
+    }
     failedLogins.delete(key);
     const sessionToken=randomToken();
     await pool.query("INSERT INTO club_sessions (token_hash,email,expires_at) VALUES ($1,$2,now()+($3 * interval '1 day'))",[sha256(sessionToken),user.email,SESSION_DAYS]);
@@ -253,17 +271,21 @@ const guestHtml=memberHtml.split(memberMarker)[0]+"<div id=\"toast\" class=\"toa
 const loginHtml=guestHtml
   .replace('<div class="screen active" id="screen-landing">','<div class="screen" id="screen-landing">')
   .replace('<div class="screen" id="screen-login">','<div class="screen active" id="screen-login">');
-function renderLoginPage(message=''){
-  if(!message)return loginHtml;
-  const safe=String(message).replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
-  return loginHtml.replace('<p class="login-note" id="loginMessage">Данные для входа придут на почту после успешной оплаты.</p>',
-    '<p class="login-note" id="loginMessage" role="alert">'+safe+'</p>');
+function renderLoginPage(message='',email=''){
+  const escape=value=>String(value).replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+  let html=loginHtml;
+  if(email)html=html.replace('id="loginEmail" name="email"',
+    'id="loginEmail" name="email" value="'+escape(String(email).slice(0,254))+'"');
+  if(message)html=html.replace('<p class="login-note" id="loginMessage">Данные для входа придут на почту после успешной оплаты.</p>',
+    '<p class="login-note" id="loginMessage" role="alert">'+escape(message)+'</p>');
+  return html;
 }
+app.get('/api/auth/login',(req,res)=>res.set('Cache-Control','no-store').redirect(303,'/?login=1'));
 app.get('/vera-hero.png',(req,res)=>res.sendFile(fileURLToPath(new URL('./vera-hero.png',import.meta.url))));
 app.get(['/', '/index.html'],async(req,res,next)=>{
   try{
     res.set('Cache-Control','no-store');
-    if(Object.hasOwn(req.query,'login')||Object.hasOwn(req.query,'paid'))return res.set('Cache-Control','no-store').type('html').send(renderLoginPage());
+    if(Object.hasOwn(req.query,'login')||Object.hasOwn(req.query,'paid'))return res.set('Cache-Control','no-store').type('html').send(renderLoginPage('',normalizeEmail(req.query.email)));
     if(await findSession(req))return res.redirect('/club');
     res.type('html').send(guestHtml);
   }catch(error){next(error);}
