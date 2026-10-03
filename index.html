@@ -1599,8 +1599,8 @@ function renderUser(){
   Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value;}); currentTariff=currentUser.tariff||'premium'; applyTariff();
 }
 async function restoreSession(){
-  try{ const response=await fetch('/api/auth/me',{credentials:'same-origin'}); if(response.ok){currentUser=await response.json();renderUser();showScreen('dashboard');} else if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Если оплата прошла, данные для входа придут на почту.');} }
-  catch(error){ if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Если оплата прошла, проверьте почту и зайдите по email и паролю.');} }
+  try{ const response=await fetch('/api/auth/me',{credentials:'same-origin'}); if(response.ok){currentUser=await response.json();renderUser();showScreen('dashboard');window.clubLoginDiagnostic?.stage('profile_loaded',{httpStatus:response.status});} else {window.clubLoginDiagnostic?.stage('profile_rejected',{httpStatus:response.status});if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Если оплата прошла, данные для входа придут на почту.');}} }
+  catch(error){ window.clubLoginDiagnostic?.stage('profile_network_error');if(new URLSearchParams(location.search).get('paid')==='1'){showScreen('login');toast('Если оплата прошла, проверьте почту и зайдите по email и паролю.');} }
 }
 
 /* ═══════════ РЕНДЕР: ГЛАВНАЯ СЕТКА РАЗДЕЛОВ ═══════════ */
@@ -1934,6 +1934,7 @@ function toast(msg, err){
 /* ═══════════ INIT ═══════════ */
 renderNavGrid();
 applyTariff();
+window.clubLoginDiagnostic?.stage('cabinet_initialized');
 restoreSession();
 </script>
 
