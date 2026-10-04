@@ -1035,6 +1035,8 @@ a{text-decoration:none;color:inherit}
   </div>
   <div class="section-label">Видео</div>
   <div class="mat-grid" id="readyMenuList" style="margin:0 0 32px"></div>
+  <div class="section-label">Материалы</div>
+  <div class="mat-grid" id="readyMenuFilesList" style="margin:0 0 32px"></div>
 </div>
 </div>
 
@@ -1275,6 +1277,9 @@ const CLUB_VIDEOS = {
 
 /* ═══════════ ДАННЫЕ: PDF-ФАЙЛЫ (Яндекс.Диск) ═══════════ */
 const CLUB_FILES = {
+    readyMenu: [
+        {t: "Меню и закупка", url: "https://disk.yandex.ru/i/SEyEEQvposQ6Ew"}
+    ],
     smart: [
         {t: "Сборник 1", url: "https://disk.yandex.ru/i/UG2c9fU2egfFig"},
         {t: "Сборник 2", url: "https://disk.yandex.ru/i/Js-WVEJIeA0feg"},
@@ -1556,7 +1561,7 @@ function showScreen(id){
   if(id==='baking') renderAccordion('bakingCategoriesList', BAKING_CATEGORIES);
   if(id==='holiday'){ renderVideoList('holidayVideoList', CLUB_VIDEOS.holiday); renderHolidayFiles(); }
   if(id==='smart'){renderVideoList('smartList',CLUB_VIDEOS.smart);renderFileList('smartFilesList',CLUB_FILES.smart)}
-  if(id==='ready-menu') renderVideoList('readyMenuList', CLUB_VIDEOS.readyMenu);
+  if(id==='ready-menu'){ renderVideoList('readyMenuList', CLUB_VIDEOS.readyMenu); renderFileList('readyMenuFilesList', CLUB_FILES.readyMenu); }
   if(id==='broths'){ renderVideoList('brothsList', CLUB_VIDEOS.broths); renderFileList('brothsFilesList', CLUB_FILES.broths); }
   if(id==='sauces'){ renderVideoList('saucesList', CLUB_VIDEOS.sauces); renderFileList('saucesFilesList', CLUB_FILES.sauces); }
   if(id==='constructor'){renderVideoList('constructorList',CLUB_VIDEOS.constructor);renderFileList('constructorFilesList',CONSTRUCTOR_FILES)}
