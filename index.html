@@ -356,6 +356,8 @@ a{text-decoration:none;color:inherit}
   cursor:pointer;
 }
 .mat-card:hover{background:var(--pink-soft);transform:translateX(4px)}
+.earning-article-card{width:100%;border:0;text-align:left;font:inherit;color:inherit}
+.earning-article-card:focus-visible{outline:3px solid var(--pink);outline-offset:3px}
 .mat-thumb{
   width:50px;height:50px;border-radius:12px;flex-shrink:0;
   background:linear-gradient(135deg,var(--pink-light),var(--pink));
@@ -379,6 +381,8 @@ a{text-decoration:none;color:inherit}
 .material-reader-content ul,.material-reader-content ol{padding-left:24px;margin:0 0 16px}
 .material-reader-content li{padding-left:3px;margin:6px 0}
 .material-reader-content li ul{margin:6px 0 10px}
+.material-reader-content.earning-article h3{padding:16px 18px;border-left:4px solid var(--pink);border-radius:0 12px 12px 0;background:var(--pink-bg)}
+.material-reader-content.earning-article p:has(>strong:only-child){padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--cream)}
 .material-reader-content .nutrition-author-photo{display:block;width:100%;max-width:360px;height:auto;margin:20px auto 24px;border-radius:16px}
 .material-reader-state{padding:16px 0;color:var(--text-light);line-height:1.6}
 .material-reader-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
@@ -1082,7 +1086,14 @@ a{text-decoration:none;color:inherit}
       <p>Как превратить навык заготовок в источник дохода.</p>
     </div>
   </div>
-  <div style="margin:0 20px"><div class="soon-note"><i class="fas fa-hourglass-half"></i> Материал в разработке, будет доступен 11 октября</div></div>
+  <div class="section-label">Материалы</div>
+  <div class="mat-grid" style="margin:0 20px 32px">
+    <button type="button" class="mat-card earning-article-card" onclick="openClubMaterial('earning-preparations','Заработок на заготовках','earning','Заработок на заготовках','')">
+      <span class="mat-thumb file"><i class="fas fa-file-lines" aria-hidden="true"></i></span>
+      <span class="mat-info"><h4>Как зарабатывать на заготовках</h4><p>Статья · 6 шагов: от первых покупателей до продаж</p></span>
+      <i class="fas fa-chevron-right" aria-hidden="true"></i>
+    </button>
+  </div>
 </div>
 </div>
 
@@ -1400,7 +1411,7 @@ const CONSTRUCTOR_FILES = [
 ];
 const LAZY_FILES = [{t:'Ленивый ресторан дома',url:'https://disk.yandex.ru/d/3TNP-Pm91gD-RA'}];
 
-const CLUB_TEXT_MATERIALS = new Set(['nutrition-calories']);
+const CLUB_TEXT_MATERIALS = new Set(['nutrition-calories','earning-preparations']);
 
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
 let currentTariff = 'premium';
@@ -1655,6 +1666,7 @@ async function loadClubMaterial(slug){
   const content=document.getElementById('materialReaderContent');
   const retry=document.querySelector('.reader-retry');
   if(!state||!content||!CLUB_TEXT_MATERIALS.has(slug)) return;
+  content.classList.toggle('earning-article',slug==='earning-preparations');
   state.textContent='Загрузка материала…';
   content.textContent='';
   if(retry) retry.hidden=true;
