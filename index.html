@@ -381,6 +381,8 @@ a{text-decoration:none;color:inherit}
 .material-reader-content ul,.material-reader-content ol{padding-left:24px;margin:0 0 16px}
 .material-reader-content li{padding-left:3px;margin:6px 0}
 .material-reader-content li ul{margin:6px 0 10px}
+.material-reader-content .article-legal-note{margin-top:28px;padding-top:14px;border-top:1px solid var(--border);font-size:.75rem;line-height:1.6;color:var(--text)}
+.material-reader-content .article-legal-note small{font-size:inherit}
 .material-reader-content.earning-article h3{padding:16px 18px;border-left:4px solid var(--pink);border-radius:0 12px 12px 0;background:var(--pink-bg)}
 .material-reader-content.earning-article p:has(>strong:only-child){padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--cream)}
 .material-reader-content .nutrition-author-photo{display:block;width:100%;max-width:360px;height:auto;margin:20px auto 24px;border-radius:16px}
@@ -1710,6 +1712,13 @@ function renderNutritionArticle(container,source){
   for(let i=0;i<lines.length;i++){
     const raw=lines[i],line=raw.trim();
     if(!line){list=null;sublist=null;paragraph=null;continue}
+    if(line.startsWith('* Instagram (IG)')){
+      list=null;sublist=null;lastItem=null;paragraph=null;
+      const note=document.createElement('p'),small=document.createElement('small');
+      note.className='article-legal-note';note.setAttribute('role','note');
+      small.textContent=line;note.append(small);container.append(note);
+      continue;
+    }
     const heading=line.match(/^(#{2,3})\s+(.+)$/u);
     if(heading){
       list=null;sublist=null;lastItem=null;paragraph=null;
