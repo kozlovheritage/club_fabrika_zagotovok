@@ -8,6 +8,7 @@ import pg from 'pg';
 import {buildPremiumPaidContent,sendCredentialsEmail} from './email.mjs';
 import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,normalizeBuyerName} from './checkout.mjs';
 import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './login-diagnostics.mjs';
+import {ALLOW_LEGACY_CHECKOUT,CONSENT_SCHEMA,archiveConsentDocuments,checkoutDocumentCatalog,validateCheckoutConsents,saveCheckoutConsentReceipt,renderArchivedLegalDocument} from './consents.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -70,13 +71,34 @@ function normalizeWebhookBody(body){if(!body||typeof body!=='object')return {};i
 function parseCookies(header){return String(header||'').split(';').reduce((out,part)=>{const index=part.indexOf('=');if(index<0)return out;out[part.slice(0,index).trim()]=decodeURIComponent(part.slice(index+1).trim());return out;},{});}
 function cookieHeader(name,value,maxAge){return name+'='+encodeURIComponent(value)+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+maxAge+(COOKIE_SECURE?'; Secure':'');}
 function clearCookieHeader(name){return name+'=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(COOKIE_SECURE?'; Secure':'');}
-async function initDatabase(){for(const statement of schema)await pool.query(statement);}
+async function initDatabase(){for(const statement of [...schema,...CONSENT_SCHEMA])await pool.query(statement);await archiveConsentDocuments(pool);}
 async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT COALESCE(u.login_email,u.email) AS email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.tariff='premium' AND (u.access_until IS NULL OR u.access_until>now())",[sha256(raw)]);return result.rows[0]||null;}
 async function requireAuth(req,res,next){try{const user=await findSession(req);if(!user)return res.status(401).json({message:'Сессия истекла'});req.user=user;next();}catch(error){next(error);}}
 
 app.use(express.json({limit:'1mb'}));
 app.use(express.urlencoded({extended:true,limit:'1mb'}));
 app.get('/api/health',(req,res)=>res.json({ok:true}));
+app.get('/api/legal/checkout-documents',(req,res)=>{
+  const origin=req.get('Origin');
+  if(origin&&SALES_ORIGINS.includes(origin)){res.set('Access-Control-Allow-Origin',origin);res.set('Vary','Origin');}
+  res.set('Cache-Control','no-store').json(checkoutDocumentCatalog(PUBLIC_URL));
+});
+app.get(['/legal/documents/:id','/legal/documents/:id/original.docx'],async(req,res,next)=>{
+  try{
+    if(!/^(personal-data|policy|marketing|offer)-[a-f0-9]{64}$/.test(req.params.id))return res.status(404).end();
+    const result=await pool.query('SELECT document_id,title,content_html,original_docx FROM club_legal_documents WHERE document_id=$1',[req.params.id]);
+    const doc=result.rows[0];if(!doc)return res.status(404).end();
+    res.set('Cache-Control','public, max-age=31536000, immutable');
+    res.set('X-Content-Type-Options','nosniff');
+    res.set('Referrer-Policy','no-referrer');
+    if(req.path.endsWith('/original.docx')){
+      res.set('Content-Disposition','attachment; filename="club-legal-document.docx"');
+      return res.type('application/vnd.openxmlformats-officedocument.wordprocessingml.document').send(doc.original_docx);
+    }
+    res.set('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
+    res.type('html').send(renderArchivedLegalDocument(doc));
+  }catch(error){next(error);}
+});
 app.use('/api/checkout',(req,res,next)=>{
   const origin=req.get('Origin');
   if(!origin||!SALES_ORIGINS.includes(origin))return res.status(403).json({message:'Недоступный источник'});
@@ -99,6 +121,9 @@ app.post('/api/checkout/session',async(req,res,next)=>{
   let quote;
   try{quote=quotePrice(tariff,req.body?.promo??'');}
   catch(error){return res.status(400).json({message:error.message});}
+  let consents;
+  try{consents=validateCheckoutConsents(req.body?.consents,{allowLegacy:ALLOW_LEGACY_CHECKOUT});}
+  catch(error){return res.status(error.status||400).json({message:error.message});}
   if(tariff==='basic'&&process.env.BASIC_CHECKOUT_ENABLED!=='true')return res.status(503).json({message:'Оплата базового тарифа пока недоступна'});
   const invite=tariff==='basic'&&basicInviteUrl();
   if(tariff==='basic'&&!invite)return res.status(503).json({message:'Доступ в Telegram-клуб пока не настроен'});
@@ -109,7 +134,16 @@ app.post('/api/checkout/session',async(req,res,next)=>{
     }
     const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY,process.env,email,quote.codes.join(' '),tariff==='premium'?buyerName:undefined);
     if(!checkout)return res.status(503).json({message:'Оплата пока недоступна'});
-    if(tariff==='premium')await pool.query('INSERT INTO club_checkout_orders (order_id,buyer_email,buyer_name) VALUES ($1,$2,$3)',[checkout.order_id,email,buyerName]);
+    if(tariff==='premium'||consents){
+      const client=await pool.connect();
+      try{
+        await client.query('BEGIN');
+        if(tariff==='premium')await client.query('INSERT INTO club_checkout_orders (order_id,buyer_email,buyer_name) VALUES ($1,$2,$3)',[checkout.order_id,email,buyerName]);
+        await saveCheckoutConsentReceipt(client,{orderId:checkout.order_id,email,tariff,origin:req.get('Origin')||'direct-api',consents});
+        await client.query('COMMIT');
+      }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
+      finally{client.release();}
+    }
     checkout.paid_content=tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+checkout.order_id
       : buildPremiumPaidContent(PUBLIC_URL,email,premiumPasswordForOrder(checkout.order_id,process.env.AUTH_CREDENTIAL_KEY));
