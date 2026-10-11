@@ -45,9 +45,10 @@ test('receipt stores canonical values with SQL parameters and a server-owned tim
     ids.personalData, ids.policy, ids.marketing, ids.offer]);
   assert.doesNotMatch(calls[0][0], /audit@example/);
 });
-test('legacy allowance is explicit and never fabricates a receipt', async () => {
-  assert.equal(validateCheckoutConsents(undefined, { allowLegacy: true }), null);
-  await saveCheckoutConsentReceipt({ query: () => assert.fail('must not fabricate legacy consent') }, { consents: null });
+test('missing choices cannot bypass validation or silently skip the receipt', async () => {
+  assert.throws(() => validateCheckoutConsents(undefined, { allowLegacy: true }), { status: 400 });
+  await assert.rejects(saveCheckoutConsentReceipt({ query: () => assert.fail('must not fabricate legacy consent') }, { consents: null }),
+    /Checkout consent receipt is required/);
 });
 test('archived public document has a downloadable original and escaped metadata', () => {
   const html = renderArchivedLegalDocument({ title: '<script>', document_id: ids.offer, content_html: '<p>Original text</p>' });

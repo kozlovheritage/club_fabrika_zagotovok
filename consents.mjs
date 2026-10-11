@@ -1,8 +1,6 @@
 import crypto from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-// Transitional rollout only: disable after the updated sales page is live.
-export const ALLOW_LEGACY_CHECKOUT = true;
 const kinds = ['personal-data', 'policy', 'marketing', 'offer'];
 const fields = { personalData: 'personal-data', policy: 'policy', marketing: 'marketing', offer: 'offer' };
 const documents = await Promise.all(kinds.map(async kind => {
@@ -56,8 +54,7 @@ export function checkoutDocumentCatalog(publicUrl) {
 function invalid(message, status = 400) {
   return Object.assign(new Error(message), { status });
 }
-export function validateCheckoutConsents(value, { allowLegacy = false } = {}) {
-  if (value === undefined && allowLegacy) return null;
+export function validateCheckoutConsents(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw invalid('Обновите страницу и подтвердите согласия перед оплатой.');
   }
@@ -79,7 +76,7 @@ export function validateCheckoutConsents(value, { allowLegacy = false } = {}) {
 }
 
 export async function saveCheckoutConsentReceipt(client, { orderId, email, tariff, origin, consents }) {
-  if (!consents) return;
+  if (!consents) throw new Error('Checkout consent receipt is required');
   await client.query(`INSERT INTO club_checkout_consent_receipts
     (order_id,buyer_email,tariff,source_origin,personal_data_granted,marketing_granted,offer_accepted,
      personal_data_document_id,policy_document_id,marketing_document_id,offer_document_id)

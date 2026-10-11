@@ -8,7 +8,7 @@ import pg from 'pg';
 import {buildPremiumPaidContent,sendCredentialsEmail} from './email.mjs';
 import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,normalizeBuyerName} from './checkout.mjs';
 import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './login-diagnostics.mjs';
-import {ALLOW_LEGACY_CHECKOUT,CONSENT_SCHEMA,archiveConsentDocuments,checkoutDocumentCatalog,validateCheckoutConsents,saveCheckoutConsentReceipt,renderArchivedLegalDocument} from './consents.mjs';
+import {CONSENT_SCHEMA,archiveConsentDocuments,checkoutDocumentCatalog,validateCheckoutConsents,saveCheckoutConsentReceipt,renderArchivedLegalDocument} from './consents.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -122,7 +122,7 @@ app.post('/api/checkout/session',async(req,res,next)=>{
   try{quote=quotePrice(tariff,req.body?.promo??'');}
   catch(error){return res.status(400).json({message:error.message});}
   let consents;
-  try{consents=validateCheckoutConsents(req.body?.consents,{allowLegacy:ALLOW_LEGACY_CHECKOUT});}
+  try{consents=validateCheckoutConsents(req.body?.consents);}
   catch(error){return res.status(error.status||400).json({message:error.message});}
   if(tariff==='basic'&&process.env.BASIC_CHECKOUT_ENABLED!=='true')return res.status(503).json({message:'Оплата базового тарифа пока недоступна'});
   const invite=tariff==='basic'&&basicInviteUrl();
@@ -134,7 +134,7 @@ app.post('/api/checkout/session',async(req,res,next)=>{
     }
     const checkout=createCheckout(tariff,process.env.AUTH_CREDENTIAL_KEY,process.env,email,quote.codes.join(' '),tariff==='premium'?buyerName:undefined);
     if(!checkout)return res.status(503).json({message:'Оплата пока недоступна'});
-    if(tariff==='premium'||consents){
+    {
       const client=await pool.connect();
       try{
         await client.query('BEGIN');
