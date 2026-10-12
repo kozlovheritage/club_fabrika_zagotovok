@@ -6,7 +6,8 @@ import express from 'express';
 import multer from 'multer';
 import pg from 'pg';
 import {buildPremiumPaidContent,sendCredentialsEmail} from './email.mjs';
-import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,normalizeBuyerName} from './checkout.mjs';
+import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,normalizeBuyerName,restoreCheckout} from './checkout.mjs';
+import {buildDirectPaymentForm} from './payment-recovery.mjs';
 import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './login-diagnostics.mjs';
 import {CONSENT_SCHEMA,archiveConsentDocuments,checkoutDocumentCatalog,validateCheckoutConsents,saveCheckoutConsentReceipt,renderArchivedLegalDocument} from './consents.mjs';
 
@@ -151,6 +152,32 @@ app.post('/api/checkout/session',async(req,res,next)=>{
   }catch(error){next(error);}
 });
 app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
+app.post('/api/checkout/direct',async(req,res,next)=>{
+  const orderId=String(req.body?.orderId||'');
+  const email=normalizeEmail(req.body?.email);
+  if(orderId.length>180||!/^fz[34]-[bp]-/.test(orderId)||email.length>254)
+    return res.status(400).json({message:'Повторно откройте форму покупки'});
+  try{
+    const saved=await pool.query(
+      'SELECT r.tariff,o.buyer_name FROM club_checkout_consent_receipts r LEFT JOIN club_checkout_orders o ON o.order_id=r.order_id WHERE r.order_id=$1 AND r.buyer_email=$2',
+      [orderId,email]);
+    if(!saved.rowCount)return res.status(404).json({message:'Заказ не найден. Повторно откройте форму покупки'});
+    const tariff=saved.rows[0].tariff;
+    const checkout=restoreCheckout(orderId,process.env.AUTH_CREDENTIAL_KEY,email,saved.rows[0].buyer_name);
+    if(!checkout||((tariff==='premium')!==/^fz[34]-p-/.test(orderId)))
+      return res.status(400).json({message:'Не удалось проверить заказ'});
+    const paid=await pool.query('SELECT 1 FROM club_webhook_events WHERE event_id=$1',[sha256('prodamus:'+orderId)]);
+    if(paid.rowCount)return res.status(409).json({message:'Оплата этого заказа уже подтверждена. Проверьте письмо с доступом'});
+    if(!process.env.PRODAMUS_SECRET_KEY||(tariff==='basic'&&
+      (process.env.BASIC_CHECKOUT_ENABLED!=='true'||!basicInviteUrl())))
+      return res.status(503).json({message:'Прямой переход к оплате пока недоступен'});
+    checkout.paid_content=tariff==='basic'
+      ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+orderId
+      : buildPremiumPaidContent(PUBLIC_URL,email,premiumPasswordForOrder(orderId,process.env.AUTH_CREDENTIAL_KEY));
+    res.set('Cache-Control','no-store').json(buildDirectPaymentForm(checkout,
+      payload=>prodamusSign(payload,process.env.PRODAMUS_SECRET_KEY)));
+  }catch(error){next(error);}
+});
 const failedLogins=new Map();
 app.get('/api/auth/me',requireAuth,(req,res)=>res.json({email:req.user.email,name:req.user.name,tariff:req.user.tariff,purchaseAt:req.user.purchase_at,accessUntil:req.user.access_until}));
 app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),async(req,res,next)=>{

@@ -121,3 +121,22 @@ export function identifyCheckout(payload, key) {
   return v4 ? {kind: 'site', tariff, orderId, email, requiresSavedName: true} :
     v3 ? {kind: 'site', tariff, orderId, email} : {kind: 'site', tariff};
 }
+
+// Recover only an already issued, email-bound order. Never trust a client price.
+export function restoreCheckout(orderId, key, buyerEmail, buyerName) {
+  const match = /^(fz[34]-([bp])-([1-9]\d{2,8})-([0-9a-f]{16})-[0-9a-f]{24})-([0-9a-f]{24})$/.exec(String(orderId || ''));
+  const email = normalizedEmail(buyerEmail);
+  if (!match || !key || !email) return null;
+  const expected = orderSignature(match[1], key);
+  if (!crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(match[5], 'hex')) ||
+      emailTag(email, key) !== match[4]) return null;
+  const tariff = match[2] === 'p' ? 'premium' : 'basic';
+  const cents = Number(match[3]);
+  const name = tariff === 'premium' ? normalizeBuyerName(buyerName) : null;
+  if (!Number.isSafeInteger(cents) || (tariff === 'premium' && !name)) return null;
+  return {
+    order_id: String(orderId), currency: 'rub',
+    products: [{name: PRODUCTS[tariff].name, price: (cents / 100).toFixed(2), quantity: 1, type: 'service'}],
+    customer_email: email, ...(name ? {customer_name: name} : {})
+  };
+}
