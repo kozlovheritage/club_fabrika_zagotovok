@@ -10,10 +10,12 @@ import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,norma
 import {buildDirectPaymentForm} from './payment-recovery.mjs';
 import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './login-diagnostics.mjs';
 import {CONSENT_SCHEMA,archiveConsentDocuments,checkoutDocumentCatalog,validateCheckoutConsents,saveCheckoutConsentReceipt,renderArchivedLegalDocument} from './consents.mjs';
+import {createPdfRouter,loadPdfCatalog,rewritePdfLinks} from './pdf-access.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
 const app=express();
+const pdfCatalog=await loadPdfCatalog();
 const upload=multer({limits:{fields:200,fieldSize:1024*1024}});
 const PORT=Number(process.env.PORT||3000);
 const PUBLIC_URL=(process.env.PUBLIC_URL||'').replace(/\/$/,'');
@@ -184,6 +186,11 @@ app.post('/api/checkout/direct',async(req,res,next)=>{
 });
 const failedLogins=new Map();
 app.get('/api/auth/me',requireAuth,(req,res)=>res.json({email:req.user.email,name:req.user.name,tariff:req.user.tariff,purchaseAt:req.user.purchase_at,accessUntil:req.user.access_until}));
+app.use('/api/pdfs',createPdfRouter({
+  catalog:pdfCatalog,
+  authorize:findSession,
+  onFailure:()=>console.error('PDF_STORAGE_UNAVAILABLE'),
+}));
 app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),async(req,res,next)=>{
   res.set('Cache-Control','no-store');
   const formLogin=req.is('application/x-www-form-urlencoded');
@@ -336,7 +343,7 @@ app.get('/access/basic/:orderId',async(req,res,next)=>{
 });
 
 // The public page contains only landing and login markup, never members' recipes or data.
-const sourceMemberHtml=await readFile(new URL('./index.html',import.meta.url),'utf8');
+const sourceMemberHtml=rewritePdfLinks(await readFile(new URL('./index.html',import.meta.url),'utf8'),pdfCatalog);
 // /club is already authorized on the server. Never initially show the sales
 // landing while the browser restores its profile or if its script fails.
 const memberHtml=sourceMemberHtml

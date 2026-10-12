@@ -368,6 +368,9 @@ a{text-decoration:none;color:inherit}
 .mat-info{flex:1;min-width:0}
 .mat-info h4{font-size:.9rem;font-weight:600;color:var(--text-mid);margin-bottom:2px}
 .mat-info p{font-size:.76rem;color:var(--text-light)}
+.pdf-actions{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px}
+.pdf-actions a{display:inline-flex;align-items:center;gap:6px;color:var(--pink);font-size:.85rem;font-weight:600;padding:5px 0}
+.pdf-actions a:focus-visible{outline:2px solid var(--pink);outline-offset:4px;border-radius:3px}
 
 .material-reader{margin:0 20px 40px;background:#fff;border-radius:var(--r);padding:clamp(18px,4vw,32px);box-shadow:var(--shadow)}
 .material-reader h2{font-family:'Cormorant Garamond',serif;font-size:clamp(1.45rem,4vw,2rem);line-height:1.25;color:var(--text-mid);margin:0 0 8px}
@@ -778,7 +781,9 @@ a{text-decoration:none;color:inherit}
       <h4>Ревизия</h4>
       <p>Наводим порядок на кухне, выбрасываем всё лишнее и находим продукты, которые будем использовать в еду.</p>
     </div></summary>
-    <div class="start-material-content"><div class="start-material-text" aria-live="polite"></div></div>
+    <div class="start-material-content"><div class="start-material-text" aria-live="polite"></div>
+      <div class="pdf-actions"><a href="/api/pdfs/6646f6bab7e3963f2a81e69323a836af" target="_blank" rel="noopener noreferrer">Открыть PDF</a><a href="/api/pdfs/6646f6bab7e3963f2a81e69323a836af?download=1" target="_blank" rel="noopener noreferrer">Скачать PDF</a></div>
+    </div>
   </details>
 
   <details class="start-step" data-material="menu" ontoggle="loadStartMaterial(this)">
@@ -786,7 +791,9 @@ a{text-decoration:none;color:inherit}
       <h4>Меню</h4>
       <p>Планируем меню и закупку, учитывая свои особенности и пожелания. Совет: подсмотрите разделы с рецептами или блок «Готовое меню», чтобы составить свой план.</p>
     </div></summary>
-    <div class="start-material-content"><div class="start-material-text" aria-live="polite"></div></div>
+    <div class="start-material-content"><div class="start-material-text" aria-live="polite"></div>
+      <div class="pdf-actions"><a href="/api/pdfs/4924b8bcf6aa307e6ac90a468f3be90b" target="_blank" rel="noopener noreferrer">Открыть PDF</a><a href="/api/pdfs/4924b8bcf6aa307e6ac90a468f3be90b?download=1" target="_blank" rel="noopener noreferrer">Скачать PDF</a></div>
+    </div>
   </details>
 
   <details class="start-step" data-material="rules" ontoggle="loadStartMaterial(this)">
@@ -797,6 +804,7 @@ a{text-decoration:none;color:inherit}
     </div></summary>
     <div class="start-material-content">
       <div class="start-material-text" aria-live="polite"></div>
+      <div class="pdf-actions"><a href="/api/pdfs/ce51810a46c0fb90b92f967e47a1e90a" target="_blank" rel="noopener noreferrer">Открыть PDF</a><a href="/api/pdfs/ce51810a46c0fb90b92f967e47a1e90a?download=1" target="_blank" rel="noopener noreferrer">Скачать PDF</a></div>
       <button class="link-btn" type="button" onclick="showScreen('rules')"><i class="fas fa-arrow-right"></i> Перейти к отдельной таблице хранения</button>
     </div>
   </details>
@@ -809,6 +817,7 @@ a{text-decoration:none;color:inherit}
     </div></summary>
     <div class="start-material-content">
       <div class="start-material-text" aria-live="polite"></div>
+      <div class="pdf-actions"><a href="/api/pdfs/8eb512d3bc5f9f0bade84e2648ba66af" target="_blank" rel="noopener noreferrer">Открыть PDF</a><a href="/api/pdfs/8eb512d3bc5f9f0bade84e2648ba66af?download=1" target="_blank" rel="noopener noreferrer">Скачать PDF</a></div>
       <div class="mat-section" style="margin-top:16px">
         <div class="mat-label"><i class="fas fa-video"></i> Лекторий · Организация пространства</div>
         <button type="button" class="mat-card" style="width:100%;border:0;text-align:left;font:inherit;cursor:pointer" onclick="playVideo('О способах вакуумации','7cd5a7bc-f4b2-4428-9759-8919036ae077')">
@@ -1638,15 +1647,17 @@ function renderNavGrid(){
 
 /* ═══════════ ОТКРЫТИЕ ФАЙЛА ═══════════ */
 function openFile(url, title){
-  if(url==='https://disk.yandex.ru/d/CnmHLxvkOtGpPg'){
-    url='https://disk.yandex.ru/i/T-DH8tu0P_ZOSQ';
-  }
   if(url){
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
     toast('Открываем файл: ' + title);
   } else {
     toast(MATERIAL_PENDING_NOTICE);
   }
+}
+
+function pdfActions(url){
+  if(!/^\/api\/pdfs\/[a-f0-9]{32}$/.test(url||''))return '';
+  return `<div class="pdf-actions"><a href="${url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><i class="fas fa-file-pdf"></i> Открыть PDF</a><a href="${url}?download=1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><i class="fas fa-download"></i> Скачать PDF</a></div>`;
 }
 
 function openClubMaterial(slug,title,originScreen,originSection,author){
@@ -1810,7 +1821,7 @@ function renderAccordion(containerId, categories){
         ${c.files?.length ? `<div class="mat-section">
           <div class="mat-label"><i class="fas fa-file-pdf"></i> Материалы (${c.files.length})</div>
           <div class="mat-grid">
-            ${c.files.map(f=>`<div class="mat-card" onclick="${f.slug ? `openClubMaterial('${f.slug}', '${f.t}', '${containerId==='bakingCategoriesList'?'baking':'recipes'}', '${c.name}', '${f.author||''}')` : `openFile('${f.url || ''}', '${f.t}')`}"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.slug||f.url?f.d:MATERIAL_PENDING_NOTICE}</p></div></div>`).join('')}
+            ${c.files.map(f=>`<div class="mat-card" onclick="${f.slug ? `openClubMaterial('${f.slug}', '${f.t}', '${containerId==='bakingCategoriesList'?'baking':'recipes'}', '${c.name}', '${f.author||''}')` : `openFile('${f.url || ''}', '${f.t}')`}"><div class="mat-thumb file"><i class="fas fa-file-alt"></i></div><div class="mat-info"><h4>${f.t}</h4><p>${f.slug||f.url?f.d:MATERIAL_PENDING_NOTICE}</p>${pdfActions(f.url)}</div></div>`).join('')}
           </div>
         </div>` : ''}`;
     } else if(c.items){
@@ -1859,7 +1870,7 @@ function renderFileList(containerId, files) {
     list.innerHTML = files.map(f => `
         <div class="mat-card" onclick="openFile('${f.url}','${f.t}')">
             <div class="mat-thumb file"><i class="fas fa-file-pdf"></i></div>
-            <div class="mat-info"><h4>${f.t}</h4><p>PDF-файл</p></div>
+            <div class="mat-info"><h4>${f.t}</h4><p>PDF-файл</p>${pdfActions(f.url)}</div>
         </div>
     `).join('');
 }
@@ -1869,9 +1880,9 @@ function renderHolidayFiles(){
   const list = document.getElementById('holidayFilesList');
   if(!list) return;
   list.innerHTML = HOLIDAY_FILES.map(f=>`
-    <div class="mat-card" onclick="window.open('${f.url}','_blank'); toast('Открываем файл: ${f.t}')">
+    <div class="mat-card" onclick="openFile('${f.url}','${f.t}')">
       <div class="mat-thumb file"><i class="fas fa-file-pdf"></i></div>
-      <div class="mat-info"><h4>${f.t}</h4><p>${f.d}</p></div>
+      <div class="mat-info"><h4>${f.t}</h4><p>${f.d}</p>${pdfActions(f.url)}</div>
     </div>`).join('');
 }
 
