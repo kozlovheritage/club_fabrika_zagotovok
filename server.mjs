@@ -168,6 +168,10 @@ app.post('/api/checkout/direct',async(req,res,next)=>{
       return res.status(400).json({message:'Не удалось проверить заказ'});
     const paid=await pool.query('SELECT 1 FROM club_webhook_events WHERE event_id=$1',[sha256('prodamus:'+orderId)]);
     if(paid.rowCount)return res.status(409).json({message:'Оплата этого заказа уже подтверждена. Проверьте письмо с доступом'});
+    if(tariff==='premium'){
+      const existing=await pool.query("SELECT 1 FROM club_users WHERE (email=$1 OR login_email=$1) AND password_hash IS NOT NULL LIMIT 1",[email]);
+      if(existing.rowCount)return res.status(409).json({message:'У вас уже есть доступ по этому email. Войдите в клуб или обратитесь в службу заботы'});
+    }
     if(!process.env.PRODAMUS_SECRET_KEY||(tariff==='basic'&&
       (process.env.BASIC_CHECKOUT_ENABLED!=='true'||!basicInviteUrl())))
       return res.status(503).json({message:'Прямой переход к оплате пока недоступен'});
