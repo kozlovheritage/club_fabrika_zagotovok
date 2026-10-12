@@ -39,18 +39,45 @@ function hematologistNode(tag, text, className) {
   return node;
 }
 
+function appendHematologistInline(node, text) {
+  // Direct speech can contain nested quotation marks and span source lines.
+  if (/^[«“"]|[»”"]\.?$/u.test(text)) {
+    node.append(hematologistNode('em', text));
+    return;
+  }
+  let position = 0;
+  for (const match of text.matchAll(/«[^«»]+»|“[^“”]+”/gu)) {
+    node.append(document.createTextNode(text.slice(position, match.index)));
+    node.append(hematologistNode('em', match[0]));
+    position = match.index + match[0].length;
+  }
+  node.append(document.createTextNode(text.slice(position)));
+}
+
+function hematologistHeading(text) {
+  return /^(?:\d+\.\s+[А-ЯЁA-Z]{2,}|🔹\s*ШАГ|[🟢🟡🔴]\s*ФЕРРИТИН|(?:🍽|🐟)?\s*(?:ЗАВТРАК|ОБЕД|ПОЛДНИК|УЖИН|КЛЮЧЕВЫЕ ПРАВИЛА ДНЯ))/u.test(text);
+}
+
+function hematologistSubtitle(text) {
+  return /^(?:Что чувствует ваше тело|Три закона питания при дефицитах|Почему так|Пять важных принципов|Наша общая задача)/iu.test(text) || (text.endsWith(':') && text.length < 110);
+}
+
 function appendHematologistText(target, lines) {
   if (!lines.length) return;
   const text = lines.join(' ').trim();
   if (!text) return;
-  const heading = /^(?:\d+\.\s+[А-ЯЁA-Z]{2,}|🔹\s*ШАГ|[🟢🟡🔴]\s*ФЕРРИТИН|(?:🍽|🐟)?\s*(?:ЗАВТРАК|ОБЕД|ПОЛДНИК|УЖИН|КЛЮЧЕВЫЕ ПРАВИЛА ДНЯ))/u.test(text);
+  const heading = hematologistHeading(text);
   const note = /^(?:ВАЖНО ЗАПОМНИТЬ|Эти симптомы — лишь подсказка|Совет от врача:)/iu.test(text);
-  const subtitle = /^(?:Что чувствует ваше тело|Три закона питания при дефицитах|Почему так|Пять важных принципов|Наша общая задача)/iu.test(text) || (text.endsWith(':') && text.length < 110);
-  target.append(hematologistNode(heading ? 'h4' : 'p', text, note ? 'hematologist-note' : subtitle ? 'hematologist-subtitle' : ''));
+  const subtitle = hematologistSubtitle(text);
+  const node = hematologistNode(heading ? 'h4' : 'p', undefined, note ? 'hematologist-note' : subtitle ? 'hematologist-subtitle' : '');
+  appendHematologistInline(node, text);
+  target.append(node);
 }
 
 function appendHematologistBlock(target, block) {
-  const lines = block.split('\n').map(line => line.trim()).filter(Boolean);
+  // One original paragraph has the breakfast heading glued to its closing quote.
+  const lines = block.replace(/»(?=(?:🍽\s*)?(?:ЗАВТРАК|ОБЕД|ПОЛДНИК|УЖИН))/gu, '»\n')
+    .split('\n').map(line => line.trim()).filter(Boolean);
   let paragraph = [];
   let list = null;
   const flushParagraph = () => {
@@ -58,15 +85,28 @@ function appendHematologistBlock(target, block) {
     paragraph = [];
   };
   for (const line of lines) {
-    if (/^[-•]\s/u.test(line)) {
+    const numbered = line.match(/^(\d+)\.\s+(.+)$/u);
+    if (hematologistHeading(line) || hematologistSubtitle(line) || /^(?:ВАЖНО ЗАПОМНИТЬ|Совет от врача:)/iu.test(line)) {
       flushParagraph();
-      if (!list) {
-        list = hematologistNode('ul');
+      list = null;
+      appendHematologistText(target, [line]);
+    } else if (/^[-•]\s/u.test(line) || numbered) {
+      flushParagraph();
+      const kind = numbered ? 'ol' : 'ul';
+      if (!list || list.tagName.toLowerCase() !== kind) {
+        list = hematologistNode(kind);
+        if (numbered) list.start = Number(numbered[1]);
         target.append(list);
       }
-      list.append(hematologistNode('li', line.replace(/^[-•]\s*/u, '')));
+      const item = hematologistNode('li');
+      if (numbered) item.value = Number(numbered[1]);
+      appendHematologistInline(item, numbered ? numbered[2] : line.replace(/^[-•]\s*/u, ''));
+      list.append(item);
+    } else if (list && !/^[«“"]/u.test(line)) {
+      appendHematologistInline(list.lastElementChild, ' ' + line);
     } else {
       list = null;
+      if (/^[«“"]/u.test(line)) flushParagraph();
       paragraph.push(line);
     }
   }
