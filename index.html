@@ -614,16 +614,16 @@ a{text-decoration:none;color:inherit}
 }
 
 #screen-dashboard .hero-card .hero-photo {
-  right: 0;
+  right: 28px;
   bottom: 0;
   height: 100%;
   width: auto;
   max-width: 45%;
   object-fit: contain;
   object-position: right bottom;
-  /* Blend only the clipped left elbow into the card; keep face/right side crisp. */
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 3%, rgba(0, 0, 0, 0.08) 8%, rgba(0, 0, 0, 0.3) 15%, rgba(0, 0, 0, 0.65) 23%, rgba(0, 0, 0, 0.9) 29%, #000 34%);
-  mask-image: linear-gradient(to right, transparent 0%, transparent 3%, rgba(0, 0, 0, 0.08) 8%, rgba(0, 0, 0, 0.3) 15%, rgba(0, 0, 0, 0.65) 23%, rgba(0, 0, 0, 0.9) 29%, #000 34%);
+  /* Complete transparent cutout: preserve both shoulders, hands and the bowl. */
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 #screen-dashboard .hero-card .hero-content {
@@ -675,7 +675,7 @@ a{text-decoration:none;color:inherit}
   }
 
   #screen-dashboard .hero-card .hero-photo {
-    right: 0;
+    right: 22px;
     height: 50%;
     max-width: 82%;
   }
@@ -799,7 +799,7 @@ a{text-decoration:none;color:inherit}
 </aside>
 
 <div class="hero-card">
-  <img class="hero-photo" src="/vera-hero.png?v=compact-original-20261012" alt="Вера Малыгина с блюдом">
+  <img class="hero-photo" src="/vera-hero.png?v=compact-complete-20261012" alt="Вера Малыгина с блюдом">
   <div class="hero-content">
     <div class="hero-label">онлайн-клуб</div>
     <h1>Фабрика<br><span>Заготовок</span></h1>
