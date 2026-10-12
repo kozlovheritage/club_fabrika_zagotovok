@@ -603,6 +603,100 @@ a{text-decoration:none;color:inherit}
   .rules-table-wrap{max-width:900px;margin:0 auto 32px}
   .rules-note{max-width:900px;margin:0 auto 28px}
 }
+/* Approved dashboard hero only; other screens and payment code are unchanged. */
+#screen-dashboard .hero-card {
+  min-height: 300px;
+  height: 300px;
+  max-width: 640px;
+  padding: 28px;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+#screen-dashboard .hero-card .hero-photo {
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  width: auto;
+  max-width: 45%;
+  object-fit: contain;
+  object-position: right bottom;
+  /* Blend only the clipped left elbow into the card; keep face/right side crisp. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 3%, rgba(0, 0, 0, 0.08) 8%, rgba(0, 0, 0, 0.3) 15%, rgba(0, 0, 0, 0.65) 23%, rgba(0, 0, 0, 0.9) 29%, #000 34%);
+  mask-image: linear-gradient(to right, transparent 0%, transparent 3%, rgba(0, 0, 0, 0.08) 8%, rgba(0, 0, 0, 0.3) 15%, rgba(0, 0, 0, 0.65) 23%, rgba(0, 0, 0, 0.9) 29%, #000 34%);
+}
+
+#screen-dashboard .hero-card .hero-content {
+  width: 52%;
+  max-width: 52%;
+  z-index: 2;
+}
+
+#screen-dashboard .hero-card .hero-label {
+  margin-bottom: 10px;
+}
+
+#screen-dashboard .hero-card h1 {
+  font-size: clamp(3.2rem, 6.25vw, 4.75rem);
+  line-height: 0.98;
+  letter-spacing: -0.025em;
+  margin-bottom: 6px;
+}
+
+#screen-dashboard .hero-card p {
+  margin-top: 8px;
+}
+
+@media (min-width: 768px) {
+  #screen-dashboard .hero-card {
+    width: calc(100% - 80px);
+    margin: 32px auto;
+  }
+}
+
+@media (min-width: 1024px) {
+  #screen-dashboard .hero-card {
+    margin: 40px auto;
+  }
+}
+
+@media (max-width: 767px) {
+  #screen-dashboard .hero-card {
+    height: 420px;
+    min-height: 420px;
+    margin: 20px 20px 24px;
+    padding: 24px 22px 0;
+    justify-content: flex-start;
+  }
+
+  #screen-dashboard .hero-card .hero-content {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #screen-dashboard .hero-card .hero-photo {
+    right: 0;
+    height: 50%;
+    max-width: 82%;
+  }
+
+  #screen-dashboard .hero-card h1 {
+    font-size: clamp(2.15rem, 9vw, 2.6rem);
+    line-height: 0.98;
+    margin-bottom: 5px;
+  }
+
+  #screen-dashboard .hero-card .hero-label {
+    margin-bottom: 8px;
+  }
+
+  #screen-dashboard .hero-card p {
+    max-width: 270px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-top: 6px;
+  }
+}
 </style>
 </head>
 <body>
@@ -705,7 +799,7 @@ a{text-decoration:none;color:inherit}
 </aside>
 
 <div class="hero-card">
-  <img class="hero-photo" src="/vera-hero.png" alt="Вера Малыгина с блюдом">
+  <img class="hero-photo" src="/vera-hero.png?v=compact-20261012" alt="Вера Малыгина с банками овощных заготовок">
   <div class="hero-content">
     <div class="hero-label">онлайн-клуб</div>
     <h1>Фабрика<br><span>Заготовок</span></h1>
