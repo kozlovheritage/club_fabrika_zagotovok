@@ -11,11 +11,13 @@ import {buildDirectPaymentForm} from './payment-recovery.mjs';
 import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './login-diagnostics.mjs';
 import {CONSENT_SCHEMA,archiveConsentDocuments,checkoutDocumentCatalog,validateCheckoutConsents,saveCheckoutConsentReceipt,renderArchivedLegalDocument} from './consents.mjs';
 import {createPdfRouter,loadPdfCatalog,rewritePdfLinks} from './pdf-access.mjs';
+import {createPodcastRouter,loadPodcastCatalog} from './podcast-access.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
 const app=express();
 const pdfCatalog=await loadPdfCatalog();
+const podcastCatalog=await loadPodcastCatalog();
 const upload=multer({limits:{fields:200,fieldSize:1024*1024}});
 const PORT=Number(process.env.PORT||3000);
 const PUBLIC_URL=(process.env.PUBLIC_URL||'').replace(/\/$/,'');
@@ -190,6 +192,11 @@ app.use('/api/pdfs',createPdfRouter({
   catalog:pdfCatalog,
   authorize:findSession,
   onFailure:()=>console.error('PDF_STORAGE_UNAVAILABLE'),
+}));
+app.use('/api/podcasts',createPodcastRouter({
+  catalog:podcastCatalog,
+  authorize:findSession,
+  onFailure:()=>console.error('PODCAST_STORAGE_UNAVAILABLE'),
 }));
 app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),async(req,res,next)=>{
   res.set('Cache-Control','no-store');

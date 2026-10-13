@@ -368,6 +368,16 @@ a{text-decoration:none;color:inherit}
 .mat-info{flex:1;min-width:0}
 .mat-info h4{font-size:.9rem;font-weight:600;color:var(--text-mid);margin-bottom:2px}
 .mat-info p{font-size:.76rem;color:var(--text-light)}
+.health-card{width:100%;border:0;text-align:left;font:inherit;color:inherit}
+.health-card:focus-visible{outline:3px solid var(--pink);outline-offset:3px}
+.podcast-description{margin:0 0 18px;line-height:1.7}
+.podcast-audio{display:block;width:100%;margin:0 0 20px}
+.podcast-player-status{margin:-8px 0 18px;color:var(--text-light);font-size:.86rem}
+.podcast-chapters{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.podcast-chapter{display:flex;align-items:flex-start;gap:12px;width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--pink-bg);color:var(--text-mid);font:inherit;text-align:left;line-height:1.5;touch-action:manipulation}
+.podcast-chapter:hover{border-color:var(--pink);background:var(--pink-soft)}
+.podcast-chapter:focus-visible{outline:2px solid var(--pink);outline-offset:2px}
+.podcast-chapter-time{flex:0 0 48px;color:var(--pink-dark);font-weight:800;font-variant-numeric:tabular-nums}
 .pdf-actions{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px}
 .pdf-actions a{display:inline-flex;align-items:center;gap:6px;color:var(--pink);font-size:.85rem;font-weight:600;padding:5px 0}
 .pdf-actions a:focus-visible{outline:2px solid var(--pink);outline-offset:4px;border-radius:3px}
@@ -1241,7 +1251,7 @@ a{text-decoration:none;color:inherit}
     <div class="material-reader-content" id="materialReaderContent"></div>
     <div class="material-reader-actions">
       <a id="materialReaderSource" target="_blank" rel="noopener noreferrer">Открыть текстовую версию (TXT)</a>
-      <button type="button" class="reader-retry" onclick="loadClubMaterial(activeMaterialSlug)" hidden>Загрузить повторно</button>
+      <button type="button" class="reader-retry" onclick="retryMaterial()" hidden>Загрузить повторно</button>
     </div>
   </article>
 </div>
@@ -1503,8 +1513,9 @@ const HOLIDAY_FILES = [
 
 /* ═══════════ ДАННЫЕ: ДЛЯ ЗДОРОВЬЯ ═══════════ */
 const HEALTH_ITEMS = [
-  {t:'Азбука питания от гематолога: от анализов до тарелки'},
-  {t:'Нутрициологическая памятка на каждый день', slug:'nutrition-calories', author:'Яна'}
+  {t:'Азбука питания от гематолога: от анализов до тарелки', screen:'hematologist'},
+  {t:'Нутрициологическая памятка на каждый день', slug:'nutrition-calories', author:'Яна'},
+  {t:'Подкаст', podcastId:'eac9865e38a92514932232d5409aa1d0'}
 ];
 
 const KIDS_MATERIALS = [
@@ -1526,6 +1537,9 @@ const CLUB_TEXT_MATERIALS = new Set(['nutrition-calories','earning-preparations'
 let currentTariff = 'premium';
 let currentUser = null;
 let activeMaterialSlug = null;
+let activePodcastId = null;
+let nutritionPodcastMetadata = null;
+let nutritionPodcastMetadataRequest = null;
 let materialOrigin = {screen:'dashboard', section:null};
 const PUBLIC_SCREENS = new Set(['landing','login']);
 
@@ -1673,6 +1687,7 @@ async function loadStartMaterial(card){
 }
 
 function showScreen(id){
+  if(id!=='material-reader') stopNutritionPodcast();
   if(!PUBLIC_SCREENS.has(id) && !currentUser){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('screen-login').classList.add('active'); return; }
   const target=document.getElementById('screen-'+id); if(!target) return;
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); target.classList.add('active'); window.scrollTo(0,0);
@@ -1760,6 +1775,7 @@ function pdfActions(url){
 
 function openClubMaterial(slug,title,originScreen,originSection,author){
   if(!CLUB_TEXT_MATERIALS.has(slug)) return;
+  stopNutritionPodcast();
   activeMaterialSlug=slug;
   materialOrigin={screen:originScreen,section:originSection||null};
   document.getElementById('materialReaderTitle').textContent=title;
@@ -1772,6 +1788,112 @@ function openClubMaterial(slug,title,originScreen,originSection,author){
   loadClubMaterial(slug);
 }
 
+async function loadNutritionPodcastMetadata(id){
+  if(nutritionPodcastMetadata) return nutritionPodcastMetadata;
+  if(nutritionPodcastMetadataRequest) return nutritionPodcastMetadataRequest;
+  if(!/^[a-f0-9]{32}$/u.test(id)) throw new Error('INVALID_PODCAST_ID');
+  const pending=(async()=>{
+    const response=await fetch('/api/podcasts/'+id+'/metadata',{credentials:'same-origin',cache:'no-store'});
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    const info=await response.json();
+    if(!info||typeof info.title!=='string'||typeof info.author!=='string'||typeof info.description!=='string'||!Number.isSafeInteger(info.durationSeconds)||!Array.isArray(info.chapters)||!info.chapters.length||info.chapters.length>48) throw new Error('INVALID_PODCAST_METADATA');
+    if(info.chapters.some(chapter=>!chapter||typeof chapter.time!=='string'||!/^\d{1,2}:\d{2}$/u.test(chapter.time)||typeof chapter.title!=='string'||!Number.isSafeInteger(chapter.seconds)||chapter.seconds<0||chapter.seconds>=info.durationSeconds)) throw new Error('INVALID_PODCAST_CHAPTER');
+    return info;
+  })();
+  nutritionPodcastMetadataRequest=pending;
+  try{nutritionPodcastMetadata=await pending;return nutritionPodcastMetadata;}
+  finally{if(nutritionPodcastMetadataRequest===pending)nutritionPodcastMetadataRequest=null;}
+}
+function formatPodcastDuration(seconds){
+  const value=Math.max(0,Math.floor(Number(seconds)||0));
+  return Math.floor(value/60)+':'+String(value%60).padStart(2,'0');
+}
+function renderNutritionPodcast(container,info,id){
+  const description=document.createElement('p');
+  description.className='podcast-description';
+  description.textContent=info.description;
+  const audio=document.createElement('audio');
+  audio.id='nutritionPodcastAudio';
+  audio.className='podcast-audio';
+  audio.controls=true;
+  audio.preload='metadata';
+  audio.setAttribute('aria-label',info.title);
+  const source=document.createElement('source');
+  source.src='/api/podcasts/'+id+'/audio';
+  source.type='audio/mp4';
+  audio.append(source);
+  const playerStatus=document.createElement('p');
+  playerStatus.className='podcast-player-status';
+  playerStatus.hidden=true;
+  playerStatus.textContent='Не удалось загрузить аудио. Проверьте подключение и попробуйте ещё раз.';
+  audio.addEventListener('error',()=>{playerStatus.hidden=false;});
+  const chapters=document.createElement('ol');
+  chapters.className='podcast-chapters';
+  for(const chapter of info.chapters){
+    const row=document.createElement('li');
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='podcast-chapter';
+    const time=document.createElement('span');
+    time.className='podcast-chapter-time';
+    time.textContent=chapter.time;
+    const title=document.createElement('span');
+    title.textContent=chapter.title;
+    button.append(time,title);
+    button.addEventListener('click',()=>seekNutritionPodcast(chapter.seconds));
+    row.append(button);
+    chapters.append(row);
+  }
+  container.replaceChildren(description,audio,playerStatus,chapters);
+}
+function seekNutritionPodcast(seconds){
+  const audio=document.getElementById('nutritionPodcastAudio');
+  if(!audio||!Number.isSafeInteger(seconds)||seconds<0) return;
+  const seekAndPlay=()=>{
+    if(!audio.isConnected) return;
+    audio.currentTime=seconds;
+    audio.play().catch(()=>toast('Нажмите «Play», чтобы начать воспроизведение.',true));
+  };
+  if(audio.readyState>=1) seekAndPlay();
+  else {audio.addEventListener('loadedmetadata',seekAndPlay,{once:true});audio.load();}
+}
+function stopNutritionPodcast(){
+  const audio=document.getElementById('nutritionPodcastAudio');
+  if(audio){audio.pause();audio.removeAttribute('src');audio.replaceChildren();}
+  activePodcastId=null;
+}
+async function openNutritionPodcast(id){
+  stopNutritionPodcast();
+  activePodcastId=id;
+  activeMaterialSlug=null;
+  materialOrigin={screen:'health',section:null};
+  document.getElementById('materialReaderTitle').textContent='Подкаст';
+  document.getElementById('materialReaderSection').textContent='Для здоровья';
+  document.getElementById('materialReaderAuthor').textContent='';
+  document.getElementById('materialReaderSource').hidden=true;
+  document.getElementById('materialReaderContent').replaceChildren();
+  document.getElementById('materialReaderState').textContent='Загружаем подкаст…';
+  const retry=document.querySelector('.reader-retry');
+  if(retry) retry.hidden=true;
+  showScreen('material-reader');
+  try{
+    const info=await loadNutritionPodcastMetadata(id);
+    if(activePodcastId!==id) return;
+    document.getElementById('materialReaderTitle').textContent=info.title;
+    document.getElementById('materialReaderAuthor').textContent='Автор: '+info.author+' · '+formatPodcastDuration(info.durationSeconds);
+    renderNutritionPodcast(document.getElementById('materialReaderContent'),info,id);
+    document.getElementById('materialReaderState').textContent='';
+  }catch(error){
+    console.error('Не удалось загрузить подкаст',error);
+    if(activePodcastId!==id) return;
+    document.getElementById('materialReaderState').textContent='Не удалось загрузить подкаст. Проверьте подключение и попробуйте ещё раз.';
+    if(retry) retry.hidden=false;
+  }
+}
+function retryMaterial(){
+  if(activePodcastId) openNutritionPodcast(activePodcastId);
+  else loadClubMaterial(activeMaterialSlug);
+}
 async function loadClubMaterial(slug){
   const state=document.getElementById('materialReaderState');
   const content=document.getElementById('materialReaderContent');
@@ -1986,13 +2108,44 @@ function renderHolidayFiles(){
 
 /* ═══════════ РЕНДЕР: ДЛЯ ЗДОРОВЬЯ ═══════════ */
 function renderHealth(){
-  const list = document.getElementById('healthList');
+  const list=document.getElementById('healthList');
   if(!list) return;
-  list.innerHTML = HEALTH_ITEMS.map((it,index)=>`
-    <${index===0?'a':'div'} class="mat-card${index===0?' health-link':''}" ${index===0?'href="#hematologist" onclick="showScreen(\'hematologist\');return false"':it.slug?`role="button" tabindex="0" onclick="openClubMaterial('${it.slug}', '${it.t}', 'health', '', '${it.author||''}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openClubMaterial('${it.slug}', '${it.t}', 'health', '', '${it.author||''}')}"`:`onclick="toast('${MATERIAL_PENDING_NOTICE}')"`}>
-      <div class="mat-thumb file"><i class="fas fa-file-alt"></i></div>
-      <div class="mat-info"><h4>${it.t}</h4></div>
-    </${index===0?'a':'div'}>`).join('');
+  const cards=HEALTH_ITEMS.map((item,index)=>{
+    const card=document.createElement('button');
+    card.type='button';
+    card.className='mat-card health-card';
+    card.addEventListener('click',()=>openHealthItem(index));
+    const thumb=document.createElement('div');
+    thumb.className='mat-thumb'+(item.podcastId?'':' file');
+    const icon=document.createElement('i');
+    icon.className='fas '+(item.podcastId?'fa-headphones':'fa-file-alt');
+    thumb.append(icon);
+    const info=document.createElement('div');
+    info.className='mat-info';
+    const title=document.createElement('h4');
+    title.textContent=item.t||'Подкаст';
+    if(item.podcastId){card.dataset.podcastId=item.podcastId;title.dataset.podcastTitle='true';}
+    info.append(title);
+    card.append(thumb,info);
+    return card;
+  });
+  list.replaceChildren(...cards);
+  const podcastCard=list.querySelector('[data-podcast-id]');
+  if(podcastCard){
+    const id=podcastCard.dataset.podcastId;
+    loadNutritionPodcastMetadata(id).then(metadata=>{
+      const title=podcastCard.querySelector('[data-podcast-title]');
+      if(title&&podcastCard.isConnected) title.textContent=metadata.title;
+    }).catch(()=>{});
+  }
+}
+function openHealthItem(index){
+  const item=HEALTH_ITEMS[index];
+  if(!item) return;
+  if(item.podcastId){openNutritionPodcast(item.podcastId);return;}
+  if(item.slug){openClubMaterial(item.slug,item.t,'health','',item.author||'');return;}
+  if(item.screen==='hematologist'){showScreen('hematologist');return;}
+  toast(MATERIAL_PENDING_NOTICE,true);
 }
 
 /* ═══════════ РЕНДЕР: ТАБЛИЧКА ХРАНЕНИЯ ═══════════ */
