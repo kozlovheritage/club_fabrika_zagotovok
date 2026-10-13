@@ -7,7 +7,7 @@ import {createPdfRouter,loadPdfCatalog,rewritePdfLinks,signPdf,pdfDisposition,PD
 const catalog=await loadPdfCatalog();
 const item=[...catalog.values()][0];
 test('catalog contains every original; legal links remain unchanged',async()=>{
-  assert.equal(catalog.size,40);
+  assert.equal(catalog.size,43);
   const html=await readFile(new URL('./index.html',import.meta.url),'utf8');
   const rewritten=rewritePdfLinks(html,catalog);
   const remaining=[...new Set(rewritten.match(/https:\/\/disk\.yandex\.ru\/[id]\/[A-Za-z0-9_-]+/g)||[])];
@@ -18,9 +18,34 @@ test('catalog contains every original; legal links remain unchanged',async()=>{
   ].sort());
   const referenced=[...rewritten.matchAll(/\/api\/pdfs\/([a-f0-9]{32})/g)].map(m=>m[1]);
   for(const id of referenced)assert.ok(catalog.has(id));
-  assert.equal(new Set(referenced).size,40);
+  assert.equal(new Set(referenced).size,43);
   assert.match(rewritten,/function pdfActions/);
   assert.match(rewritten,/\?download=1/);
+});
+
+
+test('new PDFs are listed in their requested blocks and catalogued for private delivery',async()=>{
+  const expected=[
+    ['0dd9d97da5f36e8be7d461d4ade8ca8b','Паштеты.pdf'],
+    ['3e64e9bef44b625b0335b1cd77a63e12','Меню на 7 дней.pdf'],
+    ['431b210dafb1e5a2f2d855e4b2d57a34','Намазки.pdf'],
+  ];
+  for(const [id,name] of expected){
+    const item=catalog.get(id);
+    assert.ok(item,`missing catalog item ${id}`);
+    assert.equal(item.name,name);
+    assert.deepEqual(item.sources,[]);
+  }
+  const html=await readFile(new URL('./index.html',import.meta.url),'utf8');
+  const pateStart=html.indexOf("  {name:'Паштеты',");
+  const sausageStart=html.indexOf("  {name:'Колбаса',",pateStart);
+  const pateBlock=html.slice(pateStart,sausageStart);
+  assert.ok(pateBlock.includes("t:'Паштеты'")&&pateBlock.includes("t:'Намазки'"));
+  const readyStart=html.indexOf('    readyMenu: [',html.indexOf('const CLUB_FILES = {'));
+  const readyEnd=html.indexOf('    smart:',readyStart);
+  const readyBlock=html.slice(readyStart,readyEnd);
+  assert.ok(readyBlock.includes('Меню на 7 дней'));
+  assert.ok(readyBlock.includes('/api/pdfs/3e64e9bef44b625b0335b1cd77a63e12'));
 });
 
 test('signer fixes region, destination, method scope, filename and lifetime',()=>{
