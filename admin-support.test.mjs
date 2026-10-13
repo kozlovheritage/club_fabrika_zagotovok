@@ -1,0 +1,327 @@
+import test,{before,after,beforeEach} from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import {promisify} from 'node:util';
+import {spawn} from 'node:child_process';
+import net from 'node:net';
+import pg from 'pg';
+import {ADMIN_SCHEMA,createAdminStore,provisionOwner} from './admin-store.mjs';
+import {MAIL_MONITOR_SCHEMA,readNotisendStatus,pollMailStatuses,notifyMailAttention} from './mail-monitor.mjs';
+import {CLOUD_SCHEMA,drainAccessMail} from './cloudpayments-store.mjs';
+import {premiumPasswordForOrder} from './checkout.mjs';
+
+const dsn=process.env.CLOUDPAYMENTS_TEST_DB_URL;
+const key='synthetic-admin-signing-key-at-least-32-characters';
+const schema='admin_test_'+crypto.randomBytes(6).toString('hex');
+let pool,root,child,base;
+const hash=async password=>{
+  const salt=crypto.randomBytes(16).toString('hex');
+  const derived=await promisify(crypto.scrypt)(password,salt,64);
+  return 'scrypt$'+salt+'$'+derived.toString('hex');
+};
+async function boot(){
+  const reservation=net.createServer().listen(0,'127.0.0.1');
+  await new Promise(r=>reservation.once('listening',r));
+  const port=reservation.address().port;
+  await new Promise(r=>reservation.close(r));
+  child=spawn(process.execPath,['server.mjs'],{cwd:new URL('.',import.meta.url),
+    env:{PATH:process.env.PATH,NODE_ENV:'test',PORT:String(port),PGSSL:'false',
+      PGOPTIONS:'-c search_path='+schema,DATABASE_URL:dsn,PUBLIC_URL:'https://club.example.test',
+      AUTH_CREDENTIAL_KEY:key,CLOUDPAYMENTS_ENABLED:'true',CLOUDPAYMENTS_MODE:'live',
+      CLOUDPAYMENTS_PUBLIC_ID:'synthetic-only',CLOUDPAYMENTS_API_SECRET:'synthetic-only-secret',
+      CLOUDPAYMENTS_TERMINAL_MODE_CONFIRMED:'false',CLOUDPAYMENTS_RECEIPT_APPROVED:'false',
+      CLUB_ADMIN_ENABLED:'true',CHECKOUT_PROVIDER:'prodamus'}});
+  await new Promise((resolve,reject)=>{
+    let errors='';
+    const timeout=setTimeout(()=>reject(new Error('Synthetic admin startup timed out')),12000);
+    child.stderr.on('data',b=>{errors+=b;});
+    child.stdout.on('data',b=>{if(String(b).includes('Club server listening')){clearTimeout(timeout);resolve();}});
+    child.once('exit',()=>{clearTimeout(timeout);reject(new Error('Synthetic startup failed: '+errors));});
+  });
+  base='http://127.0.0.1:'+port;
+}
+before(async()=>{
+  if(!dsn)return;
+  const url=new URL(dsn);
+  assert.equal(url.hostname,'127.0.0.1');assert.equal(url.pathname,'/club_cloudpayments_test');
+  root=new pg.Pool({connectionString:dsn});
+  await root.query('CREATE SCHEMA '+schema);
+  pool=new pg.Pool({connectionString:dsn,options:'-c search_path='+schema});
+  await boot(); // Actual server applies all additive migrations to this isolated schema.
+});
+after(async()=>{
+  if(child&&child.exitCode===null){
+    const exit=new Promise(r=>child.once('exit',r));child.kill('SIGTERM');await exit;
+  }
+  if(pool)await pool.end();
+  if(root){await root.query('DROP SCHEMA '+schema+' CASCADE');await root.end();}
+});
+beforeEach(async()=>{
+  if(dsn)await pool.query(`TRUNCATE club_users,club_cp_orders,club_admin_audit,club_webhook_events CASCADE`);
+  if(dsn)await pool.query('UPDATE club_mail_alert_state SET active=false,last_sent_at=NULL,claim_token=NULL,claimed_at=NULL');
+});
+const scenario=(name,fn)=>test(name,{skip:!dsn},fn);
+async function member(email='owner@example.test',name='Synthetic Preview'){
+  await pool.query(`INSERT INTO club_users(email,name,password_hash) VALUES($1,$2,$3)`,
+    [email,name,await hash('synthetic-test-password')]);
+  return email;
+}
+async function owner(){
+  const userKey=await member();
+  await provisionOwner(pool,{email:userKey,expectedName:'Synthetic Preview',displayName:'Тестовый Администратор'});
+  return userKey;
+}
+async function login(email='owner@example.test',password='synthetic-test-password'){
+  const response=await fetch(base+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email,password})});
+  assert.equal(response.status,200);
+  return response.headers.get('set-cookie').split(';')[0];
+}
+async function request(path,{cookie,method='GET',body,token,origin='https://club.example.test'}={}){
+  return fetch(base+path,{method,headers:{
+    ...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json'}:{}),
+    ...(token?{'X-CSRF-Token':token}:{}),...(method==='POST'?{Origin:origin}:{})
+  },...(body?{body:JSON.stringify(body)}:{})});
+}
+async function order({id='synthetic-order',tariff='basic',state='accepted',status='soft_bounced',testMode=false}={}){
+  if(tariff==='premium')id='fz4-p-'+id;
+  await pool.query(`INSERT INTO club_cp_orders(order_id,buyer_email,buyer_name,tariff,amount_cents,test_mode,status,paid_at)
+    VALUES($1,'buyer@example.test','Тестовый Участник',$2,599000,$3,'paid',now()-interval '1 day')`,
+  [id,tariff,testMode]);
+  await pool.query("INSERT INTO club_cp_payments VALUES($1,$2,'fulfilled',now())",['txn-'+id,id]);
+  let userKey=null;
+  if(tariff==='premium'){
+    userKey='order:'+id;
+    const password=premiumPasswordForOrder(id,key);
+    await pool.query(`INSERT INTO club_users(email,login_email,name,password_hash)
+      VALUES($1,'buyer@example.test','Тестовый Участник',$2)`,[userKey,await hash(password)]);
+  }
+  await pool.query(`INSERT INTO club_cp_access_mail(order_id,user_key,state,attempts,provider,provider_message_id,
+    delivery_status,last_sent_at,next_status_check_at)
+    VALUES($1,$2,$3,1,'notisend',$4,$5,now()-interval '1 hour',now()-interval '1 minute')`,
+  [id,userKey,state,'message-'+id,status]);
+  return id;
+}
+
+scenario('actual app: guest/member/same-email duplicate cannot access admin HTML, assets or APIs',async()=>{
+  const userKey=await owner();
+  for(const path of ['/admin','/admin/admin.js','/api/admin/orders']){
+    assert.equal((await request(path)).status,401);
+  }
+  await member('member@example.test');
+  const regular=await login('member@example.test');
+  for(const path of ['/admin','/admin/admin.css','/api/admin/orders']){
+    assert.equal((await request(path,{cookie:regular})).status,403);
+  }
+  await pool.query(`INSERT INTO club_users(email,login_email,name,password_hash,password_tag)
+    VALUES('order:duplicate','owner@example.test','Another purchase',$1,$2)`,
+  [await hash('different-synthetic-password'),crypto.createHash('sha256').update('club-order-password:different-synthetic-password').digest('hex')]);
+  const duplicate=await login('owner@example.test','different-synthetic-password');
+  assert.equal((await request('/api/admin/orders',{cookie:duplicate})).status,403);
+  const adminCookie=await login();
+  const page=await request('/admin',{cookie:adminCookie});
+  assert.equal(page.status,200);assert.match(page.headers.get('cache-control'),/no-store/);
+  assert.match(page.headers.get('content-security-policy'),/frame-ancestors 'none'/);
+  assert.match(await page.text(),/Оплата и доступ/);
+  assert.match(await (await request('/club',{cookie:adminCookie})).text(),/href="\/admin"/);
+  assert.doesNotMatch(await (await request('/club',{cookie:regular})).text(),/href="\/admin"/);
+  const profile=await (await request('/api/auth/me',{cookie:adminCookie})).json();
+  assert.equal(profile.name,'Тестовый Администратор');assert.equal(profile.email,userKey);
+  assert.equal('user_key' in profile,false);
+  await pool.query('UPDATE club_admin_accounts SET enabled=false');
+  assert.equal((await request('/api/admin/orders',{cookie:adminCookie})).status,403);
+});
+scenario('provision changes only exact name/role, is idempotent; ambiguity and wrong previous name fail closed',async()=>{
+  const userKey=await member();
+  const original=(await pool.query('SELECT * FROM club_users WHERE email=$1',[userKey])).rows[0];
+  const args={email:userKey,expectedName:'Synthetic Preview',displayName:'Тестовый Администратор'};
+  await provisionOwner(pool,args);await provisionOwner(pool,args);
+  const changed=(await pool.query('SELECT * FROM club_users WHERE email=$1',[userKey])).rows[0];
+  for(const field of ['email','login_email','password_hash','tariff','status','access_until'])
+    assert.deepEqual(changed[field],original[field]);
+  assert.equal(changed.name,args.displayName);
+  assert.equal((await pool.query('SELECT count(*)::integer AS n FROM club_admin_audit')).rows[0].n,1);
+  await member('wrong@example.test','Not expected');
+  await assert.rejects(provisionOwner(pool,{...args,email:'wrong@example.test'}));
+  await pool.query("INSERT INTO club_users(email,login_email,name) VALUES('order:ambiguous',$1,'Other')",[userKey]);
+  await assert.rejects(provisionOwner(pool,args),/ambiguous/);
+});
+scenario('orders expose safe fields, genuine attention, live-only search and explicit queued != delivered',async()=>{
+  await owner();const cookie=await login();
+  await order({id:'bounced'});await order({id:'queued',status:'queued'});
+  await pool.query("UPDATE club_cp_access_mail SET last_sent_at=now() WHERE order_id='queued'");
+  await order({id:'delivered',status:'delivered'});
+  await order({id:'test-only',testMode:true});
+  const all=await (await request('/api/admin/orders?filter=all',{cookie})).json();
+  assert.equal(all.total,3);assert.deepEqual(all.summary,{attention:1,delivered:1,inProgress:1});
+  assert.ok(all.csrfToken);assert.equal(all.alertsConfigured,false);
+  assert.doesNotMatch(JSON.stringify(all),/password|ciphertext|payment_url|claim_token|transaction_id|user_key/);
+  const attention=await (await request('/api/admin/orders',{cookie})).json();
+  assert.deepEqual(attention.orders.map(x=>x.order_id),['bounced']);
+  const match=await (await request('/api/admin/orders?filter=all&q=delivered',{cookie})).json();
+  assert.equal(match.total,1);
+  const literal=await (await request('/api/admin/orders?filter=all&q=%25',{cookie})).json();
+  assert.equal(literal.total,0);
+  assert.equal((await request('/api/admin/orders/test-only',{cookie})).status,404);
+});
+scenario('mutation denies missing CSRF, wrong Origin, cross-session tokens and stale/double resend',async()=>{
+  await owner();const cookie=await login();
+  const id=await order();
+  const listing=await (await request('/api/admin/orders',{cookie})).json();
+  const body={reason:'delivery_failed',expectedAttempts:1,expectedMessageId:'message-'+id};
+  const path='/api/admin/orders/'+id+'/resend';
+  assert.equal((await request(path,{cookie,method:'POST',body})).status,403);
+  assert.equal((await request(path,{cookie,method:'POST',body,token:listing.csrfToken,origin:'https://sales.example.test'})).status,403);
+  const other=await login();
+  assert.equal((await request(path,{cookie:other,method:'POST',body,token:listing.csrfToken})).status,403);
+  const results=await Promise.all([1,2].map(()=>request(path,{cookie,method:'POST',body,token:listing.csrfToken})));
+  assert.deepEqual(results.map(x=>x.status).sort(),[200,409]);
+  assert.equal((await pool.query('SELECT count(*)::integer AS n FROM club_admin_audit WHERE order_id=$1',[id])).rows[0].n,1);
+  const before=(await pool.query('SELECT count(*)::integer AS n FROM club_cp_payments')).rows[0].n;
+  assert.equal(before,1);
+});
+scenario('premium resend preserves verified password/hash and account; rotated credentials never sent',async()=>{
+  const admin=await owner();
+  const id=await order({tariff:'premium'});
+  const before=(await pool.query('SELECT * FROM club_users WHERE email=$1',['order:'+id])).rows[0];
+  const cookie=await login();
+  const token=(await (await request('/api/admin/orders',{cookie})).json()).csrfToken;
+  const body={reason:'delivery_failed',expectedAttempts:1,expectedMessageId:'message-'+id};
+  const response=await request('/api/admin/orders/'+id+'/resend',{cookie,method:'POST',body,token});
+  assert.equal(response.status,200);
+  const afterRow=(await pool.query('SELECT * FROM club_users WHERE email=$1',['order:'+id])).rows[0];
+  assert.deepEqual(afterRow,before);
+  assert.ok((await pool.query('SELECT password_ciphertext FROM club_cp_access_mail')).rows[0].password_ciphertext);
+  await drainAccessMail(pool,async()=>({provider:'notisend',messageId:'resend-id',status:'queued',recipient:'buyer@example.test'}));
+  assert.equal((await pool.query('SELECT password_ciphertext FROM club_cp_access_mail')).rows[0].password_ciphertext,null);
+  await pool.query("UPDATE club_cp_access_mail SET last_sent_at=now()-interval '1 hour'");
+  await pool.query("UPDATE club_users SET password_hash=$2 WHERE email=$1",['order:'+id,await hash('rotated-synthetic-password')]);
+  const response2=await request('/api/admin/orders/'+id+'/resend',{cookie,method:'POST',token,
+    body:{...body,expectedAttempts:2,expectedMessageId:'resend-id'}});
+  assert.equal(response2.status,409);
+  assert.equal((await pool.query('SELECT state FROM club_cp_access_mail')).rows[0].state,'accepted');
+  assert.equal(await createAdminStore(pool).isAdmin(admin),true);
+});
+scenario('delivered/hard bounce require customer request; no rapid resend, no re-creating payment',async()=>{
+  const actor=await owner();
+  const store=createAdminStore(pool);
+  const id=await order({status:'delivered'});
+  const body={reason:'delivery_failed',expectedAttempts:1,expectedMessageId:'message-'+id};
+  await assert.rejects(store.resend(id,actor,body),/самого клиента/);
+  await store.resend(id,actor,{...body,reason:'customer_request'});
+  await pool.query("UPDATE club_cp_access_mail SET state='accepted',last_sent_at=now()");
+  await assert.rejects(store.resend(id,actor,{...body,reason:'customer_request'}),/10 минут/);
+});
+scenario('mail receipt and history commit together; queued becomes final bounce without automatic fresh send',async()=>{
+  await order({state:'pending',status:'unknown'});
+  await drainAccessMail(pool,async()=>({provider:'notisend',messageId:'provider-123',status:'queued',recipient:'buyer@example.test'}));
+  await pool.query("UPDATE club_cp_access_mail SET next_status_check_at=now()-interval '1 second'");
+  const result=await pollMailStatuses(pool,{delay:0,reader:async id=>{assert.equal(id,'provider-123');return 'soft_bounced';}});
+  assert.equal(result.refreshed,1);
+  const mail=(await pool.query('SELECT * FROM club_cp_access_mail')).rows[0];
+  assert.equal(mail.delivery_status,'soft_bounced');assert.equal(mail.state,'accepted');
+  assert.equal(mail.password_ciphertext,null);
+  const history=(await pool.query('SELECT status,provider_message_id FROM club_cp_mail_history')).rows[0];
+  assert.deepEqual(history,{status:'soft_bounced',provider_message_id:'provider-123'});
+  let sends=0;await drainAccessMail(pool,async()=>{sends++;});assert.equal(sends,0);
+  const detail=await createAdminStore(pool).detail('synthetic-order');
+  assert.equal(detail.order.needs_attention,true);
+});
+scenario('leased polling rejects changed ID and failures; no false delivered, bounded claims',async()=>{
+  await order({status:'queued'});
+  const [a,b]=await Promise.all([pollMailStatuses(pool,{delay:0,reader:async()=>{await new Promise(r=>setTimeout(r,20));return 'delivered';}}),
+    pollMailStatuses(pool,{delay:0,reader:async()=>{throw new Error('should not win lease');}})]);
+  assert.equal(a.claimed+b.claimed,1);
+  const status=(await pool.query('SELECT delivery_status FROM club_cp_access_mail')).rows[0].delivery_status;
+  assert.ok(['queued','delivered'].includes(status));
+  await pool.query("UPDATE club_cp_access_mail SET delivery_status='queued',next_status_check_at=now()-interval '1 second',status_claimed_at=NULL");
+  await pollMailStatuses(pool,{delay:0,reader:async()=>{throw new Error('provider body with private credentials');}});
+  const failed=(await pool.query('SELECT delivery_status,last_error_code FROM club_cp_access_mail')).rows[0];
+  assert.deepEqual(failed,{delivery_status:'queued',last_error_code:'status_unavailable'});
+});
+scenario('send backoff is bounded; 8 failures block for review and record only safe reason',async()=>{
+  await order({state:'pending'});
+  for(let i=0;i<8;i++){
+    await pool.query("UPDATE club_cp_access_mail SET next_attempt_at=now()-interval '1 second'");
+    await drainAccessMail(pool,async()=>{throw new Error('provider password/body must not leak');});
+  }
+  const row=(await pool.query('SELECT state,consecutive_failures,last_error_code FROM club_cp_access_mail')).rows[0];
+  assert.deepEqual(row,{state:'blocked',consecutive_failures:8,last_error_code:'temporary_send_failure'});
+  const history=(await pool.query('SELECT status,error_code FROM club_cp_mail_history')).rows;
+  assert.equal(history.length,8);assert.doesNotMatch(JSON.stringify(history),/password|body|leak/);
+});
+scenario('owner alerts are leased and deduplicated, with recovery and no buyer PII',async()=>{
+  await order();let alerts=[];
+  const send=async data=>{alerts.push(data);return {messageId:'alert-1',status:'queued'};};
+  await Promise.all([notifyMailAttention(pool,send),notifyMailAttention(pool,send)]);
+  assert.deepEqual(alerts,[{count:1,recovery:false}]);
+  await notifyMailAttention(pool,send);assert.equal(alerts.length,1);
+  await pool.query("UPDATE club_cp_access_mail SET delivery_status='delivered'");
+  await notifyMailAttention(pool,send);
+  assert.deepEqual(alerts[1],{count:0,recovery:true});
+});
+test('official NotiSend status reader discards body/credentials and validates ID and enumerated state',async()=>{
+  let url;
+  const reader=body=>readNotisendStatus('123',{token:'synthetic-token',fetcher:async target=>{
+    url=target;return {ok:true,json:async()=>body};}});
+  assert.equal(await reader({id:123,status:'delivered',html:'private-password'}),'delivered');
+  assert.equal(url,'https://api.notisend.ru/v1/email/messages/123');
+  await assert.rejects(reader({id:456,status:'delivered'}),/INVALID/);
+  await assert.rejects(reader({id:123,status:'opened'}),/INVALID/);
+});
+
+scenario('browser: real session, attention/search/detail/confirmed resend, safe text and responsive layout',async()=>{
+  assert.ok(process.env.CLUB_TEST_CHROMIUM,'Set CLUB_TEST_CHROMIUM to the test browser executable');
+  const {chromium}=await import('playwright');
+  const {mkdir}=await import('node:fs/promises');
+  await owner();
+  await order({id:'browser-bounce'});
+  await order({id:'browser-delivered',status:'delivered'});
+  await pool.query("UPDATE club_cp_orders SET buyer_name='<img src=x onerror=window.pwned=1>' WHERE order_id='browser-bounce'");
+  const browser=await chromium.launch({executablePath:process.env.CLUB_TEST_CHROMIUM,
+    headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+  try{
+    const page=await browser.newPage({viewport:{width:1440,height:1000}});
+    await page.route('**/*',async route=>{
+      const target=new URL(route.request().url());
+      if(target.origin!=='https://club.example.test')return route.abort();
+      const response=await route.fetch({url:base+target.pathname+target.search});
+      await route.fulfill({response});
+    });
+    await page.goto('https://club.example.test/admin');
+    const status=await page.evaluate(async()=>{
+      const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email:'owner@example.test',password:'synthetic-test-password'})});
+      return response.status;
+    });
+    assert.equal(status,200);
+    await page.goto('https://club.example.test/admin');
+    await page.locator('.order-row').first().waitFor();
+    assert.equal(await page.locator('.order-row').count(),1);
+    assert.equal(await page.evaluate(()=>window.pwned),undefined);
+    assert.equal(await page.locator('.buyer-name').innerText(),'<img src=x onerror=window.pwned=1>');
+    await page.getByRole('button',{name:'Все заказы',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelectorAll('.order-row').length===2);
+    if(process.env.CLUB_TEST_SCREENSHOT_DIR){
+      await mkdir(process.env.CLUB_TEST_SCREENSHOT_DIR,{recursive:true});
+      await page.screenshot({path:process.env.CLUB_TEST_SCREENSHOT_DIR+'/desktop.jpg',type:'jpeg',quality:80});
+    }
+    await page.locator('#searchInput').fill('browser-bounce');
+    await page.locator('#searchForm button').click();
+    await page.waitForFunction(()=>document.querySelectorAll('.order-row').length===1);
+    await page.locator('.order-row').click();
+    await page.locator('#resendButton').waitFor({state:'visible'});
+    await page.locator('#resendButton').click();
+    assert.equal((await pool.query("SELECT state FROM club_cp_access_mail WHERE order_id='browser-bounce'")).rows[0].state,'accepted');
+    await page.locator('#confirmResend').click();
+    await page.waitForFunction(()=>!document.querySelector('#resendDialog').open);
+    assert.equal((await pool.query("SELECT state FROM club_cp_access_mail WHERE order_id='browser-bounce'")).rows[0].state,'pending');
+    await page.setViewportSize({width:390,height:844});
+    await page.locator('#searchInput').fill('');
+    await page.locator('#searchForm button').click();
+    await page.waitForFunction(()=>document.querySelectorAll('.order-row').length===2);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+    if(process.env.CLUB_TEST_SCREENSHOT_DIR)
+      await page.screenshot({path:process.env.CLUB_TEST_SCREENSHOT_DIR+'/mobile.jpg',type:'jpeg',quality:80,fullPage:true});
+  }finally{await browser.close();}
+});

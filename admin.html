@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fdf2f5">
+  <title>Поддержка оплат и писем — Фабрика заготовок</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script src="/admin/admin.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к заказам</a>
+  <header class="topbar">
+    <div class="brand-lockup" aria-label="Фабрика заготовок">
+      <span class="brand-mark" aria-hidden="true">Ф</span>
+      <span class="brand-name">Фабрика <em>заготовок</em></span>
+    </div>
+    <div class="topbar-right">
+      <span class="user-greeting" id="userGreeting">Кабинет поддержки</span>
+      <a class="back-link" href="/club">← <span>В клуб</span></a>
+    </div>
+  </header>
+
+  <main id="main" class="page-shell">
+    <section class="intro" aria-labelledby="pageTitle">
+      <div class="intro-copy">
+        <p class="eyebrow">КАБИНЕТ ПОДДЕРЖКИ</p>
+        <h1 id="pageTitle">Оплата и доступ</h1>
+        <p class="intro-text">Спокойно проверяйте оплату и доставку письма с доступом. Повторная отправка всегда только по вашему подтверждению.</p>
+      </div>
+      <div class="intro-note">
+        <span class="note-dot" aria-hidden="true"></span>
+        <span>Письмо принято почтовым сервером — не обязательно уже во входящих</span>
+      </div>
+    </section>
+
+    <section id="systemNotice" class="notice" role="status" hidden></section>
+
+    <section class="summary-grid" aria-label="Сводка по заказам">
+      <article class="summary-card summary-attention">
+        <div class="summary-label">Нужно внимания</div>
+        <div class="summary-value" id="summaryAttention" aria-live="polite">—</div>
+        <div class="summary-caption">заказы с вопросом по доступу</div>
+      </article>
+      <article class="summary-card">
+        <div class="summary-label">Письмо принято</div>
+        <div class="summary-value" id="summaryDelivered" aria-live="polite">—</div>
+        <div class="summary-caption">почтовым сервером получателя</div>
+      </article>
+      <article class="summary-card">
+        <div class="summary-label">В процессе</div>
+        <div class="summary-value" id="summaryInProgress" aria-live="polite">—</div>
+        <div class="summary-caption">оплата или доставка проверяется</div>
+      </article>
+    </section>
+
+    <section class="orders-panel" aria-labelledby="ordersTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">ЗАКАЗЫ КЛУБА</p>
+          <h2 id="ordersTitle">Проверка доступа</h2>
+        </div>
+        <button class="button button-quiet" id="refreshButton" type="button" aria-label="Обновить список заказов">
+          <span class="refresh-symbol" aria-hidden="true">↻</span> Обновить
+        </button>
+      </div>
+
+      <div class="toolbar">
+        <div class="filter-tabs" role="group" aria-label="Фильтр заказов">
+          <button class="filter-tab is-active" type="button" data-filter="attention" aria-pressed="true">Нужно внимания</button>
+          <button class="filter-tab" type="button" data-filter="all" aria-pressed="false">Все заказы</button>
+        </div>
+        <form class="search-form" id="searchForm" role="search">
+          <label class="visually-hidden" for="searchInput">Поиск по имени или email</label>
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input id="searchInput" type="search" placeholder="Имя или email" autocomplete="off">
+          <button type="submit">Найти</button>
+        </form>
+      </div>
+
+      <div class="results-meta">
+        <p id="resultsLabel" aria-live="polite">Загружаем заказы…</p>
+        <p class="meta-hint">Откройте заказ, чтобы посмотреть историю писем</p>
+      </div>
+
+      <div id="ordersRegion" class="orders-region" aria-live="polite" aria-busy="true">
+        <div class="skeleton-list" aria-hidden="true">
+          <div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>
+        </div>
+      </div>
+
+      <nav id="pagination" class="pagination" aria-label="Страницы заказов" hidden>
+        <button id="prevPage" class="page-button" type="button">← Раньше</button>
+        <span id="pageLabel" class="page-label"></span>
+        <button id="nextPage" class="page-button" type="button">Дальше →</button>
+      </nav>
+    </section>
+
+    <footer class="page-footer">
+      <span>Фабрика заготовок</span>
+      <span>Доступ к клубу — в письме после оплаты</span>
+    </footer>
+  </main>
+
+  <dialog id="orderDialog" class="order-dialog" aria-labelledby="dialogTitle">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow">ЗАКАЗ <span id="detailOrderId">—</span></p>
+        <h2 id="dialogTitle">Информация о заказе</h2>
+      </div>
+      <button id="closeDialog" class="icon-button" type="button" aria-label="Закрыть окно">×</button>
+    </div>
+    <div id="detailContent" class="dialog-content">
+      <div class="skeleton-row"></div><div class="skeleton-row"></div>
+    </div>
+    <div id="detailActions" class="dialog-actions" hidden>
+      <button id="checkButton" class="button button-secondary" type="button">Проверить статус письма</button>
+      <button id="resendButton" class="button button-primary" type="button">Отправить письмо повторно</button>
+    </div>
+  </dialog>
+
+  <dialog id="resendDialog" class="confirm-dialog" aria-labelledby="resendTitle">
+    <form id="resendForm" method="dialog">
+      <p class="eyebrow">ПОВТОРНАЯ ОТПРАВКА</p>
+      <h2 id="resendTitle">Проверьте перед отправкой</h2>
+      <p class="confirm-copy">Будет повторно отправлено <strong>то же письмо с доступом</strong>. Это не создаёт новую оплату, аккаунт или пароль.</p>
+      <p id="deliveredWarning" class="delivered-warning" hidden>По данным провайдера письмо уже принято почтовым сервером. Отправляйте повторно только по просьбе участника.</p>
+      <fieldset class="reason-fieldset">
+        <legend>Причина повторной отправки</legend>
+        <label class="radio-option"><input type="radio" name="reason" value="customer_request" checked> Участник попросил прислать письмо ещё раз</label>
+        <label class="radio-option"><input type="radio" name="reason" value="delivery_failed"> Доставка не удалась</label>
+      </fieldset>
+      <div class="dialog-actions confirm-actions">
+        <button id="cancelResend" class="button button-secondary" type="button">Не отправлять</button>
+        <button id="confirmResend" class="button button-primary" type="submit">Подтвердить отправку</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="liveMessage" class="visually-hidden" role="status" aria-live="polite"></div>
+</body>
+</html>

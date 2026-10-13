@@ -5,13 +5,19 @@ import {fileURLToPath} from 'node:url';
 import express from 'express';
 import multer from 'multer';
 import pg from 'pg';
-import {buildPremiumPaidContent,sendCredentialsEmail} from './email.mjs';
+import {buildPremiumPaidContent,sendCredentialsEmail,sendBasicAccessEmail,sendAdminMailAlert} from './email.mjs';
 import {createCheckout,identifyCheckout,premiumPasswordForOrder,quotePrice,normalizeBuyerName,restoreCheckout} from './checkout.mjs';
 import {buildDirectPaymentForm} from './payment-recovery.mjs';
 import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './login-diagnostics.mjs';
 import {CONSENT_SCHEMA,archiveConsentDocuments,checkoutDocumentCatalog,validateCheckoutConsents,saveCheckoutConsentReceipt,renderArchivedLegalDocument} from './consents.mjs';
 import {createPdfRouter,loadPdfCatalog,rewritePdfLinks} from './pdf-access.mjs';
 import {createPodcastRouter,loadPodcastCatalog} from './podcast-access.mjs';
+import {readCloudConfig,CloudPaymentsError} from './cloudpayments.mjs';
+import {CLOUD_SCHEMA,createCloudStore,drainAccessMail} from './cloudpayments-store.mjs';
+import {createCloudService,mountCloudNotifications} from './cloudpayments-router.mjs';
+import {ADMIN_SCHEMA,createAdminStore} from './admin-store.mjs';
+import {mountAdmin} from './admin-access.mjs';
+import {MAIL_MONITOR_SCHEMA,pollMailStatuses,notifyMailAttention} from './mail-monitor.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -28,6 +34,35 @@ const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.P
 if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL is required');
 if(!PUBLIC_URL||!/^https:\/\//.test(PUBLIC_URL))throw new Error('PUBLIC_URL must be an HTTPS site address');
 credentialKey();
+const cloudConfig=readCloudConfig();
+const adminEnabled=process.env.CLUB_ADMIN_ENABLED==='true';
+const alertsConfigured=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.CLUB_ADMIN_ALERT_EMAIL||'');
+const adminStore=createAdminStore(pool,{
+  async resolveCredential(client,order,mail){
+    const user=(await client.query('SELECT password_hash,status,tariff,(access_until IS NULL OR access_until>now()) AS valid FROM club_users WHERE email=$1 FOR UPDATE',[mail.user_key])).rows[0];
+    const password=premiumPasswordForOrder(order.order_id,process.env.AUTH_CREDENTIAL_KEY);
+    if(!user||!user.valid||user.status!=='active'||user.tariff!=='premium'||!await verifyPassword(password,user.password_hash))return null;
+    return encryptPassword(password);
+  }
+});
+const checkoutProvider=process.env.CHECKOUT_PROVIDER||'prodamus';
+if(!['prodamus','cloudpayments'].includes(checkoutProvider))throw new Error('Invalid CHECKOUT_PROVIDER');
+const cloudStore=createCloudStore(pool,{
+  test:cloudConfig.test,
+  async grantPremium(client,order){
+    const userKey='order:'+order.order_id;
+    const existing=await client.query('SELECT email,status FROM club_users WHERE (email=$1 OR login_email=$2) AND password_hash IS NOT NULL FOR UPDATE',[userKey,order.buyer_email]);
+    if(existing.rowCount&&existing.rows.some(user=>user.email!==userKey||user.status!=='active'))return {review:true};
+    const password=premiumPasswordForOrder(order.order_id,process.env.AUTH_CREDENTIAL_KEY);
+    if(!password||!normalizeBuyerName(order.buyer_name))throw new CloudPaymentsError('Не удалось проверить получателя доступа',422);
+    const hash=await hashPassword(password);
+    await client.query(`INSERT INTO club_users (email,login_email,password_tag,name,password_hash,tariff,access_until,purchase_at,status)
+      VALUES ($1,$2,$3,$4,$5,'premium',NULL,now(),'active') ON CONFLICT (email) DO NOTHING`,
+    [userKey,order.buyer_email,sha256('club-order-password:'+password),order.buyer_name,hash]);
+    return {userKey,ciphertext:encryptPassword(password)};
+  }
+});
+const cloudService=createCloudService(cloudConfig,cloudStore,{siteUrl:PUBLIC_URL});
 
 const schema=[
   "CREATE TABLE IF NOT EXISTS club_users (email TEXT PRIMARY KEY, name TEXT, password_hash TEXT, tariff TEXT NOT NULL DEFAULT 'premium', access_until TIMESTAMPTZ, purchase_at TIMESTAMPTZ, welcome_email_sent_at TIMESTAMPTZ, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())",
@@ -76,12 +111,16 @@ function normalizeWebhookBody(body){if(!body||typeof body!=='object')return {};i
 function parseCookies(header){return String(header||'').split(';').reduce((out,part)=>{const index=part.indexOf('=');if(index<0)return out;out[part.slice(0,index).trim()]=decodeURIComponent(part.slice(index+1).trim());return out;},{});}
 function cookieHeader(name,value,maxAge){return name+'='+encodeURIComponent(value)+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+maxAge+(COOKIE_SECURE?'; Secure':'');}
 function clearCookieHeader(name){return name+'=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(COOKIE_SECURE?'; Secure':'');}
-async function initDatabase(){for(const statement of [...schema,...CONSENT_SCHEMA])await pool.query(statement);await archiveConsentDocuments(pool);}
-async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT COALESCE(u.login_email,u.email) AS email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.tariff='premium' AND (u.access_until IS NULL OR u.access_until>now())",[sha256(raw)]);return result.rows[0]||null;}
+async function initDatabase(){for(const statement of [...schema,...CONSENT_SCHEMA,...(cloudConfig.enabled?[...CLOUD_SCHEMA,...MAIL_MONITOR_SCHEMA]:[]),...(adminEnabled?ADMIN_SCHEMA:[])])await pool.query(statement);await archiveConsentDocuments(pool);}
+async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT u.email AS user_key,COALESCE(u.login_email,u.email) AS email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.tariff='premium' AND (u.access_until IS NULL OR u.access_until>now())",[sha256(raw)]);return result.rows[0]||null;}
 async function requireAuth(req,res,next){try{const user=await findSession(req);if(!user)return res.status(401).json({message:'Сессия истекла'});req.user=user;next();}catch(error){next(error);}}
 
+mountCloudNotifications(app,express,cloudService);
 app.use(express.json({limit:'1mb'}));
 app.use(express.urlencoded({extended:true,limit:'1mb'}));
+mountAdmin(app,express,{enabled:adminEnabled,cloudEnabled:cloudConfig.enabled,findSession,store:adminStore,
+  siteUrl:PUBLIC_URL,key:process.env.AUTH_CREDENTIAL_KEY,alertsConfigured,
+  checkStatus:orderId=>pollMailStatuses(pool,{orderId})});
 app.get('/api/health',(req,res)=>res.json({ok:true}));
 app.get('/api/legal/checkout-documents',(req,res)=>{
   const origin=req.get('Origin');
@@ -117,6 +156,10 @@ app.use('/api/checkout',(req,res,next)=>{
   next();
 });
 app.post('/api/checkout/session',async(req,res,next)=>{
+  if(checkoutProvider==='cloudpayments'&&req.body?.paymentProvider!=='cloudpayments')
+    return res.status(409).json({message:'Способ оплаты обновлён. Обновите страницу сайта и повторите попытку'});
+  if(checkoutProvider==='prodamus'&&req.body?.paymentProvider==='cloudpayments')
+    return res.status(503).json({message:'CloudPayments ещё не подключён. Попробуйте позднее'});
   const tariff=req.body?.tariff;
   if(tariff!=='basic'&&tariff!=='premium')return res.status(400).json({message:'Неизвестный тариф'});
   const email=normalizeEmail(req.body?.email);
@@ -149,6 +192,10 @@ app.post('/api/checkout/session',async(req,res,next)=>{
       }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
       finally{client.release();}
     }
+    if(checkoutProvider==='cloudpayments'){
+      const payment=await cloudService.create(checkout,tariff);
+      return res.set('Cache-Control','no-store').json(payment);
+    }
     checkout.paid_content=tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+checkout.order_id
       : buildPremiumPaidContent(PUBLIC_URL,email,premiumPasswordForOrder(checkout.order_id,process.env.AUTH_CREDENTIAL_KEY));
@@ -157,6 +204,8 @@ app.post('/api/checkout/session',async(req,res,next)=>{
 });
 app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
 app.post('/api/checkout/direct',async(req,res,next)=>{
+  if(checkoutProvider==='cloudpayments')
+    return res.status(410).json({message:'Оплата через Prodamus закрыта. Откройте новую форму покупки на сайте'});
   const orderId=String(req.body?.orderId||'');
   const email=normalizeEmail(req.body?.email);
   if(orderId.length>180||!/^fz[34]-[bp]-/.test(orderId)||email.length>254)
@@ -166,11 +215,15 @@ app.post('/api/checkout/direct',async(req,res,next)=>{
       'SELECT r.tariff,o.buyer_name FROM club_checkout_consent_receipts r LEFT JOIN club_checkout_orders o ON o.order_id=r.order_id WHERE r.order_id=$1 AND r.buyer_email=$2',
       [orderId,email]);
     if(!saved.rowCount)return res.status(404).json({message:'Заказ не найден. Повторно откройте форму покупки'});
+    if(cloudConfig.enabled){
+      const cloudOrder=await cloudStore.getOrder(orderId);
+      if(cloudOrder)return res.status(409).json({message:'Этот заказ создан для CloudPayments. Используйте исходный переход к оплате'});
+    }
     const tariff=saved.rows[0].tariff;
     const checkout=restoreCheckout(orderId,process.env.AUTH_CREDENTIAL_KEY,email,saved.rows[0].buyer_name);
     if(!checkout||((tariff==='premium')!==/^fz[34]-p-/.test(orderId)))
       return res.status(400).json({message:'Не удалось проверить заказ'});
-    const paid=await pool.query('SELECT 1 FROM club_webhook_events WHERE event_id=$1',[sha256('prodamus:'+orderId)]);
+    const paid=await pool.query('SELECT 1 FROM club_webhook_events WHERE event_id IN ($1,$2)',[sha256('prodamus:'+orderId),sha256('cloudpayments:'+orderId)]);
     if(paid.rowCount)return res.status(409).json({message:'Оплата этого заказа уже подтверждена. Проверьте письмо с доступом'});
     if(tariff==='premium'){
       const existing=await pool.query("SELECT 1 FROM club_users WHERE (email=$1 OR login_email=$1) AND password_hash IS NOT NULL LIMIT 1",[email]);
@@ -341,7 +394,7 @@ app.get('/access/basic/:orderId',async(req,res,next)=>{
   try{
     const orderId=String(req.params.orderId||'');
     if(!/^fz[34]-b-[a-z0-9-]{45,125}$/.test(orderId))return res.status(404).send('Доступ пока недоступен');
-    const event=await pool.query("SELECT 1 FROM club_webhook_events WHERE event_id=$1 AND payload->>'tariff'='basic' LIMIT 1",[sha256('prodamus:'+orderId)]);
+    const event=await pool.query("SELECT 1 FROM club_webhook_events WHERE event_id IN ($1,$2) AND payload->>'tariff'='basic' LIMIT 1",[sha256('prodamus:'+orderId),sha256('cloudpayments:'+orderId)]);
     if(!event.rowCount)return res.status(404).send('Оплата пока не подтверждена. Если вы уже оплатили, попробуйте открыть ссылку через несколько минут.');
     const invite=basicInviteUrl();
     if(!invite)return res.status(503).send('Доступ временно недоступен. Обратитесь в службу заботы.');
@@ -417,10 +470,54 @@ app.get(['/health/hematologist.js','/health/hematologist.jpg','/health/nutrition
 });
 app.get('/club',async(req,res,next)=>{
   try{
-    if(!await findSession(req))return res.redirect('/?login=1');
-    res.set('Cache-Control','no-store').type('html').send(memberHtml);
+    const user=await findSession(req);
+    if(!user)return res.redirect('/?login=1');
+    const adminLink=adminEnabled&&await adminStore.isAdmin(user.user_key);
+    const html=adminLink?memberHtml.replace(
+      '    <button class="login-btn" onclick="showScreen(\'dashboard\')">',
+      '    <a class="login-btn" href="/admin" style="display:block;text-align:center;text-decoration:none">Оплаты и письма</a>\n    <button class="login-btn" onclick="showScreen(\'dashboard\')">'):memberHtml;
+    res.set('Cache-Control','no-store').type('html').send(html);
   }catch(error){next(error);}
 });
-app.use((error,req,res,next)=>{console.error(error);if(res.headersSent)return next(error);res.status(500).json({message:'Внутренняя ошибка сервера'});});
+app.use((error,req,res,next)=>{
+  if(error instanceof CloudPaymentsError)return res.status(error.status).json({message:error.message});
+  console.error(error);if(res.headersSent)return next(error);res.status(500).json({message:'Внутренняя ошибка сервера'});
+});
 await initDatabase();
+if(cloudConfig.enabled){
+  let draining=false;
+  const drain=async()=>{
+    if(draining)return;draining=true;
+    try{
+      await drainAccessMail(pool,async(order,mail)=>{
+        if(order.tariff==='basic')return sendBasicAccessEmail(order.buyer_email,PUBLIC_URL+'/access/basic/'+order.order_id);
+        const password=decryptPassword(mail.password_ciphertext);
+        const user=await pool.query('SELECT password_hash,login_email,status,tariff,(access_until IS NULL OR access_until>now()) AS valid FROM club_users WHERE email=$1',[mail.user_key]);
+        if(!user.rows[0]||!user.rows[0].valid||user.rows[0].status!=='active'||user.rows[0].tariff!=='premium'||
+          !await verifyPassword(password,user.rows[0].password_hash))
+          throw new CloudPaymentsError('Пароль изменён; требуется проверка письма',409);
+        // Support may correct a login email without rewriting signed payment history.
+        const recipient=normalizeEmail(user.rows[0].login_email||order.buyer_email);
+        if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))
+          throw new CloudPaymentsError('Email изменён; требуется проверка письма',409);
+        return sendCredentialsEmail(recipient,password,PUBLIC_URL);
+      });
+    }catch{console.error('CLOUDPAYMENTS_MAIL_QUEUE_UNAVAILABLE');}
+    finally{draining=false;}
+  };
+  await drain();
+  setInterval(drain,30000).unref();
+  let monitoring=false;
+  const monitor=async()=>{
+    if(monitoring)return;monitoring=true;
+    try{
+      await pollMailStatuses(pool);
+      if(adminEnabled&&alertsConfigured)
+        await notifyMailAttention(pool,data=>sendAdminMailAlert(process.env.CLUB_ADMIN_ALERT_EMAIL,PUBLIC_URL,data));
+    }catch{console.error('CLUB_MAIL_MONITOR_UNAVAILABLE');}
+    finally{monitoring=false;}
+  };
+  await monitor();
+  setInterval(monitor,60000).unref();
+}
 app.listen(PORT,'0.0.0.0',()=>console.log('Club server listening on '+PORT));
