@@ -27,6 +27,7 @@
   --r:24px;
   --r-sm:16px;
   --tr:all .35s cubic-bezier(.4,0,.2,1);
+  --club-header-height:76px;
 }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth;scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -83,13 +84,14 @@ a{text-decoration:none;color:inherit}
   background:var(--white);
   z-index:200;
   transform:translateX(-100%);
-  transition:transform .35s ease;
+  visibility:hidden;
+  transition:transform .35s ease,visibility 0s linear .35s;
   padding:24px;
   padding-top:calc(24px + env(safe-area-inset-top,0px));
   box-shadow:var(--shadow-lg);
   overflow-y:auto;
 }
-.side-menu.open{transform:translateX(0)}
+.side-menu.open{transform:translateX(0);visibility:visible;transition-delay:0s}
 .side-menu-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
 .side-menu-close{width:36px;height:36px;border-radius:50%;background:var(--pink-soft);color:var(--pink);display:flex;align-items:center;justify-content:center;font-size:1.1rem}
 .side-menu-logo{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:600;color:var(--text-mid)}
@@ -113,7 +115,7 @@ a{text-decoration:none;color:inherit}
 .menu-overlay.open{opacity:1;visibility:visible}
 
 .back-btn{
-  position:sticky;top:calc(16px + env(safe-area-inset-top,0px));z-index:50;
+  position:sticky;top:calc(var(--club-header-height) + 12px + env(safe-area-inset-top,0px));z-index:50;
   margin:16px 20px 0 auto;
   padding:10px 20px;border-radius:50px;
   background:var(--white);color:var(--pink);
@@ -1686,11 +1688,47 @@ async function loadStartMaterial(card){
   }
 }
 
+function syncNavigationHeader(){
+  const header=document.querySelector('.screen.active > .app-header');
+  if(!header) return;
+  const height=Math.ceil(header.getBoundingClientRect().height);
+  if(height>0) document.documentElement.style.setProperty('--club-header-height',height+'px');
+}
+
+function initClubNavigation(){
+  const menu=document.getElementById('sideMenu');
+  const overlay=document.getElementById('menuOverlay');
+  // Keep the source markup behind the server's member-page boundary, but make
+  // the authenticated menu independent of whichever screen is currently active.
+  if(menu&&overlay){
+    document.body.append(overlay,menu);
+    menu.setAttribute('aria-label','Меню клуба');
+    menu.setAttribute('aria-hidden','true');
+    menu.inert=true;
+    menu.querySelector('.side-menu-close').setAttribute('aria-label','Закрыть меню');
+    document.querySelectorAll('.burger').forEach(button=>{
+      button.setAttribute('aria-label','Открыть меню');
+      button.setAttribute('aria-controls','sideMenu');
+      button.setAttribute('aria-expanded','false');
+    });
+  }
+  syncNavigationHeader();
+  window.addEventListener('resize',syncNavigationHeader);
+  if(typeof ResizeObserver==='function'){
+    const observer=new ResizeObserver(syncNavigationHeader);
+    document.querySelectorAll('.app-header').forEach(header=>observer.observe(header));
+  }
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&menu?.classList.contains('open')) toggleMenu();
+  });
+}
+
 function showScreen(id){
   if(id!=='material-reader') stopNutritionPodcast();
   if(!PUBLIC_SCREENS.has(id) && !currentUser){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('screen-login').classList.add('active'); return; }
   const target=document.getElementById('screen-'+id); if(!target) return;
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); target.classList.add('active'); window.scrollTo(0,0);
+  syncNavigationHeader();
   if(id==='dashboard') renderNavGrid();
   if(id==='recipes') renderAccordion('recipeCategoriesList', RECIPE_CATEGORIES);
   if(id==='baking') renderAccordion('bakingCategoriesList', BAKING_CATEGORIES);
@@ -1709,8 +1747,16 @@ function showScreen(id){
 }
 
 function toggleMenu(){
-  document.getElementById('sideMenu').classList.toggle('open');
-  document.getElementById('menuOverlay').classList.toggle('open');
+  const menu=document.getElementById('sideMenu');
+  const overlay=document.getElementById('menuOverlay');
+  const open=!menu.classList.contains('open');
+  menu.classList.toggle('open',open);
+  overlay.classList.toggle('open',open);
+  menu.setAttribute('aria-hidden',String(!open));
+  menu.inert=!open;
+  document.querySelectorAll('.burger').forEach(button=>button.setAttribute('aria-expanded',String(open)));
+  const focusTarget=open?menu.querySelector('.side-menu-close'):document.querySelector('.screen.active .burger');
+  focusTarget?.focus({preventScroll:true});
 }
 
 /* ═══════════ ВХОД / ВЫХОД ═══════════ */
@@ -2220,6 +2266,7 @@ function toast(msg, err){
 }
 
 /* ═══════════ INIT ═══════════ */
+initClubNavigation();
 renderNavGrid();
 applyTariff();
 restoreSession();
