@@ -1394,7 +1394,8 @@ const CLUB_VIDEOS = {
 /* ═══════════ ДАННЫЕ: PDF-ФАЙЛЫ (Яндекс.Диск) ═══════════ */
 const CLUB_FILES = {
     readyMenu: [
-        {t: "Меню и закупка", url: "https://disk.yandex.ru/i/SEyEEQvposQ6Ew"}
+        {t: "Меню и закупка", url: "https://disk.yandex.ru/i/SEyEEQvposQ6Ew"},
+        {t: "Меню на 7 дней", url: "/api/pdfs/3e64e9bef44b625b0335b1cd77a63e12"}
     ],
     smart: [
         {t: "Сборник 1", url: "https://disk.yandex.ru/i/UG2c9fU2egfFig"},
@@ -1451,7 +1452,10 @@ const RECIPE_CATEGORIES = [
     {t:'Заготовки из рыбы 1', d:'PDF-файл', url:'https://disk.yandex.ru/i/-fVOLz3sSIrEOQ'},
     {t:'Заготовки из рыбы 2', d:'PDF-файл', url:'https://disk.yandex.ru/i/llBfBAgKPG2KSA'}
   ]},
-  {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты']},
+  {name:'Паштеты', icon:'fa-mortar-pestle', videos: CLUB_VIDEOS.recipes['Паштеты'], files:[
+    {t:'Паштеты', d:'PDF-файл', url:'/api/pdfs/0dd9d97da5f36e8be7d461d4ade8ca8b'},
+    {t:'Намазки', d:'PDF-файл', url:'/api/pdfs/431b210dafb1e5a2f2d855e4b2d57a34'}
+  ]},
   {name:'Колбаса', icon:'fa-hotdog', videos: CLUB_VIDEOS.recipes['Колбаса'], files:[
     {t:'Домашние колбасы в заготовки', d:'PDF-файл', url:'https://disk.yandex.ru/d/wVO3VjQAi1u4jg'}
   ]},
