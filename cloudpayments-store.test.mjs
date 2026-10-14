@@ -14,9 +14,12 @@ function database({tariff='premium',testMode=false,legacy=false,grantError=false
       const id=state.payments.get(args[0]);return {rows:id?[{order_id:id}]:[],rowCount:id?1:0};
     }
     if(sql.startsWith('SELECT 1 FROM club_webhook_events'))return {rows:legacy?[{}]:[],rowCount:legacy?1:0};
+    if(sql.includes('AS required')&&sql.includes('club_cp_orders o'))return {rows:[{required:false}],rowCount:1};
     if(sql.startsWith('INSERT INTO club_cp_payments')){state.payments.set(args[0],args[1]);state.outcome=args[2];}
+    else if(sql.includes('INSERT INTO club_cp_payment_events'))return {rows:[],rowCount:1};
     else if(sql.includes('INSERT INTO club_webhook_events'))state.events.push(args);
     else if(sql.includes('INSERT INTO club_cp_access_mail'))state.mail.push(args);
+    else if(sql.includes('UPDATE club_cp_orders SET last_payment_status'))state.order.last_payment_status=args[1];
     else if(sql.includes('UPDATE club_cp_orders'))state.order.status=args[1];
     else throw new Error('Unexpected SQL in fixture: '+sql);
     return {rows:[],rowCount:1};

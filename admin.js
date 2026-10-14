@@ -16,6 +16,7 @@
   };
   const elements = {
     notice: $("#systemNotice"),
+    paymentProvider: $("#paymentProviderNotice"),
     greeting: $("#userGreeting"),
     attention: $("#summaryAttention"),
     delivered: $("#summaryDelivered"),
@@ -69,7 +70,12 @@
     delivered:"Принято сервером получателя",skipped:"Не отправлено",
     soft_bounced:"Получатель отклонил письмо",hard_bounced:"Доставка невозможна",
     unknown:"Доставка неизвестна",send_failed:"Ошибка отправки",
-    pending:"Ожидает отправки",sending:"Отправляется",accepted:"Принято почтовым API",
+    pending:"Ожидает",sending:"Отправляется",accepted:"Принято почтовым API",
+    failed:"Отказ оплаты",canceled:"Отмена оплаты",authorized:"Средства заблокированы, не списаны",
+    refunded:"Возврат полной суммы",partially_refunded:"Частичный возврат",
+    refund_reported:"Зарегистрирован возврат — нужна сверка",
+    refund_failed:"Возврат не выполнен — нужна проверка",payment_refund_review:"Возврат или отмена — проверьте доступ",
+    completed:"Оплата подтверждена",duplicate:"Повторная операция — нужна сверка",
     blocked:"Требуется проверка",paid:"Оплачено",review:"Оплата требует сверки",
     premium:"Расширенный",basic:"Базовый",
     provider_auth:"Проверьте доступ к почтовому API",provider_rate_limit:"Лимит почтового API",
@@ -80,7 +86,10 @@
     "status:checked":"Статус проверен","status:unavailable":"Статус временно недоступен"
   };
   const label = value => labels[value] || text(value);
+  const providerName = value => ({prodamus:"Prodamus",cloudpayments:"CloudPayments"})[value] || "Не указан";
   const statusInfo = (order) => {
+    if(order.status==="pending"&&!order.mail_state&&(!order.last_payment_status||order.last_payment_status==="pending"))
+      return {label:"Ожидает оплаты",tone:"progress"};
     const status = normalize(order.delivery_status || order.mail_state || order.status);
     if (order.needs_attention || /fail|bounce|reject|error|не удалось|ошиб/.test(status)) {
       return { label: "Нужна проверка", tone: "error" };
@@ -180,6 +189,7 @@
     buyer.className = "order-primary";
     addText(buyer, "span", order.buyer_name || "Имя не указано", "buyer-name");
     addText(buyer, "span", order.buyer_email || "Email не указан", "buyer-email");
+    addText(buyer, "span", `${providerName(order.payment_provider)} · ${label(order.last_payment_status || order.status)}`, "order-date");
     button.append(buyer);
 
     addText(button, "span", label(order.tariff), "order-tariff");
@@ -238,6 +248,19 @@
       state.pageSize = Number(result.pageSize) || 20;
       state.csrfToken = result.csrfToken || state.csrfToken;
       state.enabled = result.enabled !== false;
+      if(elements.paymentProvider){
+        elements.paymentProvider.replaceChildren();
+        addText(elements.paymentProvider,"strong",`Новые оплаты: ${providerName(result.activePaymentProvider)}.`);
+        addText(elements.paymentProvider,"p","Переключение только вручную по команде владельца. Начатые оплаты завершаются через исходный сервис.");
+        if(Array.isArray(result.providerHistory)&&result.providerHistory.length){
+          const details=document.createElement("details");
+          addText(details,"summary","История ручных переключений");
+          result.providerHistory.forEach(entry=>addText(details,"p",
+            `${formatDate(entry.changed_at)} · ${providerName(entry.previous_provider)} → ${providerName(entry.next_provider)}`));
+          elements.paymentProvider.append(details);
+        }
+        elements.paymentProvider.hidden=false;
+      }
       elements.greeting.textContent = result.user && result.user.name ? `Здравствуйте, ${result.user.name}` : "Кабинет поддержки";
       elements.attention.textContent = result.summary && result.summary.attention != null ? String(result.summary.attention) : "—";
       elements.delivered.textContent = result.summary && result.summary.delivered != null ? String(result.summary.delivered) : "—";
@@ -288,7 +311,7 @@
     });
     return list;
   }
-  function renderDetail(order, history, audit) {
+  function renderDetail(order, history, audit, paymentHistory) {
     elements.detailContent.replaceChildren();
     const grid = document.createElement("div");
     grid.className = "detail-grid";
@@ -298,9 +321,13 @@
       addDetailItem(grid, "Email для письма", order.recipient_email);
     addDetailItem(grid, "Тариф", label(order.tariff));
     addDetailItem(grid, "Оплата", formatAmount(order.amount_cents));
-    addDetailItem(grid, "Статус оплаты", label(order.status));
+    addDetailItem(grid, "Статус оплаты", label(order.last_payment_status || order.status));
+    addDetailItem(grid, "Обработка доступа", label(order.status));
     addDetailItem(grid, "Состояние письма", label(order.delivery_status || order.mail_state));
-    addDetailItem(grid, "Платёжный сервис", order.payment_provider === "prodamus" ? "Prodamus" : "CloudPayments");
+    addDetailItem(grid, "Платёжный сервис", providerName(order.payment_provider));
+    addDetailItem(grid, "Провайдер онлайн-кассы", order.receipt_provider || "Не подтверждён");
+    addDetailItem(grid, "Статус чека", order.receipt_status === "unknown" || !order.receipt_status ? "Нет подтверждённых данных" : label(order.receipt_status));
+    if(order.receipt_id)addDetailItem(grid,"ID чека",order.receipt_id);
     addDetailItem(grid, "Почтовый сервис", order.provider);
     addDetailItem(grid, "Попытки отправки", order.attempts);
     addDetailItem(grid, "Создан", formatDate(order.created_at));
@@ -310,6 +337,18 @@
     if (order.provider_message_id) addDetailItem(grid, "ID письма у провайдера", order.provider_message_id);
     if (order.last_error_code) addDetailItem(grid, "Причина последней ошибки", label(order.last_error_code));
     elements.detailContent.append(grid);
+    if(order.payment_requires_review||["refund_reported","refunded","partially_refunded"].includes(order.last_payment_status))
+      addText(elements.detailContent,"p","Провайдер сообщил о возврате. Доступ автоматически не отзывается — требуется проверка владельцем.","detail-explanation");
+    const paymentSection=document.createElement("section");
+    paymentSection.className="history-section";
+    addText(paymentSection,"h3","События оплаты");
+    const payments=document.createElement("ul");
+    payments.className="history-list";
+    if(!Array.isArray(paymentHistory)||!paymentHistory.length)addText(payments,"li","Подтверждённых событий провайдера пока нет.");
+    else paymentHistory.forEach(entry=>addText(payments,"li",
+      `${formatDate(entry.created_at)} · ${providerName(entry.payment_provider)} · ${label(entry.provider_status)} · ${formatAmount(entry.amount_cents)}${entry.transaction_id ? " · ID "+entry.transaction_id : ""}${entry.error_code ? " · код "+entry.error_code : ""}`));
+    paymentSection.append(payments);
+    elements.detailContent.append(paymentSection);
     const explanation = addText(elements.detailContent, "p", "Очередь NotiSend и статус «Отправлено» ещё не подтверждают доставку. Только «Принято сервером получателя» означает приём почтовым сервером — не попадание во входящие. При отказе провайдера или получателя сначала проверьте причину; повтор не снимает блокировку и не отменяет отписку.", "detail-explanation");
     explanation.setAttribute("role", "note");
     const historySection = document.createElement("section");
@@ -337,10 +376,12 @@
       state.csrfToken = result.csrfToken || state.csrfToken;
       state.currentOrder = result.order || state.currentOrder;
       if (!state.currentOrder) throw new Error("В ответе сервера нет данных заказа.");
-      renderDetail(state.currentOrder, result.history, result.audit);
+      renderDetail(state.currentOrder, result.history, result.audit, result.paymentHistory);
       elements.check.disabled = !state.enabled || state.currentOrder.provider !== "notisend" ||
         !state.currentOrder.provider_message_id || !["queued","sent","unknown"].includes(state.currentOrder.delivery_status);
       elements.resend.disabled = !state.enabled || state.currentOrder.status !== "paid" ||
+        Boolean(state.currentOrder.payment_requires_review) ||
+        ["refund_reported","refunded","partially_refunded","canceled","refund_failed"].includes(state.currentOrder.last_payment_status) ||
         !["accepted","blocked"].includes(state.currentOrder.mail_state);
       elements.detailActions.hidden = false;
     } catch (error) {

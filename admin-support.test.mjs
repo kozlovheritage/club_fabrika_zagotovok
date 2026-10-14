@@ -85,8 +85,8 @@ async function request(path,{cookie,method='GET',body,token,origin='https://club
 }
 async function order({id='synthetic-order',tariff='basic',state='accepted',status='soft_bounced',testMode=false}={}){
   if(tariff==='premium')id='fz4-p-'+id;
-  await pool.query(`INSERT INTO club_cp_orders(order_id,buyer_email,buyer_name,tariff,amount_cents,test_mode,status,paid_at)
-    VALUES($1,'buyer@example.test','Тестовый Участник',$2,599000,$3,'paid',now()-interval '1 day')`,
+  await pool.query(`INSERT INTO club_cp_orders(order_id,buyer_email,buyer_name,tariff,amount_cents,test_mode,status,last_payment_status,paid_at)
+    VALUES($1,'buyer@example.test','Тестовый Участник',$2,599000,$3,'paid','paid',now()-interval '1 day')`,
   [id,tariff,testMode]);
   await pool.query("INSERT INTO club_cp_payments VALUES($1,$2,'fulfilled',now())",['txn-'+id,id]);
   let userKey=null;
@@ -202,6 +202,43 @@ scenario('premium resend preserves verified password/hash and account; rotated c
   assert.equal((await pool.query('SELECT state FROM club_cp_access_mail')).rows[0].state,'accepted');
   assert.equal(await createAdminStore(pool).isAdmin(admin),true);
 });
+scenario('refund/cancel → unknown signed notification cannot re-enable resend, even with a stale status projection',async()=>{
+  await owner();
+  const cookie=await login();
+  const token=(await (await request('/api/admin/orders',{cookie})).json()).csrfToken;
+  for(const [index,type] of ['refund','cancel'].entries()){
+    const id=await order({id:'reversal-'+type,tariff:'premium'});
+    const original=String(7001+index);
+    await pool.query('UPDATE club_cp_payments SET transaction_id=$2 WHERE order_id=$1',[id,original]);
+    const notify=async(kind,payload)=>{
+      const raw=JSON.stringify(payload);
+      const signature=crypto.createHmac('sha256','synthetic-only-secret').update(raw).digest('base64');
+      const response=await fetch(base+'/api/webhooks/cloudpayments/'+kind,{method:'POST',
+        headers:{'Content-Type':'application/json','Content-HMAC':signature},body:raw});
+      assert.equal(response.status,200);
+      assert.deepEqual(await response.json(),{code:0});
+    };
+    const common={InvoiceId:id,AccountId:id,Amount:'5990.00',TransactionId:original};
+    await notify(type,type==='refund'
+      ?{...common,TransactionId:String(8001+index),PaymentTransactionId:original,OperationType:'Refund'}:common);
+    await notify('pay',{...common,Currency:'RUB',TestMode:0,Status:'UnknownFutureStatus'});
+    const projected=await (await request('/api/admin/orders/'+id,{cookie})).json();
+    assert.equal(projected.order.last_payment_status,type==='refund'?'refund_reported':'canceled');
+    assert.equal(projected.order.payment_requires_review,true);
+    assert.equal(projected.paymentHistory.filter(x=>x.event_type==='unknown').length,1);
+    const body={reason:'customer_request',expectedAttempts:1,expectedMessageId:'message-'+id};
+    assert.equal((await request('/api/admin/orders/'+id+'/resend',{cookie,method:'POST',token,body})).status,409);
+    // Prove authorization uses the durable ledger, not only the latest status.
+    await pool.query("UPDATE club_cp_orders SET last_payment_status='paid' WHERE order_id=$1",[id]);
+    assert.equal((await request('/api/admin/orders/'+id+'/resend',{cookie,method:'POST',token,body})).status,409);
+    const refreshed=await (await request('/api/admin/orders/'+id,{cookie})).json();
+    assert.equal(refreshed.order.payment_requires_review,true);
+    assert.equal(refreshed.order.needs_attention,true);
+    const mail=(await pool.query('SELECT state,attempts,password_ciphertext FROM club_cp_access_mail WHERE order_id=$1',[id])).rows[0];
+    assert.equal(mail.state,'accepted');assert.equal(mail.attempts,1);assert.equal(mail.password_ciphertext,null);
+  }
+  assert.equal((await pool.query("SELECT count(*)::int n FROM club_admin_audit WHERE action LIKE 'resend:%'")).rows[0].n,0);
+});
 scenario('delivered/hard bounce require customer request; no rapid resend, no re-creating payment',async()=>{
   const actor=await owner();
   const store=createAdminStore(pool);
@@ -297,6 +334,7 @@ scenario('browser: real session, attention/search/detail/confirmed resend, safe 
     assert.equal(status,200);
     await page.goto('https://club.example.test/admin');
     await page.locator('.order-row').first().waitFor();
+    assert.match(await page.locator('#paymentProviderNotice').innerText(),/Новые оплаты: Prodamus/);
     assert.equal(await page.locator('.order-row').count(),1);
     assert.equal(await page.evaluate(()=>window.pwned),undefined);
     assert.equal(await page.locator('.buyer-name').innerText(),'<img src=x onerror=window.pwned=1>');
@@ -317,6 +355,7 @@ scenario('browser: real session, attention/search/detail/confirmed resend, safe 
     await page.waitForFunction(()=>!document.querySelector('#resendDialog').open);
     assert.equal((await pool.query("SELECT state FROM club_cp_access_mail WHERE order_id='browser-bounce'")).rows[0].state,'pending');
     await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.locator('#paymentProviderNotice').isVisible(),true);
     await page.locator('#searchInput').fill('');
     await page.locator('#searchForm button').click();
     await page.waitForFunction(()=>document.querySelectorAll('.order-row').length===2);

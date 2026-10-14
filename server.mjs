@@ -12,10 +12,10 @@ import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './logi
 import {CONSENT_SCHEMA,archiveConsentDocuments,checkoutDocumentCatalog,validateCheckoutConsents,saveCheckoutConsentReceipt,renderArchivedLegalDocument} from './consents.mjs';
 import {createPdfRouter,loadPdfCatalog,rewritePdfLinks} from './pdf-access.mjs';
 import {createPodcastRouter,loadPodcastCatalog} from './podcast-access.mjs';
-import {readCloudConfig,CloudPaymentsError} from './cloudpayments.mjs';
+import {readCloudConfig,CloudPaymentsError,cents} from './cloudpayments.mjs';
 import {CLOUD_SCHEMA,createCloudStore,drainAccessMail} from './cloudpayments-store.mjs';
 import {createCloudService,mountCloudNotifications} from './cloudpayments-router.mjs';
-import {ADMIN_SCHEMA,createAdminStore} from './admin-store.mjs';
+import {ADMIN_SCHEMA,CHECKOUT_PROVIDER_SCHEMA,createAdminStore} from './admin-store.mjs';
 import {mountAdmin} from './admin-access.mjs';
 import {HISTORY_SCHEMA,createPaymentHistory} from './payment-history.mjs';
 import {MAIL_MONITOR_SCHEMA,pollMailStatuses,notifyMailAttention} from './mail-monitor.mjs';
@@ -51,10 +51,11 @@ const adminStore=createAdminStore(pool,{
     return encryptPassword(password);
   }
 });
-const checkoutProvider=process.env.CHECKOUT_PROVIDER||'prodamus';
-if(!['prodamus','cloudpayments'].includes(checkoutProvider))throw new Error('Invalid CHECKOUT_PROVIDER');
+// Never activate a new processor from a stale deployment environment value.
+const initialCheckoutProvider='prodamus';
 const cloudStore=createCloudStore(pool,{
   test:cloudConfig.test,
+  receiptProvider:cloudConfig.receiptProvider,
   async grantPremium(client,order){
     const userKey='order:'+order.order_id;
     const existing=await client.query('SELECT email,status FROM club_users WHERE (email=$1 OR login_email=$2) AND password_hash IS NOT NULL FOR UPDATE',[userKey,order.buyer_email]);
@@ -132,7 +133,8 @@ async function requireAuth(req,res,next){try{const user=await findSession(req);i
 mountCloudNotifications(app,express,cloudService);
 app.use(express.json({limit:'1mb'}));
 app.use(express.urlencoded({extended:true,limit:'1mb'}));
-mountAdmin(app,express,{enabled:adminEnabled,cloudEnabled:()=>mailRuntimeEnabled,findSession,store:adminStore,historyStore,
+mountAdmin(app,express,{enabled:adminEnabled,cloudEnabled:()=>mailRuntimeEnabled,
+  paymentProvider:()=>adminStore.activeCheckoutProvider(),findSession,store:adminStore,historyStore,
   siteUrl:PUBLIC_URL,key:process.env.AUTH_CREDENTIAL_KEY,alertsConfigured,
   checkStatus:orderId=>pollMailStatuses(pool,{orderId})});
 app.get('/api/health',(req,res)=>res.json({ok:true}));
@@ -170,10 +172,8 @@ app.use('/api/checkout',(req,res,next)=>{
   next();
 });
 app.post('/api/checkout/session',async(req,res,next)=>{
-  if(checkoutProvider==='cloudpayments'&&req.body?.paymentProvider!=='cloudpayments')
-    return res.status(409).json({message:'Способ оплаты обновлён. Обновите страницу сайта и повторите попытку'});
-  if(checkoutProvider==='prodamus'&&req.body?.paymentProvider==='cloudpayments')
-    return res.status(503).json({message:'CloudPayments ещё не подключён. Попробуйте позднее'});
+  let checkoutProvider;
+  try{checkoutProvider=await adminStore.activeCheckoutProvider();}catch(error){return next(error);}
   const tariff=req.body?.tariff;
   if(tariff!=='basic'&&tariff!=='premium')return res.status(400).json({message:'Неизвестный тариф'});
   const email=normalizeEmail(req.body?.email);
@@ -212,6 +212,7 @@ app.post('/api/checkout/session',async(req,res,next)=>{
       const payment=await cloudService.create(checkout,tariff);
       return res.set('Cache-Control','no-store').json(payment);
     }
+    checkout.provider='prodamus';
     checkout.paid_content=prodamusDelivery==='platform'?PLATFORM_ACCESS_NOTICE:tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+checkout.order_id
       : buildPremiumPaidContent(PUBLIC_URL,email,premiumPasswordForOrder(checkout.order_id,process.env.AUTH_CREDENTIAL_KEY));
@@ -220,8 +221,6 @@ app.post('/api/checkout/session',async(req,res,next)=>{
 });
 app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
 app.post('/api/checkout/direct',async(req,res,next)=>{
-  if(checkoutProvider==='cloudpayments')
-    return res.status(410).json({message:'Оплата через Prodamus закрыта. Откройте новую форму покупки на сайте'});
   const orderId=String(req.body?.orderId||'');
   const email=normalizeEmail(req.body?.email);
   if(orderId.length>180||!/^fz[34]-[bp]-/.test(orderId)||email.length>254)
@@ -351,8 +350,8 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
     const expectedSign=prodamusSign(payload,process.env.PRODAMUS_SECRET_KEY);
     if(!/^[0-9a-f]{64}$/i.test(receivedSign||'')||!safeEqualHex(receivedSign.toLowerCase(),expectedSign))return res.status(400).send('Invalid signature');
     if(process.env.PRODAMUS_SYS&&String(payload.sys||'')!==process.env.PRODAMUS_SYS)return res.status(400).send('Invalid integration code');
-    // Observe only genuinely signed, owned checkout notices, after the response.
-    // History cannot block, acknowledge or fulfill a payment or send an email.
+    // Preserve production history observation without letting it acknowledge,
+    // fulfill, block, or send mail for the underlying payment.
     if(adminEnabled)res.once('finish',()=>{
       if(res.statusCode!==200)return;
       try{
@@ -361,13 +360,26 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
           historyStore.observeProdamus(payload,owned).catch(()=>console.error('CLUB_HISTORY_NOTICE_UNAVAILABLE'));
       }catch{console.error('CLUB_HISTORY_NOTICE_UNAVAILABLE');}
     });
-    if(String(payload.payment_status||'').toLowerCase()!=='success')return res.status(200).send('ok');
+    const paymentStatus=String(payload.payment_status||'').toLowerCase();
     const checkout=identifyCheckout(payload,process.env.AUTH_CREDENTIAL_KEY);
     if(checkout.kind==='external')return res.status(200).send('ok');
     if(checkout.kind==='invalid')return res.status(422).send('Unexpected site order');
     const email=normalizeEmail(payload.customer_email);
     const orderId=String(payload.order_num||payload.order_id||'').trim();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!orderId)return res.status(422).send('customer_email and order_id are required');
+    const platformOrder=mailRuntimeEnabled?await getProdamusMailOrder(pool,orderId):null;
+    if(paymentStatus!=='success'){
+      if(platformOrder){
+        if(platformOrder.buyer_email!==email||Number(platformOrder.amount_cents)!==cents(payload.sum))
+          return res.status(422).send('Payment does not match the saved order');
+        const type=paymentStatus==='order_canceled'?'cancel':paymentStatus==='order_denied'?'fail':'unknown';
+        await cloudStore.recordProviderEvent({orderId,provider:'prodamus',type,
+          status:type==='cancel'?'canceled':type==='fail'?'failed':'unknown',
+          transactionId:String(payload.order_id||''),amountCents:cents(payload.sum),currency:'RUB',
+          eventTime:String(payload.date||'')});
+      }
+      return res.status(200).send('ok');
+    }
     let savedName=null;
     if(checkout.requiresSavedName){
       const order=await pool.query('SELECT buyer_name FROM club_checkout_orders WHERE order_id=$1 AND buyer_email=$2',[orderId,email]);
@@ -375,7 +387,6 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
       savedName=order.rows[0].buyer_name;
     }
     const eventId=sha256('prodamus:'+orderId);
-    const platformOrder=mailRuntimeEnabled?await getProdamusMailOrder(pool,orderId):null;
     if(platformOrder){
       await fulfillProdamusMailOrder(pool,orderId,payload,{
         async grantPremium(client,order){
@@ -543,6 +554,8 @@ if(adminEnabled&&mailRuntimeEnabled){
   setTimeout(syncHistory,1000).unref();
   setInterval(syncHistory,60000).unref();
 }
+for(const statement of CHECKOUT_PROVIDER_SCHEMA)await pool.query(statement);
+await adminStore.initializeCheckoutProvider(initialCheckoutProvider);
 if(mailRuntimeEnabled&&(cloudConfig.enabled||prodamusWorkerEnabled)){
   let draining=false;
   const drain=async()=>{

@@ -5,6 +5,7 @@ import net from 'node:net';
 import crypto from 'node:crypto';
 import pg from 'pg';
 import {premiumPasswordForOrder} from './checkout.mjs';
+import {createAdminStore} from './admin-store.mjs';
 
 const dsn=process.env.CLOUDPAYMENTS_TEST_DB_URL;
 const key='synthetic-only-checkout-signing-key-32-characters';
@@ -48,7 +49,7 @@ async function buyer(base,tariff,email,paymentProvider){
     consents:{personalData:true,marketing:false,offer:true,
       documents:Object.fromEntries(Object.entries(docs.documents).map(([name,doc])=>[name,doc.id]))}};
 }
-test('whole app: standby preserves Prodamus; Cloud-only mode blocks old checkout and creates correct access only after verified payment',
+test('whole app: manual selection preserves Prodamus and in-flight Cloud callbacks',
   {skip:!dsn},async t=>{
     const url=new URL(dsn);
     assert.equal(url.hostname,'127.0.0.1');assert.equal(url.pathname,'/club_cloudpayments_test');
@@ -58,20 +59,26 @@ test('whole app: standby preserves Prodamus; Cloud-only mode blocks old checkout
       {Origin:'https://sales.example.test'});
     assert.equal(legacy.status,200);
     const legacyData=await legacy.json();
+    assert.equal(legacyData.provider,'prodamus');
     assert.ok(legacyData.products);assert.match(legacyData.paid_content,/Личный кабинет/);
     assert.equal((await pool.query("SELECT to_regclass('public.club_cp_orders') AS table_name")).rows[0].table_name,null);
     const active=await boot(t,true);
-    const oldPage=await post(active,'/api/checkout/session',await buyer(active,'premium','oldpage@example.test'),
+    const oldPage=await post(active,'/api/checkout/session',await buyer(active,'premium','oldpage@example.test','cloudpayments'),
       {Origin:'https://sales.example.test'});
-    assert.equal(oldPage.status,409);
+    assert.equal(oldPage.status,200);
+    assert.equal((await oldPage.json()).provider,'prodamus'); // Browser cannot switch it.
+    const selector=createAdminStore(pool);
+    assert.equal(await selector.activeCheckoutProvider(),'prodamus'); // Restart does not switch.
+    await selector.setCheckoutProvider('cloudpayments','prodamus');
     const oldDirect=await post(active,'/api/checkout/direct',{}, {Origin:'https://sales.example.test'});
-    assert.equal(oldDirect.status,410);
+    assert.equal(oldDirect.status,400); // No blanket disabling of existing Prodamus orders.
     for(const [tariff,email,txn] of [['premium','premium@example.test','98765431'],['basic','basic@example.test','98765432']]){
       const pending=await post(active,'/api/checkout/session',await buyer(active,tariff,email,'cloudpayments'),
         {Origin:'https://sales.example.test'});
       assert.equal(pending.status,503); // No approved terminal/receipt => NO external API call.
       const order=(await pool.query('SELECT * FROM club_cp_orders WHERE buyer_email=$1',[email])).rows[0];
       assert.ok(order);
+      await selector.setCheckoutProvider('prodamus','cloudpayments');
       const data={InvoiceId:order.order_id,AccountId:order.order_id,Amount:Number(order.amount_cents)/100,
         Currency:'RUB',TestMode:0,TransactionId:txn,Status:'Completed',Email:'untrusted@example.test'};
       const raw=JSON.stringify(data);
@@ -90,5 +97,7 @@ test('whole app: standby preserves Prodamus; Cloud-only mode blocks old checkout
         const access=await fetch(active+'/access/basic/'+order.order_id,{redirect:'manual'});
         assert.equal(access.status,302);assert.equal(access.headers.get('location'),'https://t.me/+synthetic-test');
       }
+      await selector.setCheckoutProvider('cloudpayments','prodamus');
     }
+    await selector.setCheckoutProvider('prodamus','cloudpayments');
   });

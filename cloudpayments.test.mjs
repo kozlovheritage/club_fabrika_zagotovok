@@ -100,7 +100,7 @@ test('untrusted links, unsuccessful response, wrong amount/currency and timeouts
 });
 test('Check validates but never fulfills; Authorized holds grant nothing; Confirm completes',async()=>{
   const granted=[];
-  const store={getOrder:async()=>order,fulfill:async(...args)=>granted.push(args)};
+  const store={getOrder:async()=>order,fulfill:async(...args)=>granted.push(args),recordProviderEvent:async()=>{}};
   const service=createCloudService(config,store);
   for(const [kind,data] of [['check',payload],['pay',{...payload,Status:'Authorized'}]]){
     const {raw,hmac}=signed(data);
@@ -113,13 +113,17 @@ test('Check validates but never fulfills; Authorized holds grant nothing; Confir
 });
 test('invalid signatures, test/live mismatch and failed status never fulfill',async()=>{
   let count=0;
-  const service=createCloudService(config,{getOrder:async()=>order,fulfill:async()=>count++});
+  const events=[];
+  const service=createCloudService(config,{getOrder:async()=>order,fulfill:async()=>count++,recordProviderEvent:async event=>events.push(event)});
   const {raw}=signed(payload);
   await assert.rejects(service.notification('pay',raw,'application/x-www-form-urlencoded','invalid'));
-  for(const patch of [{TestMode:'0'},{Status:'Declined'},{Amount:'1.00'}]){
+  for(const patch of [{TestMode:'0'},{Amount:'1.00'}]){
     const data=signed({...payload,...patch});
     await assert.rejects(service.notification('pay',data.raw,'application/x-www-form-urlencoded',data.hmac));
   }
+  const unknown=signed({...payload,Status:'Declined'});
+  assert.deepEqual(await service.notification('pay',unknown.raw,'application/x-www-form-urlencoded',unknown.hmac),{code:0});
+  assert.equal(events[0].type,'unknown');
   assert.equal(count,0);
 });
 test('checkout exposes only the hosted link and order ID; cached link is reused',async()=>{

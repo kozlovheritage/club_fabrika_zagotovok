@@ -15,8 +15,9 @@ export function validAdminMutation(req,{siteUrl,key}){
     crypto.timingSafeEqual(Buffer.from(received),Buffer.from(expected));
 }
 
-export function mountAdmin(app,express,{enabled,cloudEnabled,findSession,store,historyStore,siteUrl,key,checkStatus,alertsConfigured}){
+export function mountAdmin(app,express,{enabled,cloudEnabled,paymentProvider,findSession,store,historyStore,siteUrl,key,checkStatus,alertsConfigured}){
   const mailEnabled=()=>typeof cloudEnabled==='function'?cloudEnabled():cloudEnabled;
+  const activePaymentProvider=()=>typeof paymentProvider==='function'?paymentProvider():paymentProvider;
   const router=express.Router();
   const guard=async(req,res,next)=>{
     res.set({'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',
@@ -56,7 +57,8 @@ export function mountAdmin(app,express,{enabled,cloudEnabled,findSession,store,h
   api.get('/orders',async(req,res,next)=>{
     try{
       const metadata={csrfToken:csrfForSession(req,key),enabled:mailEnabled(),
-        alertsConfigured,user:{name:req.admin.name}};
+        alertsConfigured,user:{name:req.admin.name},activePaymentProvider:await activePaymentProvider(),
+        providerHistory:await store.checkoutProviderHistory()};
       if(!mailEnabled())return res.json({...metadata,orders:[],total:0,page:1,pageSize:25,
         summary:{attention:0,delivered:0,inProgress:0}});
       res.json({...metadata,...await store.list(req.query)});

@@ -14,7 +14,8 @@ export function readCloudConfig(env = process.env) {
     test: mode === 'test',
     terminalConfirmed: env.CLOUDPAYMENTS_TERMINAL_MODE_CONFIRMED === 'true',
     receiptApproved: env.CLOUDPAYMENTS_RECEIPT_APPROVED === 'true',
-    receiptTemplate: env.CLOUDPAYMENTS_RECEIPT_TEMPLATE_JSON || ''
+    receiptTemplate: env.CLOUDPAYMENTS_RECEIPT_TEMPLATE_JSON || '',
+    receiptProvider: String(env.CLOUDPAYMENTS_RECEIPT_PROVIDER||'').trim().slice(0,80)||null
   };
   return config;
 }
@@ -62,6 +63,7 @@ export function parseWebhook(raw, contentType) {
 
 export function validateNotification(payload, order, config) {
   if (!order || payload.InvoiceId !== order.order_id) return {code: 10};
+  if (order.payment_provider && order.payment_provider!=='cloudpayments') return {code:10};
   if (payload.AccountId !== order.order_id) return {code: 11};
   if (cents(payload.Amount) !== Number(order.amount_cents)) return {code: 12};
   if (payload.Currency !== 'RUB') return {code: 13};

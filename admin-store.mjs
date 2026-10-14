@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {ATTENTION_SQL} from './mail-monitor.mjs';
+import {ATTENTION_SQL,PAYMENT_REVIEW_SQL} from './mail-monitor.mjs';
 
 export class SupportError extends Error {
   constructor(message,status=409){super(message);this.status=status;}
@@ -13,15 +13,64 @@ export const ADMIN_SCHEMA=[
     action TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
   `CREATE INDEX IF NOT EXISTS club_admin_audit_order ON club_admin_audit(order_id,created_at DESC)`
 ];
+export const CHECKOUT_PROVIDER_SCHEMA=[
+  `CREATE TABLE IF NOT EXISTS club_checkout_provider_state (
+    id INTEGER PRIMARY KEY CHECK(id=1),active_provider TEXT NOT NULL
+      CHECK(active_provider IN ('prodamus','cloudpayments')),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+  `CREATE TABLE IF NOT EXISTS club_checkout_provider_history (
+    id BIGSERIAL PRIMARY KEY,previous_provider TEXT NOT NULL,
+    next_provider TEXT NOT NULL,changed_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+  `CREATE INDEX IF NOT EXISTS club_checkout_provider_history_time
+    ON club_checkout_provider_history(changed_at DESC)`
+];
 const orderColumns=`o.order_id,o.buyer_email,COALESCE(u.login_email,o.buyer_email) AS recipient_email,
   o.buyer_name,o.tariff,o.amount_cents,o.status,o.paid_at,o.created_at,
+  to_jsonb(o)->>'last_payment_status' AS last_payment_status,
+  ${PAYMENT_REVIEW_SQL} AS payment_requires_review,
   to_jsonb(o)->>'payment_provider' AS payment_provider,
+  to_jsonb(o)->>'receipt_provider' AS receipt_provider,
+  to_jsonb(o)->>'receipt_status' AS receipt_status,
+  to_jsonb(o)->>'receipt_id' AS receipt_id,
   m.state AS mail_state,m.delivery_status,m.provider,m.provider_message_id,
   COALESCE(m.attempts,0) AS attempts,m.last_error_code,m.status_checked_at,m.last_sent_at,
   ${ATTENTION_SQL} AS needs_attention`;
 
 export function createAdminStore(pool,{resolveCredential}={}){
   return {
+    async initializeCheckoutProvider(provider){
+      if(!['prodamus','cloudpayments'].includes(provider))throw new SupportError('Неизвестный платёжный сервис',400);
+      await pool.query(`INSERT INTO club_checkout_provider_state(id,active_provider)
+        VALUES(1,$1) ON CONFLICT(id) DO NOTHING`,[provider]);
+    },
+    async activeCheckoutProvider(){
+      const row=(await pool.query('SELECT active_provider FROM club_checkout_provider_state WHERE id=1')).rows[0];
+      if(!row)throw new SupportError('Способ оплаты ещё не настроен',503);
+      return row.active_provider;
+    },
+    async setCheckoutProvider(provider,expectedProvider){
+      if(!['prodamus','cloudpayments'].includes(provider)||!['prodamus','cloudpayments'].includes(expectedProvider))
+        throw new SupportError('Укажите текущий и новый платёжный сервис',400);
+      const client=await pool.connect();
+      try{
+        await client.query('BEGIN');
+        const current=(await client.query('SELECT active_provider FROM club_checkout_provider_state WHERE id=1 FOR UPDATE')).rows[0];
+        if(!current||current.active_provider!==expectedProvider)
+          throw new SupportError('Способ оплаты уже изменился. Сначала проверьте текущий');
+        if(current.active_provider!==provider){
+          await client.query('UPDATE club_checkout_provider_state SET active_provider=$1,updated_at=now() WHERE id=1',[provider]);
+          await client.query('INSERT INTO club_checkout_provider_history(previous_provider,next_provider) VALUES($1,$2)',
+            [current.active_provider,provider]);
+        }
+        await client.query('COMMIT');
+        return {previous:current.active_provider,active:provider,changed:current.active_provider!==provider};
+      }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
+      finally{client.release();}
+    },
+    async checkoutProviderHistory(){
+      return (await pool.query(`SELECT previous_provider,next_provider,changed_at
+        FROM club_checkout_provider_history ORDER BY changed_at DESC LIMIT 20`)).rows;
+    },
     async isAdmin(userKey){
       if(!userKey)return false;
       return (await pool.query('SELECT 1 FROM club_admin_accounts WHERE user_key=$1 AND enabled',[userKey])).rowCount===1;
@@ -30,7 +79,7 @@ export function createAdminStore(pool,{resolveCredential}={}){
       page=Math.max(1,Math.min(10000,Number.parseInt(page,10)||1));
       // Escape LIKE metacharacters: this is a literal search, not a user SQL pattern.
       const term=String(q).trim().slice(0,120).replace(/[\\%_]/g,'\\$&');
-      const predicate=`NOT o.test_mode AND o.status IN ('paid','review')
+      const predicate=`NOT o.test_mode AND o.status IN ('pending','paid','review')
         AND ($1::text='' OR o.buyer_email ILIKE '%'||$1||'%'
           OR u.login_email ILIKE '%'||$1||'%'
           OR o.buyer_name ILIKE '%'||$1||'%' OR o.order_id ILIKE '%'||$1||'%')
@@ -49,7 +98,7 @@ export function createAdminStore(pool,{resolveCredential}={}){
         count(*) FILTER(WHERE m.delivery_status='delivered')::integer AS delivered,
         count(*) FILTER(WHERE NOT ${ATTENTION_SQL} AND COALESCE(m.delivery_status,'')<>'delivered')::integer AS "inProgress"
         FROM club_cp_orders o LEFT JOIN club_cp_access_mail m USING(order_id)
-        WHERE NOT o.test_mode AND o.status IN ('paid','review')`)).rows[0];
+        WHERE NOT o.test_mode AND o.status IN ('pending','paid','review')`)).rows[0];
       return {orders,total,page,pageSize:25,summary:s};
     },
     async detail(orderId){
@@ -59,9 +108,12 @@ export function createAdminStore(pool,{resolveCredential}={}){
       if(!found.rowCount)throw new SupportError('Заказ не найден',404);
       const history=(await pool.query(`SELECT provider,provider_message_id,status,recipient_email,
         sent_at,checked_at,error_code FROM club_cp_mail_history WHERE order_id=$1 ORDER BY sent_at DESC LIMIT 100`,[orderId])).rows;
+      const paymentHistory=(await pool.query(`SELECT payment_provider,event_type,provider_status,
+        transaction_id,original_transaction_id,amount_cents,currency,error_code,created_at
+        FROM club_cp_payment_events WHERE order_id=$1 ORDER BY created_at DESC LIMIT 100`,[orderId])).rows;
       const audit=(await pool.query(`SELECT action,created_at FROM club_admin_audit WHERE order_id=$1
         ORDER BY created_at DESC LIMIT 100`,[orderId])).rows;
-      return {order:found.rows[0],history,audit};
+      return {order:found.rows[0],history,paymentHistory,audit};
     },
     async resend(orderId,actor,body){
       if(!['customer_request','delivery_failed'].includes(body?.reason)||
@@ -78,7 +130,14 @@ export function createAdminStore(pool,{resolveCredential}={}){
           WHERE actor_key=$1 AND action LIKE 'resend:%' AND created_at>now()-interval '1 hour'`,[actor]);
         if(Number(recent.rows[0].n)>=30)throw new SupportError('Лимит повторных писем: 30 в час',429);
         const order=(await client.query('SELECT * FROM club_cp_orders WHERE order_id=$1 FOR UPDATE',[orderId])).rows[0];
-        if(!order||order.test_mode||order.status!=='paid')throw new SupportError('Нет подтверждённой рабочей оплаты');
+        if(!order||order.test_mode||order.status!=='paid'||
+          ['refund_reported','refunded','partially_refunded','canceled','refund_failed'].includes(order.last_payment_status))
+          throw new SupportError('Нет подтверждённой рабочей оплаты без возврата');
+        // A separate statement after the order lock sees any committed reversal.
+        // Its writer takes the same order lock, so it cannot race this authorization.
+        const review=(await client.query(`SELECT ${PAYMENT_REVIEW_SQL} AS required
+          FROM club_cp_orders o WHERE o.order_id=$1`,[orderId])).rows[0];
+        if(review?.required)throw new SupportError('В истории есть возврат или отмена. Требуется проверка оплаты');
         const fulfilled=await client.query(`SELECT 1 FROM club_cp_payments WHERE order_id=$1 AND outcome='fulfilled' LIMIT 1`,[orderId]);
         if(!fulfilled.rowCount)throw new SupportError('Выдача доступа требует проверки');
         const mail=(await client.query(`SELECT *,last_sent_at>now()-interval '10 minutes' AS cooling,

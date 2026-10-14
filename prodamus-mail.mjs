@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import {cents,CloudPaymentsError} from './cloudpayments.mjs';
+import {PAYMENT_REVIEW_SQL} from './mail-monitor.mjs';
 
 // An immutable order marker, not the current switch, decides who sends access.
 // Existing/unmarked orders remain with Prodamus; enabling does not resend history.
@@ -45,21 +46,30 @@ export async function fulfillProdamusMailOrder(pool,orderId,payload,{grantPremiu
     if(!order||order.test_mode||order.buyer_email!==String(payload.customer_email||'').trim().toLowerCase()||
       order.amount_cents!==String(cents(payload.sum)))
       throw new CloudPaymentsError('Подтверждение не соответствует сохранённому заказу',422);
+    // Reversal writers take this same order lock. Read the ledger after acquiring
+    // it, rather than trusting a mutable status projection or a transaction ID.
+    const requiresReview=(await client.query(`SELECT ${PAYMENT_REVIEW_SQL} AS required
+      FROM club_cp_orders o WHERE o.order_id=$1`,[orderId])).rows[0]?.required;
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[order.buyer_email]);
     const previous=(await client.query('SELECT order_id FROM club_cp_payments WHERE transaction_id=$1',[transactionId])).rows[0];
     if(previous){
       if(previous.order_id!==orderId)throw new CloudPaymentsError('Платёж относится к другому заказу',422);
+      if(requiresReview)await client.query("UPDATE club_cp_orders SET status='review' WHERE order_id=$1",[orderId]);
       await client.query('COMMIT');return;
     }
     const already=await client.query('SELECT 1 FROM club_webhook_events WHERE event_id IN ($1,$2)',
       [eventKey('prodamus',orderId),eventKey('cloudpayments',orderId)]);
-    let outcome=order.status==='pending'&&!already.rowCount?'fulfilled':'duplicate';
+    let outcome=requiresReview?'review':order.status==='pending'&&!already.rowCount?'fulfilled':'duplicate';
     let grant={};
     if(outcome==='fulfilled'&&order.tariff==='premium'){
       grant=await grantPremium(client,order);
       if(grant.review)outcome='review';
     }
     await client.query('INSERT INTO club_cp_payments(transaction_id,order_id,outcome) VALUES($1,$2,$3)',[transactionId,orderId,outcome]);
+    await client.query(`INSERT INTO club_cp_payment_events
+      (event_id,order_id,payment_provider,event_type,provider_status,transaction_id,amount_cents,currency)
+      VALUES($1,$2,'prodamus','pay',$3,$4,$5,'RUB') ON CONFLICT(event_id) DO NOTHING`,
+    [eventKey('prodamus-payment',providerId),orderId,outcome==='duplicate'?'duplicate':'completed',providerId,order.amount_cents]);
     if(outcome==='fulfilled'){
       await client.query(`INSERT INTO club_webhook_events(event_id,payload) VALUES($1,$2::jsonb)`,
         [eventKey('prodamus',orderId),JSON.stringify({source:'site',tariff:order.tariff,
@@ -67,8 +77,11 @@ export async function fulfillProdamusMailOrder(pool,orderId,payload,{grantPremiu
       await client.query(`INSERT INTO club_cp_access_mail(order_id,user_key,password_ciphertext)
         VALUES($1,$2,$3)`,[orderId,grant.userKey||null,grant.ciphertext||null]);
     }
-    await client.query(`UPDATE club_cp_orders SET status=$2,paid_at=COALESCE(paid_at,now()) WHERE order_id=$1`,
-      [orderId,outcome==='review'||order.status==='review'||(outcome==='duplicate'&&order.status==='pending')?'review':'paid']);
+    await client.query(`UPDATE club_cp_orders SET status=$2,last_payment_status=CASE
+      WHEN last_payment_status IN ('refund_reported','refunded','partially_refunded','canceled','refund_failed')
+      THEN last_payment_status ELSE $3 END,paid_at=COALESCE(paid_at,now()) WHERE order_id=$1`,
+      [orderId,outcome==='review'||order.status==='review'||(outcome==='duplicate'&&order.status==='pending')?'review':'paid',
+        outcome==='duplicate'?'duplicate':'paid']);
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
   finally{client.release();}

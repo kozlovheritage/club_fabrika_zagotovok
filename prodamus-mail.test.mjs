@@ -230,4 +230,39 @@ test('Prodamus access: isolated checkout → signed payment → durable mail →
     const mail=(await pool.query('SELECT state,last_error_code FROM club_cp_access_mail WHERE order_id=$1',[changed.order_id])).rows[0];
     assert.deepEqual(mail,{state:'blocked',last_error_code:'credentials_review'});
   });
+  await t.test('signed cancellation → late success stays in review: no account, access mail or resend for either tariff',async()=>{
+    await app.stop();app=await boot('platform');
+    const login=await post(app.base,'/api/auth/login',
+      {email:premium.customer_email,password:premiumPasswordForOrder(premium.order_id,key)});
+    assert.equal(login.status,200);
+    const cookie=login.headers.get('set-cookie').split(';')[0];
+    const listing=await (await fetch(app.base+'/api/admin/orders',{headers:{Cookie:cookie}})).json();
+    assert.ok(listing.csrfToken);
+    const headers={Cookie:cookie,Origin:'https://club.example.test','X-CSRF-Token':listing.csrfToken};
+    for(const [index,tariff] of ['premium','basic'].entries()){
+      const canceled=await checkout('canceled-'+tariff+'@example.test',tariff);
+      const id=String(200+index);
+      assert.equal((await notify(canceled,id,{payment_status:'order_canceled'})).status,200);
+      // The basic case deliberately has a stale projection: the durable ledger
+      // must still block fulfillment, not only a last_payment_status check.
+      if(tariff==='basic')await pool.query("UPDATE club_cp_orders SET last_payment_status='pending' WHERE order_id=$1",[canceled.order_id]);
+      for(const transaction of [id,id,String(300+index)]){
+        assert.equal((await notify(canceled,transaction)).status,200);
+      }
+      const row=(await pool.query('SELECT status,last_payment_status FROM club_cp_orders WHERE order_id=$1',[canceled.order_id])).rows[0];
+      assert.equal(row.status,'review');
+      if(tariff==='premium')assert.equal(row.last_payment_status,'canceled');
+      const payments=(await pool.query('SELECT outcome FROM club_cp_payments WHERE order_id=$1',[canceled.order_id])).rows;
+      assert.equal(payments.length,2);assert.ok(payments.every(p=>p.outcome==='review'));
+      assert.equal((await pool.query('SELECT count(*)::int n FROM club_users WHERE email=$1 OR login_email=$2',
+        ['order:'+canceled.order_id,canceled.customer_email])).rows[0].n,0);
+      assert.equal((await pool.query('SELECT count(*)::int n FROM club_cp_access_mail WHERE order_id=$1',[canceled.order_id])).rows[0].n,0);
+      assert.equal((await pool.query("SELECT count(*)::int n FROM club_webhook_events WHERE payload->>'orderNum'=$1",[canceled.order_id])).rows[0].n,0);
+      const detail=await (await fetch(app.base+'/api/admin/orders/'+canceled.order_id,{headers:{Cookie:cookie}})).json();
+      assert.equal(detail.order.payment_requires_review,true);assert.equal(detail.order.needs_attention,true);
+      assert.equal((await post(app.base,'/api/admin/orders/'+canceled.order_id+'/resend',
+        {reason:'customer_request',expectedAttempts:0,expectedMessageId:null},headers)).status,409);
+      assert.equal((await pool.query("SELECT count(*)::int n FROM club_admin_audit WHERE order_id=$1 AND action LIKE 'resend:%'",[canceled.order_id])).rows[0].n,0);
+    }
+  });
 });
