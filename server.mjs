@@ -228,8 +228,8 @@ app.post('/api/checkout/session',async(req,res,next)=>{
         await client.query('BEGIN');
         if(tariff==='premium')await client.query('INSERT INTO club_checkout_orders (order_id,buyer_email,buyer_name) VALUES ($1,$2,$3)',[checkout.order_id,email,buyerName]);
         await saveCheckoutConsentReceipt(client,{orderId:checkout.order_id,email,tariff,origin:req.get('Origin')||'direct-api',consents});
-        if(checkoutProvider==='prodamus'&&prodamusDelivery==='platform')
-          await saveProdamusMailOrder(client,checkout,tariff);
+        if(checkoutProvider==='prodamus'&&mailRuntimeEnabled)
+          await saveProdamusMailOrder(client,checkout,tariff,prodamusDelivery);
         await client.query('COMMIT');
       }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
       finally{client.release();}
@@ -274,7 +274,7 @@ app.post('/api/checkout/direct',async(req,res,next)=>{
       (process.env.BASIC_CHECKOUT_ENABLED!=='true'||!basicInviteUrl())))
       return res.status(503).json({message:'Прямой переход к оплате пока недоступен'});
     const platformOrder=mailRuntimeEnabled?await getProdamusMailOrder(pool,orderId):null;
-    checkout.paid_content=platformOrder?PLATFORM_ACCESS_NOTICE:tariff==='basic'
+    checkout.paid_content=platformOrder&&platformOrder.access_delivery_provider!=='prodamus'?PLATFORM_ACCESS_NOTICE:tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+orderId
       : buildPremiumPaidContent(PUBLIC_URL,email,premiumPasswordForOrder(orderId,process.env.AUTH_CREDENTIAL_KEY));
     res.set('Cache-Control','no-store').json(buildDirectPaymentForm(checkout,

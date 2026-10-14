@@ -116,8 +116,11 @@ test('Prodamus access: isolated checkout → signed payment → durable mail →
   await app.stop();app=await boot('prodamus');
   await t.test('rollback of the switch preserves previously marked orders, but new orders use Prodamus',async()=>{
     const reverted=await checkout('reverted@example.test');assert.match(reverted.paid_content,/Пароль:/);
+    assert.equal((await pool.query('SELECT access_delivery_provider FROM club_cp_orders WHERE order_id=$1',[reverted.order_id])).rows[0].access_delivery_provider,'prodamus');
     const direct=await post(app.base,'/api/checkout/direct',{orderId:premium.order_id,email:premium.customer_email},{Origin:origin});
     assert.equal((await direct.json()).fields.find(f=>f.name==='paid_content').value,PLATFORM_ACCESS_NOTICE);
+    const nativeDirect=await post(app.base,'/api/checkout/direct',{orderId:reverted.order_id,email:reverted.customer_email},{Origin:origin});
+    assert.match((await nativeDirect.json()).fields.find(f=>f.name==='paid_content').value,/Пароль:/);
   });
   await t.test('concurrent genuine duplicate payments grant one account and queue one email',async()=>{
     const replies=await Promise.all(Array.from({length:6},()=>notify(premium,'101')));
@@ -264,5 +267,41 @@ test('Prodamus access: isolated checkout → signed payment → durable mail →
         {reason:'customer_request',expectedAttempts:0,expectedMessageId:null},headers)).status,409);
       assert.equal((await pool.query("SELECT count(*)::int n FROM club_admin_audit WHERE order_id=$1 AND action LIKE 'resend:%'",[canceled.order_id])).rows[0].n,0);
     }
+  });
+  await t.test('native Prodamus payments grant access, remain visible and never auto-send a platform duplicate',async()=>{
+    await app.stop();app=await boot('prodamus');
+    const before=dispatches;
+    for(const [index,tariff] of ['premium','basic'].entries()){
+      const native=await checkout('native-'+tariff+'@example.test',tariff);
+      assert.match(native.paid_content,tariff==='premium'?/Пароль:/:/\/access\/basic\//);
+      const direct=await post(app.base,'/api/checkout/direct',{orderId:native.order_id,email:native.customer_email},{Origin:origin});
+      assert.equal((await direct.json()).fields.find(f=>f.name==='paid_content').value,native.paid_content);
+      for(let attempt=0;attempt<2;attempt++)assert.equal((await notify(native,String(400+index))).status,200);
+      const row=(await pool.query(`SELECT o.status,o.access_delivery_provider,m.state,m.provider,
+        m.delivery_status,m.attempts,m.provider_message_id FROM club_cp_orders o
+        JOIN club_cp_access_mail m USING(order_id) WHERE order_id=$1`,[native.order_id])).rows[0];
+      assert.deepEqual(row,{status:'paid',access_delivery_provider:'prodamus',state:'blocked',provider:'prodamus',
+        delivery_status:'unknown',attempts:0,provider_message_id:null});
+      if(tariff==='premium'){
+        const login=await post(app.base,'/api/auth/login',{email:native.customer_email,password:premiumPasswordForOrder(native.order_id,key)});
+        assert.equal(login.status,200);
+      }else assert.equal((await pool.query('SELECT 1 FROM club_users WHERE login_email=$1',[native.customer_email])).rowCount,0);
+      assert.equal((await pool.query('SELECT count(*)::int n FROM club_cp_mail_history WHERE order_id=$1',[native.order_id])).rows[0].n,1);
+      const ownerLogin=await post(app.base,'/api/auth/login',{email:premium.customer_email,password:premiumPasswordForOrder(premium.order_id,key)});
+      const cookie=ownerLogin.headers.get('set-cookie').split(';')[0];
+      const detail=await (await fetch(app.base+'/api/admin/orders/'+native.order_id,{headers:{Cookie:cookie}})).json();
+      assert.equal(detail.order.provider,'prodamus');
+      assert.equal(detail.order.delivery_status,'unknown');
+      const listing=await (await fetch(app.base+'/api/admin/orders?filter=all',{headers:{Cookie:cookie}})).json();
+      assert.ok(listing.orders.some(order=>order.order_id===native.order_id));
+    }
+    // Exclude intentional earlier test resends, then prove only pending platform
+    // rows can dispatch; native external-delivery rows stay blocked/unattempted.
+    await pool.query("UPDATE club_cp_access_mail SET next_attempt_at=now()+interval '1 hour' WHERE state='pending'");
+    await drain();
+    assert.equal(dispatches,before);
+    const nativeAttempts=await pool.query(`SELECT m.attempts FROM club_cp_access_mail m
+      JOIN club_cp_orders o USING(order_id) WHERE o.access_delivery_provider='prodamus'`);
+    assert.ok(nativeAttempts.rows.every(row=>row.attempts===0));
   });
 });

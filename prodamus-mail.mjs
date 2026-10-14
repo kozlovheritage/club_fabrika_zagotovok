@@ -3,9 +3,11 @@ import {cents,CloudPaymentsError} from './cloudpayments.mjs';
 import {PAYMENT_REVIEW_SQL} from './mail-monitor.mjs';
 
 // An immutable order marker, not the current switch, decides who sends access.
-// Existing/unmarked orders remain with Prodamus; enabling does not resend history.
+// Existing tracked Prodamus orders were platform-delivered; untracked orders
+// retain the legacy Prodamus flow. A cutover never resends history.
 export const PRODAMUS_MAIL_SCHEMA=[
   `ALTER TABLE club_cp_orders ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'cloudpayments'`,
+  `ALTER TABLE club_cp_orders ADD COLUMN IF NOT EXISTS access_delivery_provider TEXT NOT NULL DEFAULT 'platform'`,
   `CREATE INDEX IF NOT EXISTS club_access_orders_provider ON club_cp_orders(payment_provider,status)`
 ];
 export const PLATFORM_ACCESS_NOTICE='После подтверждения оплаты письмо с доступом отправит служба заботы клуба «Фабрика заготовок». Если письма нет, обратитесь в службу заботы. Это уведомление не содержит данных для входа.';
@@ -22,11 +24,12 @@ export function prodamusDeliveryMode(env=process.env){
     throw new Error('Platform access delivery requires a configured NotiSend sender');
   return mode;
 }
-export async function saveProdamusMailOrder(client,checkout,tariff){
+export async function saveProdamusMailOrder(client,checkout,tariff,deliveryProvider='platform'){
+  if(!['prodamus','platform'].includes(deliveryProvider))throw new Error('Invalid access delivery provider');
   await client.query(`INSERT INTO club_cp_orders
-    (order_id,buyer_email,buyer_name,tariff,amount_cents,test_mode,payment_provider)
-    VALUES($1,$2,$3,$4,$5,false,'prodamus')`,
-  [checkout.order_id,checkout.customer_email,checkout.customer_name||null,tariff,cents(checkout.products[0].price)]);
+    (order_id,buyer_email,buyer_name,tariff,amount_cents,test_mode,payment_provider,access_delivery_provider)
+    VALUES($1,$2,$3,$4,$5,false,'prodamus',$6)`,
+  [checkout.order_id,checkout.customer_email,checkout.customer_name||null,tariff,cents(checkout.products[0].price),deliveryProvider]);
 }
 export async function getProdamusMailOrder(pool,orderId){
   return (await pool.query("SELECT * FROM club_cp_orders WHERE order_id=$1 AND payment_provider='prodamus'",[orderId])).rows[0]||null;
@@ -74,8 +77,21 @@ export async function fulfillProdamusMailOrder(pool,orderId,payload,{grantPremiu
       await client.query(`INSERT INTO club_webhook_events(event_id,payload) VALUES($1,$2::jsonb)`,
         [eventKey('prodamus',orderId),JSON.stringify({source:'site',tariff:order.tariff,
           orderNum:orderId,providerOrderId:providerId,handledBy:'platform',paymentProvider:'prodamus'})]);
-      await client.query(`INSERT INTO club_cp_access_mail(order_id,user_key,password_ciphertext)
-        VALUES($1,$2,$3)`,[orderId,grant.userKey||null,grant.ciphertext||null]);
+      if(order.access_delivery_provider==='prodamus'){
+        // A signed payment confirms payment/access, NOT Prodamus email delivery.
+        // Non-pending state keeps the platform worker from sending a duplicate.
+        await client.query(`INSERT INTO club_cp_access_mail
+          (order_id,user_key,password_ciphertext,state,provider,delivery_status,last_error_code)
+          VALUES($1,$2,$3,'blocked','prodamus','unknown','external_delivery_unverified')`,
+        [orderId,grant.userKey||null,grant.ciphertext||null]);
+        await client.query(`INSERT INTO club_cp_mail_history
+          (id,order_id,provider,recipient_email,status,error_code)
+          VALUES($1,$2,'prodamus',$3,'unknown','external_delivery_unverified')`,
+        [crypto.randomUUID(),orderId,order.buyer_email]);
+      }else{
+        await client.query(`INSERT INTO club_cp_access_mail(order_id,user_key,password_ciphertext)
+          VALUES($1,$2,$3)`,[orderId,grant.userKey||null,grant.ciphertext||null]);
+      }
     }
     await client.query(`UPDATE club_cp_orders SET status=$2,last_payment_status=CASE
       WHEN last_payment_status IN ('refund_reported','refunded','partially_refunded','canceled','refund_failed')
