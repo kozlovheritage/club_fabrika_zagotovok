@@ -17,6 +17,7 @@ import {CLOUD_SCHEMA,createCloudStore,drainAccessMail} from './cloudpayments-sto
 import {createCloudService,mountCloudNotifications} from './cloudpayments-router.mjs';
 import {ADMIN_SCHEMA,createAdminStore} from './admin-store.mjs';
 import {mountAdmin} from './admin-access.mjs';
+import {HISTORY_SCHEMA,createPaymentHistory} from './payment-history.mjs';
 import {MAIL_MONITOR_SCHEMA,pollMailStatuses,notifyMailAttention} from './mail-monitor.mjs';
 import {PRODAMUS_MAIL_SCHEMA,PLATFORM_ACCESS_NOTICE,prodamusDeliveryMode,saveProdamusMailOrder,getProdamusMailOrder,fulfillProdamusMailOrder} from './prodamus-mail.mjs';
 
@@ -32,6 +33,7 @@ const SESSION_DAYS=Number(process.env.SESSION_DAYS||30);
 const COOKIE_SECURE=process.env.COOKIE_SECURE!=='false'&&process.env.NODE_ENV==='production';
 const SALES_ORIGINS=(process.env.SALES_ORIGINS||'https://sales-club-fabrika-zagotovok-kozlovheritage.onreza.app').split(',').map(x=>x.trim()).filter(Boolean);
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.PGSSL==='false'?false:{rejectUnauthorized:false}});
+const historyStore=createPaymentHistory(pool);
 if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL is required');
 if(!PUBLIC_URL||!/^https:\/\//.test(PUBLIC_URL))throw new Error('PUBLIC_URL must be an HTTPS site address');
 credentialKey();
@@ -121,6 +123,7 @@ async function initDatabase(){
   // Turning the switch back off must not abandon already-issued platform orders.
   mailRuntimeEnabled=cloudConfig.enabled||prodamusDelivery==='platform'||Boolean(existing);
   if(mailRuntimeEnabled)for(const statement of [...CLOUD_SCHEMA,...MAIL_MONITOR_SCHEMA,...PRODAMUS_MAIL_SCHEMA])await pool.query(statement);
+  if(adminEnabled)for(const statement of HISTORY_SCHEMA)await pool.query(statement);
   await archiveConsentDocuments(pool);
 }
 async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT u.email AS user_key,COALESCE(u.login_email,u.email) AS email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.tariff='premium' AND (u.access_until IS NULL OR u.access_until>now())",[sha256(raw)]);return result.rows[0]||null;}
@@ -129,7 +132,7 @@ async function requireAuth(req,res,next){try{const user=await findSession(req);i
 mountCloudNotifications(app,express,cloudService);
 app.use(express.json({limit:'1mb'}));
 app.use(express.urlencoded({extended:true,limit:'1mb'}));
-mountAdmin(app,express,{enabled:adminEnabled,cloudEnabled:()=>mailRuntimeEnabled,findSession,store:adminStore,
+mountAdmin(app,express,{enabled:adminEnabled,cloudEnabled:()=>mailRuntimeEnabled,findSession,store:adminStore,historyStore,
   siteUrl:PUBLIC_URL,key:process.env.AUTH_CREDENTIAL_KEY,alertsConfigured,
   checkStatus:orderId=>pollMailStatuses(pool,{orderId})});
 app.get('/api/health',(req,res)=>res.json({ok:true}));
@@ -348,6 +351,16 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
     const expectedSign=prodamusSign(payload,process.env.PRODAMUS_SECRET_KEY);
     if(!/^[0-9a-f]{64}$/i.test(receivedSign||'')||!safeEqualHex(receivedSign.toLowerCase(),expectedSign))return res.status(400).send('Invalid signature');
     if(process.env.PRODAMUS_SYS&&String(payload.sys||'')!==process.env.PRODAMUS_SYS)return res.status(400).send('Invalid integration code');
+    // Observe only genuinely signed, owned checkout notices, after the response.
+    // History cannot block, acknowledge or fulfill a payment or send an email.
+    if(adminEnabled)res.once('finish',()=>{
+      if(res.statusCode!==200)return;
+      try{
+        const owned=identifyCheckout(payload,process.env.AUTH_CREDENTIAL_KEY);
+        if(!['external','invalid'].includes(owned.kind))
+          historyStore.observeProdamus(payload,owned).catch(()=>console.error('CLUB_HISTORY_NOTICE_UNAVAILABLE'));
+      }catch{console.error('CLUB_HISTORY_NOTICE_UNAVAILABLE');}
+    });
     if(String(payload.payment_status||'').toLowerCase()!=='success')return res.status(200).send('ok');
     const checkout=identifyCheckout(payload,process.env.AUTH_CREDENTIAL_KEY);
     if(checkout.kind==='external')return res.status(200).send('ok');
@@ -519,6 +532,17 @@ app.use((error,req,res,next)=>{
   console.error(error);if(res.headersSent)return next(error);res.status(500).json({message:'Внутренняя ошибка сервера'});
 });
 await initDatabase();
+if(adminEnabled&&mailRuntimeEnabled){
+  let reconciling=false;
+  const syncHistory=async()=>{
+    if(reconciling)return;reconciling=true;
+    try{await historyStore.reconcile();}
+    catch{console.error('CLUB_HISTORY_RECONCILIATION_UNAVAILABLE');}
+    finally{reconciling=false;}
+  };
+  setTimeout(syncHistory,1000).unref();
+  setInterval(syncHistory,60000).unref();
+}
 if(mailRuntimeEnabled&&(cloudConfig.enabled||prodamusWorkerEnabled)){
   let draining=false;
   const drain=async()=>{

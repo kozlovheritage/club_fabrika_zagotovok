@@ -15,7 +15,7 @@ export function validAdminMutation(req,{siteUrl,key}){
     crypto.timingSafeEqual(Buffer.from(received),Buffer.from(expected));
 }
 
-export function mountAdmin(app,express,{enabled,cloudEnabled,findSession,store,siteUrl,key,checkStatus,alertsConfigured}){
+export function mountAdmin(app,express,{enabled,cloudEnabled,findSession,store,historyStore,siteUrl,key,checkStatus,alertsConfigured}){
   const mailEnabled=()=>typeof cloudEnabled==='function'?cloudEnabled():cloudEnabled;
   const router=express.Router();
   const guard=async(req,res,next)=>{
@@ -33,7 +33,8 @@ export function mountAdmin(app,express,{enabled,cloudEnabled,findSession,store,s
     }catch(error){next(error);}
   };
   router.use(guard);
-  const staticFiles={'/':'admin.html','/admin.css':'admin.css','/admin.js':'admin.js'};
+  const staticFiles={'/':'admin.html','/admin.css':'admin.css','/admin.js':'admin.js',
+    '/history':'history.html','/history.js':'history.js','/history.css':'history.css'};
   for(const [path,file] of Object.entries(staticFiles))router.get(path,(req,res)=>{
     res.sendFile(file,{root:fileURLToPath(new URL('.',import.meta.url))});
   });
@@ -42,6 +43,16 @@ export function mountAdmin(app,express,{enabled,cloudEnabled,findSession,store,s
   const api=express.Router();
   // Reuse exactly the same guard, not client-supplied role or a hidden URL.
   api.use(guard);
+  if(historyStore){
+    api.get('/history',async(req,res,next)=>{
+      try{res.json({...await historyStore.list(req.query),user:{name:req.admin.name}});}
+      catch(error){next(error);}
+    });
+    api.get('/history/:id',async(req,res,next)=>{
+      try{res.json(await historyStore.detail(req.params.id,req.query));}
+      catch(error){next(error);}
+    });
+  }
   api.get('/orders',async(req,res,next)=>{
     try{
       const metadata={csrfToken:csrfForSession(req,key),enabled:mailEnabled(),

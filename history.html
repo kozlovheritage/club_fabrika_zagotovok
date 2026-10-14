@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fdf2f5">
+  <title>История оплат — Фабрика заготовок</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+  <link rel="stylesheet" href="/admin/history.css">
+  <script src="/admin/history.js" defer></script>
+</head>
+<body class="history-page">
+  <a class="skip-link" href="#main">Перейти к истории</a>
+  <header class="topbar">
+    <div class="brand-lockup" aria-label="Фабрика заготовок">
+      <span class="brand-mark" aria-hidden="true">Ф</span>
+      <span class="brand-name">Фабрика <em>заготовок</em></span>
+    </div>
+    <div class="topbar-right">
+      <span class="user-greeting" id="userGreeting">История клуба</span>
+      <a class="back-link" href="/admin/">В поддержку</a>
+      <a class="back-link" href="/club">В клуб</a>
+    </div>
+  </header>
+
+  <main id="main" class="page-shell">
+    <section class="intro history-intro" aria-labelledby="pageTitle">
+      <div class="intro-copy">
+        <p class="eyebrow">АРХИВ КЛУБА</p>
+        <h1 id="pageTitle">История оплат</h1>
+        <p class="intro-text">Платежи и активности оформления — только для просмотра. Запись в истории не меняет оплату, письмо или доступ участника.</p>
+      </div>
+      <aside class="intro-note" role="note">
+        <span class="note-dot" aria-hidden="true"></span>
+        <span>Сверка показывает только полученные события. Пропущенные уведомления и полный журнал провайдера автоматически не запрашиваются.</span>
+      </aside>
+    </section>
+
+    <section id="systemNotice" class="notice" role="status" hidden></section>
+
+    <section class="history-sync" aria-label="Состояние синхронизации">
+      <div><strong>Последняя успешная синхронизация</strong> <span id="syncSuccess">—</span></div>
+      <span id="syncState" class="sync-status">Состояние проверяется</span>
+      <div id="syncError" class="sync-error" hidden></div>
+      <div><strong>Последняя загрузка CSV</strong> <span id="syncImport">—</span></div>
+      <div id="syncLimits" class="sync-limits">Ограничения данных загружаются.</div>
+    </section>
+
+    <section class="summary-grid history-summary" aria-label="Сводка">
+      <article class="summary-card">
+        <div class="summary-label">Платежи</div>
+        <div class="summary-value" id="summaryPayments" aria-live="polite">—</div>
+        <div class="summary-caption">записей в истории</div>
+      </article>
+      <article class="summary-card">
+        <div class="summary-label">Оплачено</div>
+        <div class="summary-value" id="summaryPaid" aria-live="polite">—</div>
+        <div class="summary-caption">по сохранённым событиям</div>
+      </article>
+      <article class="summary-card">
+        <div class="summary-label">Возвраты</div>
+        <div class="summary-value" id="summaryRefunded" aria-live="polite">—</div>
+        <div class="summary-caption">включая частичные</div>
+      </article>
+      <article class="summary-card">
+        <div class="summary-label">Оформления</div>
+        <div class="summary-value" id="summaryLeads" aria-live="polite">—</div>
+        <div class="summary-caption">активность, не ошибка оплаты</div>
+      </article>
+    </section>
+
+    <section class="orders-panel history-panel" aria-labelledby="historyTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">АРХИВ СОБЫТИЙ</p>
+          <h2 id="historyTitle">Платежи и оформления</h2>
+        </div>
+        <button class="button button-quiet" id="refreshButton" type="button" aria-label="Обновить историю">
+          <span class="refresh-symbol" aria-hidden="true">↻</span> Обновить
+        </button>
+      </div>
+
+      <div class="toolbar history-toolbar">
+        <div class="filter-tabs" role="group" aria-label="Тип активности">
+          <button class="filter-tab is-active" type="button" data-kind="payments" aria-pressed="true">Платежи</button>
+          <button class="filter-tab" type="button" data-kind="leads" aria-pressed="false">Оформления</button>
+        </div>
+        <form class="search-form" id="searchForm" role="search">
+          <label class="visually-hidden" for="searchInput">Поиск по email или номеру заказа</label>
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input id="searchInput" type="search" placeholder="Email или номер заказа" autocomplete="off">
+          <button type="submit">Найти</button>
+        </form>
+        <div class="history-status-filter" id="statusFilterWrap">
+          <label for="statusFilter">Статус оплаты</label>
+          <select id="statusFilter">
+            <option value="all">Все статусы</option>
+            <option value="paid">Оплачено</option>
+            <option value="refunded">Возврат</option>
+            <option value="failed">Неуспешно</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="results-meta history-results-meta">
+        <p id="resultsLabel" aria-live="polite">Загружаем историю…</p>
+        <p class="meta-hint" id="resultsHint">Статус источника сохранён отдельно от общей активности.</p>
+      </div>
+
+      <div id="historyRegion" class="orders-region" aria-live="polite" aria-busy="true">
+        <div class="skeleton-list" aria-hidden="true">
+          <div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>
+        </div>
+      </div>
+      <nav id="pagination" class="pagination" aria-label="Страницы истории" hidden>
+        <button id="prevPage" class="page-button" type="button">Раньше</button>
+        <span id="pageLabel" class="page-label"></span>
+        <button id="nextPage" class="page-button" type="button">Дальше</button>
+      </nav>
+    </section>
+    <footer class="page-footer">
+      <span>Фабрика заготовок</span>
+      <span>Архив для сверки. Данные доступны только для просмотра.</span>
+    </footer>
+  </main>
+
+  <dialog id="historyDialog" class="order-dialog history-dialog" aria-labelledby="dialogTitle">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow"><span id="detailKind">ЗАПИСЬ</span> <span id="detailOrderId">—</span></p>
+        <h2 id="dialogTitle">Подробности события</h2>
+      </div>
+      <button id="closeDialog" class="icon-button" type="button" aria-label="Закрыть окно">×</button>
+    </div>
+    <div id="detailContent" class="dialog-content"></div>
+    <div class="history-dialog-footer">
+      <button id="detailDone" class="button button-secondary" type="button">Закрыть</button>
+    </div>
+  </dialog>
+  <div id="liveMessage" class="visually-hidden" role="status" aria-live="polite"></div>
+</body>
+</html>
