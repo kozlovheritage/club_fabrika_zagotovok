@@ -93,8 +93,9 @@ async function order({id='synthetic-order',tariff='basic',state='accepted',statu
   if(tariff==='premium'){
     userKey='order:'+id;
     const password=premiumPasswordForOrder(id,key);
-    await pool.query(`INSERT INTO club_users(email,login_email,name,password_hash)
-      VALUES($1,'buyer@example.test','Тестовый Участник',$2)`,[userKey,await hash(password)]);
+    await pool.query(`INSERT INTO club_users(email,login_email,name,password_hash,password_tag)
+      VALUES($1,'buyer@example.test','Тестовый Участник',$2,$3)`,
+    [userKey,await hash(password),crypto.createHash('sha256').update('club-order-password:'+password).digest('hex')]);
   }
   await pool.query(`INSERT INTO club_cp_access_mail(order_id,user_key,state,attempts,provider,provider_message_id,
     delivery_status,last_sent_at,next_status_check_at)
@@ -305,6 +306,130 @@ test('official NotiSend status reader discards body/credentials and validates ID
   assert.equal(url,'https://api.notisend.ru/v1/email/messages/123');
   await assert.rejects(reader({id:456,status:'delivered'}),/INVALID/);
   await assert.rejects(reader({id:123,status:'opened'}),/INVALID/);
+});
+
+scenario('password viewing: exact account, repeatable, authenticated, CSRF protected, encrypted and audited',async()=>{
+  await owner();
+  const id=await order({id:'credential-one',tariff:'premium'});
+  const second=await order({id:'credential-two',tariff:'premium'});
+  const cookie=await login();
+  const token=(await (await request('/api/admin/orders',{cookie})).json()).csrfToken;
+  const path='/api/admin/orders/'+id+'/password';
+  const password=premiumPasswordForOrder(id,key);
+  assert.equal((await request(path,{method:'POST',body:{}})).status,401);
+  await member('ordinary@example.test');
+  const ordinary=await login('ordinary@example.test');
+  assert.equal((await request(path,{method:'POST',cookie:ordinary,body:{},token})).status,403);
+  assert.equal((await request(path,{method:'POST',cookie,body:{}})).status,403);
+  assert.equal((await request(path,{method:'POST',cookie,body:{},token,origin:'https://evil.example.test'})).status,403);
+  for(let n=0;n<2;n++){
+    const response=await request(path,{method:'POST',cookie,body:{},token});
+    assert.equal(response.status,200);assert.match(response.headers.get('cache-control'),/no-store/);
+    assert.deepEqual(await response.json(),{ok:true,password,loginEmail:'buyer@example.test'});
+  }
+  const other=await request('/api/admin/orders/'+second+'/password',{method:'POST',cookie,body:{},token});
+  assert.equal((await other.json()).password,premiumPasswordForOrder(second,key));
+  assert.notEqual(premiumPasswordForOrder(second,key),password);
+  const detailText=await (await request('/api/admin/orders/'+id,{cookie})).text();
+  assert.ok(!detailText.includes(password));assert.ok(!detailText.includes('password_ciphertext'));
+  const vault=(await pool.query('SELECT password_ciphertext FROM club_admin_credentials WHERE user_key=$1',['order:'+id])).rows[0];
+  assert.ok(vault.password_ciphertext);assert.ok(!vault.password_ciphertext.includes(password));
+  const audit=(await pool.query('SELECT action FROM club_admin_audit WHERE order_id=$1',[id])).rows;
+  assert.deepEqual(audit.map(x=>x.action),['password:view','password:view']);
+  assert.ok(!JSON.stringify(audit).includes(password));
+  await pool.query('UPDATE club_users SET password_hash=$2 WHERE email=$1',['order:'+id,await hash('synthetic-changed-password')]);
+  const stale=await request(path,{method:'POST',cookie,body:{},token});
+  assert.equal(stale.status,409);assert.ok(!(await stale.text()).includes(password));
+  await pool.query("UPDATE club_cp_orders SET last_payment_status='refund_reported' WHERE order_id=$1",[second]);
+  assert.equal((await request('/api/admin/orders/'+second+'/password',{method:'POST',cookie,body:{},token})).status,409);
+});
+
+scenario('password reset: explicit request only, revokes sessions, preserves payment, queues email and remains readable',async()=>{
+  await owner();
+  const id=await order({id:'credential-reset',tariff:'premium'});
+  const oldPassword=premiumPasswordForOrder(id,key);
+  await login('buyer@example.test',oldPassword);
+  const cookie=await login();
+  const token=(await (await request('/api/admin/orders',{cookie})).json()).csrfToken;
+  const path='/api/admin/orders/'+id+'/reset-password';
+  const input={confirmRequested:true,expectedAttempts:1,expectedMessageId:'message-'+id};
+  assert.equal((await request(path,{method:'POST',cookie,token,body:{...input,confirmRequested:false}})).status,400);
+  assert.equal((await request(path,{method:'POST',cookie,token,body:{...input,expectedAttempts:99}})).status,409);
+  const response=await request(path,{method:'POST',cookie,token,body:input});
+  assert.equal(response.status,200);
+  const changed=await response.json();
+  assert.ok(changed.password.startsWith('Fz-'));assert.notEqual(changed.password,oldPassword);
+  assert.equal(changed.emailQueued,true);
+  assert.equal(Number((await pool.query('SELECT count(*) AS n FROM club_sessions WHERE email=$1',['order:'+id])).rows[0].n),0);
+  const previous=await fetch(base+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email:'buyer@example.test',password:oldPassword})});
+  assert.equal(previous.status,401);
+  await login('buyer@example.test',changed.password);
+  const paid=(await pool.query('SELECT status,amount_cents FROM club_cp_orders WHERE order_id=$1',[id])).rows[0];
+  assert.equal(paid.status,'paid');assert.equal(Number(paid.amount_cents),599000);
+  // Even after the sending queue clears its transient credential, the encrypted vault remains available.
+  await pool.query("UPDATE club_cp_access_mail SET password_ciphertext=NULL,state='accepted',provider='notisend',provider_message_id='synthetic-reset' WHERE order_id=$1",[id]);
+  const repeated=await request('/api/admin/orders/'+id+'/password',{method:'POST',cookie,token,body:{}});
+  assert.equal((await repeated.json()).password,changed.password);
+  const detail=await (await request('/api/admin/orders/'+id,{cookie})).json();
+  const resend=await request('/api/admin/orders/'+id+'/resend',{method:'POST',cookie,token,
+    body:{reason:'customer_request',expectedAttempts:detail.order.attempts,expectedMessageId:detail.order.provider_message_id}});
+  assert.equal(resend.status,200);
+  assert.ok(!JSON.stringify((await pool.query('SELECT * FROM club_admin_audit')).rows).includes(changed.password));
+});
+
+scenario('browser: password can be reopened, reset is confirmed, desktop and phone widths do not overflow',async()=>{
+  const {chromium}=await import('playwright');
+  const {mkdir}=await import('node:fs/promises');
+  await owner();
+  const id=await order({id:'credential-browser',tariff:'premium'});
+  const password=premiumPasswordForOrder(id,key);
+  const browser=await chromium.launch({executablePath:process.env.CLUB_TEST_CHROMIUM,headless:true,
+    args:['--no-sandbox','--disable-dev-shm-usage']});
+  try{
+    const page=await browser.newPage({viewport:{width:1440,height:1000}});
+    await page.route('**/*',async route=>{
+      const target=new URL(route.request().url());
+      if(target.origin!=='https://club.example.test')return route.abort();
+      const response=await route.fetch({url:base+target.pathname+target.search});await route.fulfill({response});
+    });
+    await page.goto('https://club.example.test/admin');
+    await page.evaluate(()=>fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:'owner@example.test',password:'synthetic-test-password'})}));
+    await page.goto('https://club.example.test/admin');
+    await page.locator('.order-row').first().click();
+    await page.locator('#viewPasswordButton').click();
+    await page.waitForFunction(expected=>document.querySelector('#credentialValue').textContent===expected,password);
+    if(process.env.CLUB_TEST_SCREENSHOT_DIR){
+      await mkdir(process.env.CLUB_TEST_SCREENSHOT_DIR,{recursive:true});
+      await page.screenshot({path:process.env.CLUB_TEST_SCREENSHOT_DIR+'/password-desktop.jpg',type:'jpeg',quality:80});
+    }
+    await page.locator('#closeDialog').click();
+    assert.equal(await page.locator('#credentialValue').textContent(),'');
+    await page.locator('.order-row').first().click();
+    await page.locator('#viewPasswordButton').click();
+    await page.waitForFunction(expected=>document.querySelector('#credentialValue').textContent===expected,password);
+    await page.locator('#resetPasswordButton').click();
+    await page.locator('#cancelPasswordReset').click();
+    assert.equal((await pool.query("SELECT count(*)::int AS n FROM club_admin_audit WHERE action='password:reset'")).rows[0].n,0);
+    await page.locator('#resetPasswordButton').click();
+    await page.locator('#resetRequested').check();
+    await page.locator('#confirmPasswordReset').click();
+    await page.waitForFunction(previous=>{
+      const value=document.querySelector('#credentialValue').textContent;
+      return value.startsWith('Fz-')&&value!==previous&&!document.querySelector('#resetPasswordDialog').open;
+    },password);
+    const resetPassword=await page.locator('#credentialValue').textContent();
+    await page.setViewportSize({width:390,height:844});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    if(process.env.CLUB_TEST_SCREENSHOT_DIR)
+      await page.screenshot({path:process.env.CLUB_TEST_SCREENSHOT_DIR+'/password-mobile.jpg',type:'jpeg',quality:80});
+    await page.locator('#closeDialog').click();
+    await page.locator('.order-row').first().click();
+    await page.locator('#viewPasswordButton').click();
+    await page.waitForFunction(expected=>document.querySelector('#credentialValue').textContent===expected,resetPassword);
+    assert.ok(!await page.evaluate(value=>JSON.stringify(localStorage).includes(value),resetPassword));
+  }finally{await browser.close();}
 });
 
 scenario('browser: real session, attention/search/detail/confirmed resend, safe text and responsive layout',async()=>{

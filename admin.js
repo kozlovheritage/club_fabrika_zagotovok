@@ -42,6 +42,17 @@
     cancelResend: $("#cancelResend"),
     confirmResend: $("#confirmResend"),
     deliveredWarning: $("#deliveredWarning"),
+    credentialPanel: $("#credentialPanel"),
+    credentialLogin: $("#credentialLogin"),
+    credentialValue: $("#credentialValue"),
+    credentialFeedback: $("#credentialFeedback"),
+    viewPassword: $("#viewPasswordButton"),
+    resetPassword: $("#resetPasswordButton"),
+    resetDialog: $("#resetPasswordDialog"),
+    resetForm: $("#resetPasswordForm"),
+    resetRequested: $("#resetRequested"),
+    confirmPasswordReset: $("#confirmPasswordReset"),
+    cancelPasswordReset: $("#cancelPasswordReset"),
     live: $("#liveMessage")
   };
 
@@ -83,7 +94,9 @@
     temporary_send_failure:"Временный сбой отправки",status_unavailable:"Не удалось получить статус",
     send_uncertain:"Сервис мог принять письмо. Проверьте отправку перед повтором",
     "resend:customer_request":"Повтор по просьбе участника","resend:delivery_failed":"Повтор после сбоя",
-    "status:checked":"Статус проверен","status:unavailable":"Статус временно недоступен"
+    "status:checked":"Статус проверен","status:unavailable":"Статус временно недоступен",
+    "password:view":"Просмотр текущего пароля администратором",
+    "password:reset":"Новый пароль создан и поставлен в очередь отправки"
   };
   const label = value => labels[value] || text(value);
   const providerName = value => ({prodamus:"Prodamus",cloudpayments:"CloudPayments"})[value] || "Не указан";
@@ -363,6 +376,8 @@
     elements.detailContent.append(auditSection);
   }
   async function openOrder(id) {
+    clearCredential();
+    elements.credentialPanel.hidden = true;
     state.currentOrder = state.orders.find((order) => String(order.order_id) === String(id)) || null;
     elements.detailId.textContent = text(id);
     elements.detailActions.hidden = true;
@@ -377,6 +392,13 @@
       state.currentOrder = result.order || state.currentOrder;
       if (!state.currentOrder) throw new Error("В ответе сервера нет данных заказа.");
       renderDetail(state.currentOrder, result.history, result.audit, result.paymentHistory);
+      const credentialEligible = state.enabled && state.currentOrder.tariff === "premium" &&
+        state.currentOrder.status === "paid" && !state.currentOrder.payment_requires_review &&
+        !["refund_reported","refunded","partially_refunded","canceled","refund_failed"].includes(state.currentOrder.last_payment_status);
+      elements.credentialPanel.hidden = !credentialEligible;
+      elements.credentialLogin.textContent = state.currentOrder.recipient_email || state.currentOrder.buyer_email || "—";
+      elements.viewPassword.disabled = !credentialEligible;
+      elements.resetPassword.disabled = !credentialEligible || !["accepted","blocked"].includes(state.currentOrder.mail_state);
       elements.check.disabled = !state.enabled || state.currentOrder.provider !== "notisend" ||
         !state.currentOrder.provider_message_id || !["queued","sent","unknown"].includes(state.currentOrder.delivery_status);
       elements.resend.disabled = !state.enabled || state.currentOrder.status !== "paid" ||
@@ -408,6 +430,66 @@
     } finally {
       elements.check.textContent = "Проверить статус письма";
       elements.check.disabled = !state.enabled || !["queued","sent","unknown"].includes(state.currentOrder?.delivery_status);
+    }
+  }
+  function clearCredential() {
+    elements.credentialValue.textContent = "";
+    elements.credentialValue.hidden = true;
+    elements.credentialFeedback.textContent = "";
+  }
+  function displayCredential(result) {
+    elements.credentialLogin.textContent = result.loginEmail || elements.credentialLogin.textContent;
+    elements.credentialValue.textContent = result.password;
+    elements.credentialValue.hidden = false;
+    elements.credentialFeedback.textContent = result.emailQueued
+      ? "Новый пароль сохранён. Письмо в очереди; его доставку проверяйте по статусу ниже."
+      : "Текущий пароль проверен. Просмотр записан в журнал поддержки.";
+  }
+  async function viewPassword() {
+    if (!state.currentOrder || elements.viewPassword.disabled) return;
+    const id = state.currentOrder.order_id;
+    clearCredential();
+    elements.viewPassword.disabled = true;
+    try {
+      const result = await api(`/api/admin/orders/${encodeURIComponent(id)}/password`, {
+        method: "POST", headers: { "X-CSRF-Token": state.csrfToken }, body: "{}"
+      });
+      if (state.currentOrder?.order_id === id && elements.dialog.open) displayCredential(result);
+    } catch (error) {
+      if (state.currentOrder?.order_id === id && elements.dialog.open)
+        elements.credentialFeedback.textContent = explainError(error);
+    } finally {
+      if (state.currentOrder?.order_id === id) elements.viewPassword.disabled = false;
+    }
+  }
+  function beginPasswordReset() {
+    if (!state.currentOrder || elements.resetPassword.disabled) return;
+    elements.resetForm.reset();
+    const oldError = elements.resetForm.querySelector("[data-action-error]");
+    if (oldError) oldError.hidden = true;
+    elements.confirmPasswordReset.disabled = false;
+    if (!elements.resetDialog.open) elements.resetDialog.showModal();
+  }
+  async function resetOrderPassword(event) {
+    event.preventDefault();
+    if (!state.currentOrder || !elements.resetRequested.checked || elements.confirmPasswordReset.disabled) return;
+    const order = state.currentOrder;
+    elements.confirmPasswordReset.disabled = true;
+    try {
+      const result = await api(`/api/admin/orders/${encodeURIComponent(order.order_id)}/reset-password`, {
+        method: "POST", headers: { "X-CSRF-Token": state.csrfToken },
+        body: JSON.stringify({confirmRequested:true,expectedAttempts:order.attempts || 0,
+          expectedMessageId:order.provider_message_id || null})
+      });
+      clearCredential();
+      elements.resetDialog.close();
+      await loadOrders();
+      await openOrder(order.order_id);
+      if (state.currentOrder?.order_id === order.order_id) displayCredential(result);
+    } catch (error) {
+      dialogError(elements.resetForm, explainError(error));
+    } finally {
+      elements.confirmPasswordReset.disabled = false;
     }
   }
   function beginResend() {
@@ -486,6 +568,12 @@
   elements.closeDialog.addEventListener("click", () => elements.dialog.close());
   elements.check.addEventListener("click", checkStatus);
   elements.resend.addEventListener("click", beginResend);
+  elements.viewPassword.addEventListener("click", viewPassword);
+  elements.resetPassword.addEventListener("click", beginPasswordReset);
+  elements.resetForm.addEventListener("submit", resetOrderPassword);
+  elements.cancelPasswordReset.addEventListener("click", () => elements.resetDialog.close());
+  elements.dialog.addEventListener("close", clearCredential);
+  window.addEventListener("pagehide", clearCredential);
   elements.cancelResend.addEventListener("click", () => elements.confirmDialog.close());
   elements.resendForm.addEventListener("submit", resendOrder);
   elements.resendForm.querySelectorAll('input[name="reason"]').forEach((radio) => {

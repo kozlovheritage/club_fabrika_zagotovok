@@ -241,6 +241,14 @@ h1 {
 .radio-option { display: flex; align-items: flex-start; gap: 9px; padding: 8px 0; color: #776961; font-size: 11px; line-height: 1.5; cursor: pointer; }
 .radio-option input { accent-color: var(--pink-deep); margin: 2px 0 0; }
 .confirm-actions { padding: 8px 0 0; }
+.credential-panel { margin: 18px 25px 0; padding: 16px; border: 1px solid #ead8d8; border-radius: 14px; background: #fff8f4; }
+.credential-panel[hidden], .credential-value[hidden] { display: none; }
+.credential-panel h3 { margin: 0 0 10px; font-size: 19px; }
+.credential-panel p { overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; }
+.credential-value { display: block; padding: 12px; border: 1px solid #e7dcd6; border-radius: 8px; background: #fff; font-size: 17px; overflow-wrap: anywhere; user-select: all; }
+.credential-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.credential-note { color: #8b7870; font-size: 11px !important; margin-bottom: 0; }
+@media (max-width: 600px) { .credential-panel { margin: 14px 18px 0; } .credential-actions .button { flex: 1 1 100%; } }
 @media (max-width: 760px) {
   .topbar { min-height: 63px; padding: 10px 17px; }
   .brand-name { font-size: 19px; }

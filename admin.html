@@ -112,6 +112,17 @@
       </div>
       <button id="closeDialog" class="icon-button" type="button" aria-label="Закрыть окно">×</button>
     </div>
+    <section id="credentialPanel" class="credential-panel" aria-labelledby="credentialTitle" hidden>
+      <h3 id="credentialTitle">Данные для входа</h3>
+      <p>Email: <strong id="credentialLogin"></strong></p>
+      <code id="credentialValue" class="credential-value" hidden></code>
+      <p id="credentialFeedback" role="status"></p>
+      <div class="credential-actions">
+        <button id="viewPasswordButton" class="button button-primary" type="button">Показать текущий пароль</button>
+        <button id="resetPasswordButton" class="button button-secondary" type="button">Создать новый пароль</button>
+      </div>
+      <p class="credential-note">Пароль можно посмотреть повторно. Каждый просмотр и смена записываются в журнал поддержки.</p>
+    </section>
     <div id="detailContent" class="dialog-content">
       <div class="skeleton-row"></div><div class="skeleton-row"></div>
     </div>
@@ -135,6 +146,18 @@
       <div class="dialog-actions confirm-actions">
         <button id="cancelResend" class="button button-secondary" type="button">Не отправлять</button>
         <button id="confirmResend" class="button button-primary" type="submit">Подтвердить отправку</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="resetPasswordDialog" class="confirm-dialog" aria-labelledby="resetPasswordTitle">
+    <form id="resetPasswordForm" method="dialog">
+      <p class="eyebrow">СМЕНА ПАРОЛЯ</p>
+      <h2 id="resetPasswordTitle">Создать новый пароль?</h2>
+      <p class="confirm-copy">Прежний пароль перестанет работать, а текущие сеансы участницы завершатся. Новый пароль появится в карточке заказа и будет поставлен в очередь отправки на email учётки. Оплата и тариф не изменятся.</p>
+      <label class="radio-option"><input id="resetRequested" type="checkbox" required> Участница попросила восстановить доступ, адрес её учётки проверен</label>
+      <div class="dialog-actions confirm-actions">
+        <button id="cancelPasswordReset" class="button button-secondary" type="button">Отмена</button>
+        <button id="confirmPasswordReset" class="button button-primary" type="submit">Сменить и отправить</button>
       </div>
     </form>
   </dialog>

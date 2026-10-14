@@ -45,10 +45,23 @@ const adminEnabled=process.env.CLUB_ADMIN_ENABLED==='true';
 const alertsConfigured=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.CLUB_ADMIN_ALERT_EMAIL||'');
 const adminStore=createAdminStore(pool,{
   async resolveCredential(client,order,mail){
-    const user=(await client.query('SELECT password_hash,status,tariff,(access_until IS NULL OR access_until>now()) AS valid FROM club_users WHERE email=$1 FOR UPDATE',[mail.user_key])).rows[0];
-    const password=premiumPasswordForOrder(order.order_id,process.env.AUTH_CREDENTIAL_KEY);
-    if(!user||!user.valid||user.status!=='active'||user.tariff!=='premium'||!await verifyPassword(password,user.password_hash))return null;
+    const user=(await client.query(`SELECT u.password_hash,u.credential_email_ciphertext,u.status,u.tariff,
+      (u.access_until IS NULL OR u.access_until>now()) AS valid,
+      (SELECT password_ciphertext FROM club_admin_credentials WHERE user_key=u.email) AS admin_password_ciphertext
+      FROM club_users u WHERE u.email=$1 FOR UPDATE`,[mail.user_key])).rows[0];
+    if(!user||!user.valid||user.status!=='active'||user.tariff!=='premium')return null;
+    const password=await recoverCurrentPassword(user,order,mail);
+    if(!password)return null;
     return encryptPassword(password);
+  },
+  async revealCredential(user,order,mail){
+    const password=await recoverCurrentPassword(user,order,mail);
+    return password?{password,ciphertext:encryptPassword(password)}:null;
+  },
+  async createResetCredential(){
+    const password=generatePassword();
+    return {password,passwordHash:await hashPassword(password),passwordTag:sha256('club-order-password:'+password),
+      vaultCiphertext:encryptPassword(password),mailCiphertext:encryptPassword(password)};
   }
 });
 // Never activate a new processor from a stale deployment environment value.
@@ -103,6 +116,17 @@ async function verifyPassword(password,stored){try{const parts=String(stored||''
 function credentialKey(){if(!process.env.AUTH_CREDENTIAL_KEY||process.env.AUTH_CREDENTIAL_KEY.length<32)throw new Error('AUTH_CREDENTIAL_KEY must contain at least 32 characters');return crypto.createHash('sha256').update(process.env.AUTH_CREDENTIAL_KEY).digest();}
 function encryptPassword(password){const nonce=crypto.randomBytes(12);const cipher=crypto.createCipheriv('aes-256-gcm',credentialKey(),nonce);const data=Buffer.concat([cipher.update(password,'utf8'),cipher.final()]);return [nonce,cipher.getAuthTag(),data].map(x=>x.toString('base64url')).join('.');}
 function decryptPassword(stored){const [iv,tag,data]=stored.split('.').map(x=>Buffer.from(x,'base64url'));const decipher=crypto.createDecipheriv('aes-256-gcm',credentialKey(),iv);decipher.setAuthTag(tag);return Buffer.concat([decipher.update(data),decipher.final()]).toString('utf8');}
+async function recoverCurrentPassword(user,order,mail){
+  const candidates=[];
+  for(const encrypted of [user.admin_password_ciphertext,user.credential_email_ciphertext,mail?.password_ciphertext]){
+    if(!encrypted)continue;
+    try{candidates.push(decryptPassword(encrypted));}catch{}
+  }
+  const derived=premiumPasswordForOrder(order.order_id,process.env.AUTH_CREDENTIAL_KEY);
+  if(derived)candidates.push(derived);
+  for(const password of candidates)if(await verifyPassword(password,user.password_hash))return password;
+  return null;
+}
 function safeEqualHex(left,right){if(!left||!right||left.length!==right.length)return false;return crypto.timingSafeEqual(Buffer.from(left),Buffer.from(right));}
 function sortAndStringify(value){
   if(Array.isArray(value))return value.map(sortAndStringify);
@@ -337,6 +361,8 @@ async function deliverPendingCredentials(email){
   }
   const ciphertext=claim.rows[0].credential_email_ciphertext;
   try{
+    await pool.query(`INSERT INTO club_admin_credentials(user_key,password_ciphertext) VALUES($1,$2)
+      ON CONFLICT(user_key) DO UPDATE SET password_ciphertext=EXCLUDED.password_ciphertext,updated_at=now()`,[email,ciphertext]);
     await sendCredentialsEmail(email,decryptPassword(ciphertext),PUBLIC_URL);
     await pool.query("UPDATE club_users SET credential_email_ciphertext=NULL,credential_claimed_at=NULL,welcome_email_sent_at=now() WHERE email=$1 AND credential_email_ciphertext=$2",[email,ciphertext]);
   }catch(error){
