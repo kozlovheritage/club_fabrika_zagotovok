@@ -73,6 +73,10 @@ export function mountAdmin(app,express,{enabled,cloudEnabled,paymentProvider,fin
     try{res.json(await store.resend(req.params.id,req.admin.user_key,req.body));}
     catch(error){next(error);}
   });
+  api.post('/orders/:id/confirm-access',async(req,res,next)=>{
+    try{res.json(await store.confirmAccess(req.params.id,req.admin.user_key,req.body));}
+    catch(error){next(error);}
+  });
   api.post('/orders/:id/password',async(req,res,next)=>{
     try{res.json(await store.revealPassword(req.params.id,req.admin.user_key));}
     catch(error){next(error);}

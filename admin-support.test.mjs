@@ -104,6 +104,100 @@ async function order({id='synthetic-order',tariff='basic',state='accepted',statu
   return id;
 }
 
+scenario('manual access confirmation: authenticated, audited, persistent, preserves source status and prevents retries',async()=>{
+  const actor=await owner();const cookie=await login();
+  const id=await order({id:'manual-confirm',tariff:'premium',state:'pending',status:'unknown'});
+  await pool.query("UPDATE club_cp_access_mail SET provider='prodamus',provider_message_id=NULL,attempts=0 WHERE order_id=$1",[id]);
+  const list=await(await request('/api/admin/orders',{cookie})).json();
+  const body={confirmed:true,expectedAttempts:0,expectedMessageId:null};
+  const path='/api/admin/orders/'+id+'/confirm-access';
+  assert.equal((await request(path,{method:'POST',body})).status,401);
+  assert.equal((await request(path,{method:'POST',body,cookie})).status,403);
+  await member('ordinary@example.test');const ordinary=await login('ordinary@example.test');
+  assert.equal((await request(path,{method:'POST',body,cookie:ordinary,token:list.csrfToken})).status,403);
+  assert.equal((await request(path,{method:'POST',body:{...body,confirmed:false},cookie,token:list.csrfToken})).status,400);
+  assert.equal((await request(path,{method:'POST',body:{...body,expectedAttempts:3},cookie,token:list.csrfToken})).status,409);
+  assert.equal((await request(path,{method:'POST',body,cookie,token:list.csrfToken,origin:'https://other.example.test'})).status,403);
+  for(let i=0;i<2;i++)assert.equal((await request(path,{method:'POST',body,cookie,token:list.csrfToken})).status,200);
+  const stored=(await pool.query(`SELECT access_confirmed_at,access_confirmed_by,status,last_payment_status FROM club_cp_orders WHERE order_id=$1`,[id])).rows[0];
+  assert.ok(stored.access_confirmed_at);assert.equal(stored.access_confirmed_by,actor);assert.equal(stored.status,'paid');assert.equal(stored.last_payment_status,'paid');
+  const mail=(await pool.query('SELECT state,provider,delivery_status,attempts FROM club_cp_access_mail WHERE order_id=$1',[id])).rows[0];
+  assert.deepEqual(mail,{state:'pending',provider:'prodamus',delivery_status:'unknown',attempts:0});
+  const updated=await(await request('/api/admin/orders',{cookie})).json();
+  assert.equal(updated.total,0);assert.equal(updated.summary.delivered,1);assert.equal(updated.summary.attention,0);
+  const accepted=await(await request('/api/admin/orders?filter=accepted',{cookie})).json();
+  assert.equal(accepted.total,1);assert.equal(accepted.orders[0].order_id,id);assert.ok(accepted.orders[0].access_confirmed_at);
+  assert.equal((await pool.query("SELECT count(*)::int n FROM club_admin_audit WHERE order_id=$1 AND action='access:confirmed'",[id])).rows[0].n,1);
+  let sends=0;await drainAccessMail(pool,async()=>{sends++;});
+  assert.equal(sends,0);
+  // A later reversal must surface again even after a manual access confirmation.
+  await pool.query(`INSERT INTO club_cp_payment_events(event_id,order_id,payment_provider,event_type,provider_status)
+    VALUES('manual-late-refund',$1,'cloudpayments','refund','refunded')`,[id]);
+  assert.equal((await(await request('/api/admin/orders',{cookie})).json()).total,1);
+  assert.equal((await(await request('/api/admin/orders?filter=accepted',{cookie})).json()).total,0);
+  assert.equal((await request(path,{method:'POST',body,cookie,token:list.csrfToken})).status,409);
+});
+
+scenario('manual confirmation refuses unpaid, failed, test, canceled, unfulfilled and inactive-account orders',async()=>{
+  await owner();const cookie=await login();const token=(await(await request('/api/admin/orders',{cookie})).json()).csrfToken;
+  for(const variant of ['unpaid','failed','test','canceled','unfulfilled','inactive']){
+    const id=await order({id:'refuse-'+variant,tariff:'premium',testMode:variant==='test'});
+    if(variant==='unpaid')await pool.query("UPDATE club_cp_orders SET status='pending',last_payment_status='pending' WHERE order_id=$1",[id]);
+    if(variant==='failed'||variant==='canceled')await pool.query('UPDATE club_cp_orders SET last_payment_status=$2 WHERE order_id=$1',[id,variant]);
+    if(variant==='unfulfilled')await pool.query("UPDATE club_cp_payments SET outcome='review' WHERE order_id=$1",[id]);
+    if(variant==='inactive')await pool.query("UPDATE club_users SET status='disabled' WHERE email=$1",['order:'+id]);
+    const r=await request('/api/admin/orders/'+id+'/confirm-access',{cookie,token,method:'POST',
+      body:{confirmed:true,expectedAttempts:1,expectedMessageId:'message-'+id}});
+    assert.equal(r.status,409);
+    assert.equal((await pool.query('SELECT access_confirmed_at FROM club_cp_orders WHERE order_id=$1',[id])).rows[0].access_confirmed_at,null);
+  }
+});
+
+scenario('browser: confirmed access leaves attention, appears in accepted and survives reload on desktop/mobile',async()=>{
+  const {chromium}=await import('playwright');const {mkdir}=await import('node:fs/promises');
+  await owner();const id=await order({id:'manual-browser',tariff:'premium',state:'blocked',status:'unknown'});
+  const browser=await chromium.launch({executablePath:process.env.CLUB_TEST_CHROMIUM,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+  try{
+    const page=await browser.newPage({viewport:{width:1440,height:1000}});
+    await page.route('**/*',async route=>{
+      const url=new URL(route.request().url());if(url.origin!=='https://club.example.test')return route.abort();
+      const response=await route.fetch({url:base+url.pathname+url.search});await route.fulfill({response});
+    });
+    await page.goto('https://club.example.test/admin');
+    await page.evaluate(()=>fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'owner@example.test',password:'synthetic-test-password'})}));
+    await page.goto('https://club.example.test/admin');
+    await page.locator('.order-row').first().click();
+    await page.locator('#confirmAccessButton').click();
+    await page.locator('#cancelConfirmAccess').click();
+    assert.equal((await pool.query('SELECT access_confirmed_at FROM club_cp_orders WHERE order_id=$1',[id])).rows[0].access_confirmed_at,null);
+    await page.locator('#confirmAccessButton').click();
+    await page.locator('#accessConfirmedCheck').check();
+    await page.locator('#submitConfirmAccess').click();
+    await page.waitForFunction(()=>document.querySelector('#confirmAccessButton').disabled&&document.querySelector('#summaryAttention').textContent==='0');
+    assert.equal(await page.locator('#summaryDelivered').textContent(),'1');
+    assert.match(await page.locator('#detailContent').textContent(),/Подтверждено вручную/);
+    await page.locator('#closeDialog').click();
+    assert.equal(await page.locator('.order-row').count(),0);
+    await page.locator('[data-filter="accepted"]').click();
+    await page.waitForFunction(()=>document.querySelectorAll('.order-row').length===1);
+    assert.match(await page.locator('.order-row').textContent(),/Письмо принято · вручную/);
+    if(process.env.CLUB_TEST_SCREENSHOT_DIR){await mkdir(process.env.CLUB_TEST_SCREENSHOT_DIR,{recursive:true});
+      await page.screenshot({path:process.env.CLUB_TEST_SCREENSHOT_DIR+'/manual-confirm-desktop.jpg',type:'jpeg',quality:80});}
+    await page.reload();
+    await page.waitForFunction(()=>document.querySelector('#summaryDelivered').textContent==='1');
+    await page.locator('[data-filter="accepted"]').click();
+    await page.locator('.order-row').first().click();
+    await page.waitForFunction(()=>document.querySelector('#confirmAccessButton').disabled&&
+      document.querySelector('#detailContent').textContent.includes('Подтверждено вручную'));
+    assert.equal(await page.locator('#confirmAccessButton').isDisabled(),true);
+    assert.match(await page.locator('#detailContent').textContent(),/Доставка неизвестна/);
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+    if(process.env.CLUB_TEST_SCREENSHOT_DIR)await page.screenshot({path:process.env.CLUB_TEST_SCREENSHOT_DIR+'/manual-confirm-mobile.jpg',type:'jpeg',quality:80});
+    assert.equal((await pool.query("SELECT count(*)::int n FROM club_admin_audit WHERE order_id=$1 AND action='access:confirmed'",[id])).rows[0].n,1);
+  }finally{await browser.close();}
+});
+
 scenario('actual app: guest/member/same-email duplicate cannot access admin HTML, assets or APIs',async()=>{
   const userKey=await owner();
   for(const path of ['/admin','/admin/admin.js','/api/admin/orders']){

@@ -172,7 +172,8 @@ export async function drainAccessMail(pool, send, batchSize = 10,providers=['clo
     SELECT order_id FROM club_cp_access_mail
     WHERE state='pending' AND next_attempt_at<=now()
       AND EXISTS(SELECT 1 FROM club_cp_orders o WHERE o.order_id=club_cp_access_mail.order_id
-        AND o.payment_provider=ANY($3::text[]) AND NOT o.test_mode AND o.status='paid')
+        AND o.payment_provider=ANY($3::text[]) AND NOT o.test_mode AND o.status='paid'
+        AND to_jsonb(o)->>'access_confirmed_at' IS NULL)
     ORDER BY next_attempt_at LIMIT $1 FOR UPDATE SKIP LOCKED)
     UPDATE club_cp_access_mail m SET state='sending',claim_token=$2,claimed_at=now(),attempts=m.attempts+1
     FROM due WHERE m.order_id=due.order_id

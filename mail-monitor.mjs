@@ -6,6 +6,9 @@ export const PAYMENT_REVIEW_SQL=`EXISTS(SELECT 1 FROM club_cp_payment_events rev
 
 export const MAIL_STATUSES = ['queued','sent','delivered','skipped','soft_bounced','hard_bounced'];
 export const MAIL_MONITOR_SCHEMA = [
+  `ALTER TABLE club_cp_orders
+    ADD COLUMN IF NOT EXISTS access_confirmed_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS access_confirmed_by TEXT`,
   `ALTER TABLE club_cp_access_mail
     ADD COLUMN IF NOT EXISTS provider TEXT,
     ADD COLUMN IF NOT EXISTS provider_message_id TEXT,
@@ -157,7 +160,7 @@ export async function pollMailStatuses(pool,{reader=readNotisendStatus,orderId=n
 export const ATTENTION_SQL = `(o.status='review' OR
   ${PAYMENT_REVIEW_SQL} OR
   to_jsonb(o)->>'last_payment_status' IN ('failed','canceled','refund_reported','refunded','partially_refunded','refund_failed','unknown','duplicate') OR
-  (o.status='paid' AND (m.order_id IS NULL OR m.state='blocked' OR
+  (o.status='paid' AND to_jsonb(o)->>'access_confirmed_at' IS NULL AND (m.order_id IS NULL OR m.state='blocked' OR
     m.delivery_status IN ('skipped','soft_bounced','hard_bounced','unknown') OR
     (m.state IN ('pending','sending') AND o.paid_at<now()-interval '10 minutes') OR
     (m.state='accepted' AND (m.provider_message_id IS NULL OR m.provider<>'notisend'

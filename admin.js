@@ -37,6 +37,12 @@
     closeDialog: $("#closeDialog"),
     check: $("#checkButton"),
     resend: $("#resendButton"),
+    confirmAccess: $("#confirmAccessButton"),
+    accessDialog: $("#confirmAccessDialog"),
+    accessForm: $("#confirmAccessForm"),
+    accessCheckbox: $("#accessConfirmedCheck"),
+    accessSubmit: $("#submitConfirmAccess"),
+    accessCancel: $("#cancelConfirmAccess"),
     confirmDialog: $("#resendDialog"),
     resendForm: $("#resendForm"),
     cancelResend: $("#cancelResend"),
@@ -96,6 +102,7 @@
     "resend:customer_request":"Повтор по просьбе участника","resend:delivery_failed":"Повтор после сбоя",
     "status:checked":"Статус проверен","status:unavailable":"Статус временно недоступен",
     "password:view":"Просмотр текущего пароля администратором",
+    "access:confirmed":"Оплата и получение доступа подтверждены администратором",
     "password:reset":"Новый пароль создан и поставлен в очередь отправки"
   };
   const label = value => labels[value] || text(value);
@@ -103,6 +110,7 @@
   const statusInfo = (order) => {
     if(order.status==="pending"&&!order.mail_state&&(!order.last_payment_status||order.last_payment_status==="pending"))
       return {label:"Ожидает оплаты",tone:"progress"};
+    if(order.access_confirmed_at&&!order.needs_attention)return {label:"Письмо принято · вручную",tone:"success"};
     const status = normalize(order.delivery_status || order.mail_state || order.status);
     if (order.needs_attention || /fail|bounce|reject|error|не удалось|ошиб/.test(status)) {
       return { label: "Нужна проверка", tone: "error" };
@@ -337,6 +345,7 @@
     addDetailItem(grid, "Статус оплаты", label(order.last_payment_status || order.status));
     addDetailItem(grid, "Обработка доступа", label(order.status));
     addDetailItem(grid, "Состояние письма", label(order.delivery_status || order.mail_state));
+    if(order.access_confirmed_at)addDetailItem(grid,"Получение доступа","Подтверждено вручную · "+formatDate(order.access_confirmed_at));
     addDetailItem(grid, "Платёжный сервис", providerName(order.payment_provider));
     addDetailItem(grid, "Провайдер онлайн-кассы", order.receipt_provider || "Не подтверждён");
     addDetailItem(grid, "Статус чека", order.receipt_status === "unknown" || !order.receipt_status ? "Нет подтверждённых данных" : label(order.receipt_status));
@@ -405,11 +414,41 @@
         Boolean(state.currentOrder.payment_requires_review) ||
         ["refund_reported","refunded","partially_refunded","canceled","refund_failed"].includes(state.currentOrder.last_payment_status) ||
         !["accepted","blocked"].includes(state.currentOrder.mail_state);
+      elements.confirmAccess.disabled = !state.enabled || state.currentOrder.status !== "paid" ||
+        state.currentOrder.last_payment_status !== "paid" || state.currentOrder.payment_requires_review ||
+        state.currentOrder.mail_state === "sending" || Boolean(state.currentOrder.access_confirmed_at);
+      elements.confirmAccess.textContent = state.currentOrder.access_confirmed_at ? "Доступ подтверждён вручную" : "Оплата и доступ подтверждены";
       elements.detailActions.hidden = false;
     } catch (error) {
       elements.detailContent.replaceChildren(makeState("Подробности недоступны", explainError(error), true));
       showNotice(explainError(error), error.status === 401 || error.status === 403 ? "warning" : "error");
     }
+  }
+  function beginConfirmAccess(){
+    if(!state.currentOrder||elements.confirmAccess.disabled)return;
+    elements.accessForm.reset();
+    elements.accessForm.querySelector("[data-action-error]")?.remove();
+    elements.accessDialog.showModal();
+  }
+  async function confirmAccess(event){
+    event.preventDefault();
+    if(!state.currentOrder||!elements.accessCheckbox.checked||elements.accessSubmit.disabled)return;
+    const order=state.currentOrder;
+    elements.accessSubmit.disabled=true;
+    try{
+      await api(`/api/admin/orders/${encodeURIComponent(order.order_id)}/confirm-access`,{
+        method:"POST",headers:{"X-CSRF-Token":state.csrfToken},
+        body:JSON.stringify({confirmed:true,expectedAttempts:order.attempts,expectedMessageId:order.provider_message_id||null})
+      });
+      elements.accessDialog.close();
+      await loadOrders();
+      await openOrder(order.order_id);
+      announce("Получение доступа подтверждено вручную. Заказ перенесён в «Письмо принято».");
+    }catch(error){
+      elements.accessForm.querySelector("[data-action-error]")?.remove();
+      const message=document.createElement("p");message.dataset.actionError="true";message.setAttribute("role","alert");
+      message.textContent=explainError(error);elements.accessForm.append(message);
+    }finally{elements.accessSubmit.disabled=false;}
   }
   async function checkStatus() {
     if (!state.currentOrder || elements.check.disabled) return;
@@ -568,6 +607,9 @@
   elements.closeDialog.addEventListener("click", () => elements.dialog.close());
   elements.check.addEventListener("click", checkStatus);
   elements.resend.addEventListener("click", beginResend);
+  elements.confirmAccess.addEventListener("click",beginConfirmAccess);
+  elements.accessForm.addEventListener("submit",confirmAccess);
+  elements.accessCancel.addEventListener("click",()=>elements.accessDialog.close());
   elements.viewPassword.addEventListener("click", viewPassword);
   elements.resetPassword.addEventListener("click", beginPasswordReset);
   elements.resetForm.addEventListener("submit", resetOrderPassword);

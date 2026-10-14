@@ -29,6 +29,7 @@ export const CHECKOUT_PROVIDER_SCHEMA=[
 ];
 const orderColumns=`o.order_id,o.buyer_email,COALESCE(u.login_email,o.buyer_email) AS recipient_email,
   o.buyer_name,o.tariff,o.amount_cents,o.status,o.paid_at,o.created_at,
+  to_jsonb(o)->>'access_confirmed_at' AS access_confirmed_at,
   to_jsonb(o)->>'last_payment_status' AS last_payment_status,
   ${PAYMENT_REVIEW_SQL} AS payment_requires_review,
   to_jsonb(o)->>'payment_provider' AS payment_provider,
@@ -116,8 +117,10 @@ export function createAdminStore(pool,{resolveCredential,revealCredential,create
         AND ($1::text='' OR o.buyer_email ILIKE '%'||$1||'%'
           OR u.login_email ILIKE '%'||$1||'%'
           OR o.buyer_name ILIKE '%'||$1||'%' OR o.order_id ILIKE '%'||$1||'%')
-        AND ($2::text='all' OR ${ATTENTION_SQL})`;
-      const args=[term,filter==='all'?'all':'attention'];
+        AND ($2::text='all' OR ($2='attention' AND ${ATTENTION_SQL}) OR
+          ($2='accepted' AND o.status='paid' AND NOT COALESCE(${ATTENTION_SQL},false) AND
+            (m.delivery_status='delivered' OR to_jsonb(o)->>'access_confirmed_at' IS NOT NULL)))`;
+      const args=[term,['all','accepted'].includes(filter)?filter:'attention'];
       const total=Number((await pool.query(`SELECT count(*)::integer AS n FROM club_cp_orders o
         LEFT JOIN club_cp_access_mail m USING(order_id)
         LEFT JOIN club_users u ON u.email=m.user_key WHERE ${predicate}`,args)).rows[0].n);
@@ -128,8 +131,11 @@ export function createAdminStore(pool,{resolveCredential,revealCredential,create
       [...args,(page-1)*25])).rows;
       const s=(await pool.query(`SELECT
         count(*) FILTER(WHERE ${ATTENTION_SQL})::integer AS attention,
-        count(*) FILTER(WHERE m.delivery_status='delivered')::integer AS delivered,
-        count(*) FILTER(WHERE NOT ${ATTENTION_SQL} AND COALESCE(m.delivery_status,'')<>'delivered')::integer AS "inProgress"
+        count(*) FILTER(WHERE m.delivery_status='delivered' OR
+          (o.status='paid' AND NOT COALESCE(${ATTENTION_SQL},false) AND
+            to_jsonb(o)->>'access_confirmed_at' IS NOT NULL))::integer AS delivered,
+        count(*) FILTER(WHERE NOT ${ATTENTION_SQL} AND COALESCE(m.delivery_status,'')<>'delivered'
+          AND to_jsonb(o)->>'access_confirmed_at' IS NULL)::integer AS "inProgress"
         FROM club_cp_orders o LEFT JOIN club_cp_access_mail m USING(order_id)
         WHERE NOT o.test_mode AND o.status IN ('pending','paid','review')`)).rows[0];
       return {orders,total,page,pageSize:25,summary:s};
@@ -147,6 +153,40 @@ export function createAdminStore(pool,{resolveCredential,revealCredential,create
       const audit=(await pool.query(`SELECT action,created_at FROM club_admin_audit WHERE order_id=$1
         ORDER BY created_at DESC LIMIT 100`,[orderId])).rows;
       return {order:found.rows[0],history,paymentHistory,audit};
+    },
+    async confirmAccess(orderId,actor,input={}){
+      if(input.confirmed!==true||!Number.isSafeInteger(input.expectedAttempts)||input.expectedAttempts<0||
+        !(input.expectedMessageId===null||typeof input.expectedMessageId==='string'))
+        throw new SupportError('Подтвердите, что оплата проверена и участник получил доступ',400);
+      const client=await pool.connect();
+      try{
+        await client.query('BEGIN');
+        if(!(await client.query('SELECT 1 FROM club_admin_accounts WHERE user_key=$1 AND enabled FOR UPDATE',[actor])).rowCount)
+          throw new SupportError('Нет прав администратора',403);
+        const order=(await client.query('SELECT * FROM club_cp_orders WHERE order_id=$1 FOR UPDATE',[orderId])).rows[0];
+        if(!order||order.test_mode||order.status!=='paid'||order.last_payment_status!=='paid')
+          throw new SupportError('Нельзя подтверждать неоплаченный заказ или скрывать проблему с оплатой');
+        const review=(await client.query(`SELECT ${PAYMENT_REVIEW_SQL} AS required FROM club_cp_orders o WHERE order_id=$1`,[orderId])).rows[0];
+        if(review.required)throw new SupportError('В истории есть возврат или отмена — нужна проверка оплаты');
+        if(!(await client.query("SELECT 1 FROM club_cp_payments WHERE order_id=$1 AND outcome='fulfilled' LIMIT 1",[orderId])).rowCount)
+          throw new SupportError('Выдача доступа для этого заказа не подтверждена');
+        const mail=(await client.query('SELECT * FROM club_cp_access_mail WHERE order_id=$1 FOR UPDATE',[orderId])).rows[0];
+        if(!mail||mail.state==='sending')throw new SupportError('Доступ требует проверки или письмо сейчас отправляется');
+        if(order.tariff==='premium'){
+          const user=(await client.query(`SELECT 1 FROM club_users WHERE email=$1 AND status='active'
+            AND tariff='premium' AND password_hash IS NOT NULL AND (access_until IS NULL OR access_until>now()) FOR UPDATE`,[mail.user_key])).rowCount;
+          if(!user)throw new SupportError('Участнику ещё не выдан действующий доступ');
+        }
+        if(!order.access_confirmed_at){
+          if(Number(input.expectedAttempts)!==mail.attempts||(input.expectedMessageId||null)!==(mail.provider_message_id||null))
+            throw new SupportError('Данные заказа изменились. Откройте его заново');
+          await client.query('UPDATE club_cp_orders SET access_confirmed_at=now(),access_confirmed_by=$2 WHERE order_id=$1',[orderId,actor]);
+          await client.query("INSERT INTO club_admin_audit(actor_key,order_id,action) VALUES($1,$2,'access:confirmed')",[actor,orderId]);
+        }
+        await client.query('COMMIT');
+        return {ok:true,alreadyConfirmed:Boolean(order.access_confirmed_at)};
+      }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
+      finally{client.release();}
     },
     async revealPassword(orderId,actor){
       if(typeof revealCredential!=='function')throw new SupportError('Просмотр паролей ещё не настроен',503);
@@ -191,6 +231,7 @@ export function createAdminStore(pool,{resolveCredential,revealCredential,create
         await client.query(`INSERT INTO club_admin_credentials(user_key,password_ciphertext) VALUES($1,$2)
           ON CONFLICT(user_key) DO UPDATE SET password_ciphertext=EXCLUDED.password_ciphertext,updated_at=now()`,
         [user.email,credential.vaultCiphertext]);
+        await client.query('UPDATE club_cp_orders SET access_confirmed_at=NULL,access_confirmed_by=NULL WHERE order_id=$1',[orderId]);
         await client.query(`UPDATE club_cp_access_mail SET state='pending',password_ciphertext=$2,next_attempt_at=now(),
           claim_token=NULL,claimed_at=NULL,last_error_code=NULL,consecutive_failures=0,
           provider=NULL,provider_message_id=NULL,delivery_status=NULL,last_sent_at=NULL,status_checked_at=NULL,
@@ -239,6 +280,7 @@ export function createAdminStore(pool,{resolveCredential,revealCredential,create
           throw new SupportError('Результат отправки неизвестен. Проверьте письмо у провайдера и запрос клиента');
         const ciphertext=order.tariff==='premium'?await resolveCredential(client,order,mail):null;
         if(order.tariff==='premium'&&!ciphertext)throw new SupportError('Данные входа изменены. Нужна проверка доступа');
+        await client.query('UPDATE club_cp_orders SET access_confirmed_at=NULL,access_confirmed_by=NULL WHERE order_id=$1',[orderId]);
         await client.query(`UPDATE club_cp_access_mail SET state='pending',password_ciphertext=$2,
           next_attempt_at=now(),claim_token=NULL,claimed_at=NULL,last_error_code=NULL,
           consecutive_failures=0,status_claim_token=NULL,status_claimed_at=NULL WHERE order_id=$1`,[orderId,ciphertext]);

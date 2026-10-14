@@ -47,7 +47,7 @@
       <article class="summary-card">
         <div class="summary-label">Письмо принято</div>
         <div class="summary-value" id="summaryDelivered" aria-live="polite">—</div>
-        <div class="summary-caption">почтовым сервером получателя</div>
+        <div class="summary-caption">сервером получателя или подтверждено вами</div>
       </article>
       <article class="summary-card">
         <div class="summary-label">В процессе</div>
@@ -70,6 +70,7 @@
       <div class="toolbar">
         <div class="filter-tabs" role="group" aria-label="Фильтр заказов">
           <button class="filter-tab is-active" type="button" data-filter="attention" aria-pressed="true">Нужно внимания</button>
+          <button class="filter-tab" type="button" data-filter="accepted" aria-pressed="false">Письмо принято</button>
           <button class="filter-tab" type="button" data-filter="all" aria-pressed="false">Все заказы</button>
         </div>
         <form class="search-form" id="searchForm" role="search">
@@ -129,9 +130,22 @@
     <div id="detailActions" class="dialog-actions" hidden>
       <button id="checkButton" class="button button-secondary" type="button">Проверить статус письма</button>
       <button id="resendButton" class="button button-primary" type="button">Отправить письмо повторно</button>
+      <button id="confirmAccessButton" class="button button-secondary" type="button">Оплата и доступ подтверждены</button>
     </div>
   </dialog>
 
+  <dialog id="confirmAccessDialog" class="confirm-dialog" aria-labelledby="confirmAccessTitle">
+    <form id="confirmAccessForm" method="dialog">
+      <p class="eyebrow">РУЧНАЯ ПРОВЕРКА</p>
+      <h2 id="confirmAccessTitle">Участник получил доступ?</h2>
+      <p class="confirm-copy">Заказ уйдёт из «Нужно внимания» в «Письмо принято» с отметкой «Подтверждено вручную». Новое письмо не отправится. Исходные статусы платёжного и почтового сервисов сохранятся.</p>
+      <label class="radio-option"><input id="accessConfirmedCheck" type="checkbox" required> Я проверил оплату и подтверждаю, что участник получил доступ</label>
+      <div class="dialog-actions confirm-actions">
+        <button id="cancelConfirmAccess" class="button button-secondary" type="button">Отмена</button>
+        <button id="submitConfirmAccess" class="button button-primary" type="submit">В «Письмо принято»</button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="resendDialog" class="confirm-dialog" aria-labelledby="resendTitle">
     <form id="resendForm" method="dialog">
       <p class="eyebrow">ПОВТОРНАЯ ОТПРАВКА</p>
