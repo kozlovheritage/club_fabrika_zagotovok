@@ -6,7 +6,8 @@
     if (cents === null || cents === undefined || !/^-?\d+$/.test(String(cents))) return "—";
     const value = Number(cents) / 100;
     if (!Number.isFinite(value)) return "—";
-    return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value);
+    return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB",
+      minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
   };
   const number = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))
     ? new Intl.NumberFormat("ru-RU").format(Number(value)) : "—";
@@ -14,6 +15,15 @@
     const date = new Date(`${value}T00:00:00`);
     return Number.isNaN(date.getTime()) ? String(value || "—") :
       new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(date);
+  };
+  const fullDate = value => {
+    const [year,month,day] = String(value).split("-").map(Number);
+    return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+      .format(new Date(Date.UTC(year,month-1,day)));
+  };
+  const paymentCount = count => {
+    const plural = new Intl.PluralRules("ru-RU").select(Number(count));
+    return `${number(count)} ${plural === "one" ? "оплата" : plural === "few" ? "оплаты" : "оплат"}`;
   };
   const text = (parent, tag, value, className = "") => {
     const node = document.createElement(tag);
@@ -70,7 +80,13 @@
     valid.forEach((item, index) => {
       const height = values[index] === 0 ? 2 : Math.max(3, (values[index] / max) * 104);
       const x = 12 + index * step + (step - barWidth) / 2;
-      svg.append(svgNode("rect", { x, y: 137 - height, width: barWidth, height, rx: 2, class: "chart-bar" }));
+      const bar = svgNode("rect", { x, y: 137 - height, width: barWidth, height, rx: 2,
+        class: "chart-bar", tabindex: 0, "data-day-index": index,
+        "aria-label": `${fullDate(item.day)} — ${money(item.amount_cents)}` });
+      const title = svgNode("title", {});
+      title.textContent = `${fullDate(item.day)} — ${money(item.amount_cents)}`;
+      bar.append(title);
+      svg.append(bar);
       if (valid.length <= 12 || index === 0 || index === valid.length - 1 || index % Math.ceil(valid.length / 8) === 0) {
         const label = svgNode("text", { x: x + barWidth / 2, y: 157, class: "chart-axis-label", "text-anchor": "middle" });
         label.textContent = dateLabel(item.day);
@@ -78,6 +94,38 @@
       }
     });
     panel.append(svg);
+    const hoverValue = document.createElement("p");
+    hoverValue.className = "chart-hover-value";
+    hoverValue.hidden = true;
+    hoverValue.setAttribute("role", "status");
+    hoverValue.setAttribute("aria-live", "polite");
+    const barFor = target => target instanceof Element ? target.closest(".chart-bar[data-day-index]") : null;
+    const showValue = bar => {
+      const item = valid[Number(bar.dataset.dayIndex)];
+      if (!item) return;
+      hoverValue.textContent = `${fullDate(item.day)} · ${money(item.amount_cents)} · ${paymentCount(item.count)}`;
+      hoverValue.hidden = false;
+    };
+    svg.addEventListener("pointerover", event => {
+      const bar = barFor(event.target);
+      if (bar && event.pointerType !== "touch") showValue(bar);
+    });
+    svg.addEventListener("pointerout", event => {
+      const bar = barFor(event.target);
+      if (bar && event.pointerType === "mouse" && document.activeElement !== bar) hoverValue.hidden = true;
+    });
+    svg.addEventListener("focusin", event => {
+      const bar = barFor(event.target);
+      if (bar) showValue(bar);
+    });
+    svg.addEventListener("focusout", event => {
+      if (barFor(event.target)) hoverValue.hidden = true;
+    });
+    svg.addEventListener("click", event => {
+      const bar = barFor(event.target);
+      if (bar) showValue(bar);
+    });
+    panel.append(hoverValue);
     const table = document.createElement("ul");
     table.className = "chart-text-list";
     valid.forEach(item => text(table, "li", `${dateLabel(item.day)}: ${money(item.amount_cents)} · ${number(item.count)} оплат`));

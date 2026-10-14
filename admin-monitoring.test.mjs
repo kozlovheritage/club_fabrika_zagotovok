@@ -211,6 +211,46 @@ scenario('browser desktop/mobile: real queue, charts, email difference, archive 
       await page.waitForFunction(()=>document.querySelector('#analyticsRegion').getAttribute('aria-busy')==='false');
       assert.match(await page.locator('.chart-total-value').textContent(),/1[\s\u00a0]000/);
     }
+    const bar=page.locator('.daily-bars .chart-bar').first();
+    assert.match(await bar.getAttribute('aria-label'),/2026.*1[\s\u00a0]000/);
+    await bar.hover();
+    assert.equal(await page.locator('.chart-hover-value').isVisible(),true);
+    assert.match(await page.locator('.chart-hover-value').textContent(),/2026.*1[\s\u00a0]000.*1 оплата/);
+    if(process.env.CLUB_TEST_SCREENSHOT_DIR)
+      await page.locator('.collection-chart-card').screenshot({
+        path:process.env.CLUB_TEST_SCREENSHOT_DIR+'/hover-desktop.jpg',type:'jpeg',quality:85});
+    await page.mouse.move(0,0);
+    assert.equal(await page.locator('.chart-hover-value').isVisible(),false);
+    await bar.focus();
+    assert.equal(await page.locator('.chart-hover-value').isVisible(),true);
+    const touch=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,extraHTTPHeaders:{'x-test-user':'owner'}});
+    try{
+      await touch.goto(base+'/admin/');
+      await touch.locator('.daily-bars .chart-bar').first().tap();
+      assert.equal(await touch.locator('.chart-hover-value').isVisible(),true);
+      assert.match(await touch.locator('.chart-hover-value').textContent(),/2026.*1[\s\u00a0]000/);
+      assert.equal(await touch.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+      if(process.env.CLUB_TEST_SCREENSHOT_DIR)
+        await touch.locator('.collection-chart-card').screenshot({
+          path:process.env.CLUB_TEST_SCREENSHOT_DIR+'/hover-mobile.jpg',type:'jpeg',quality:85});
+    }finally{await touch.close();await page.bringToFront();}
+    await page.route('**/api/admin/analytics?period=7',async route=>{
+      const response=await route.fetch();
+      const report=await response.json();
+      report.collection.amount_cents='123456';
+      report.collection.count=2;
+      report.collection.daily=[{day:'2026-10-14',amount_cents:'123456',count:2}];
+      report.collection.by_provider=[{provider:'prodamus',amount_cents:'123456',count:2}];
+      await route.fulfill({response,json:report});
+    });
+    await page.locator('[data-period="7"]').click();
+    await page.waitForFunction(()=>document.querySelector('#analyticsRegion')?.getAttribute('aria-busy')==='false');
+    await page.locator('.daily-bars .chart-bar').first().hover();
+    assert.match(await page.locator('.chart-total-value').textContent(),/1[\s\u00a0]234,56/);
+    assert.match(await page.locator('.chart-hover-value').textContent(),/2026.*1[\s\u00a0]234,56.*2 оплаты/);
+    await page.unroute('**/api/admin/analytics?period=7');
+    await page.locator('[data-period="30"]').click();
+    await page.waitForFunction(()=>document.querySelector('#analyticsRegion')?.getAttribute('aria-busy')==='false');
     await page.locator('[data-filter="unverified"]').click();
     await page.waitForFunction(()=>document.querySelectorAll('.order-row').length===1);
     assert.match(await page.locator('.order-row').textContent(),/payer@example.test/);
