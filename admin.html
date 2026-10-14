@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#fdf2f5">
   <title>Поддержка оплат и писем — Фабрика заготовок</title>
   <link rel="stylesheet" href="/admin/admin.css">
+  <script src="/admin/analytics.js" defer></script>
   <script src="/admin/admin.js" defer></script>
 </head>
 <body>
@@ -54,6 +55,26 @@
         <div class="summary-value" id="summaryInProgress" aria-live="polite">—</div>
         <div class="summary-caption">оплата или доставка проверяется</div>
       </article>
+      <article class="summary-card summary-unverified">
+        <div class="summary-label">Не удалось подтвердить</div>
+        <div class="summary-value" id="summaryUnverified" aria-live="polite">—</div>
+        <div class="summary-caption">неопределённость отдельно от ошибки</div>
+      </article>
+    </section>
+
+    <section class="analytics-section" aria-labelledby="analyticsTitle">
+      <div class="analytics-heading">
+        <div><p class="eyebrow">ОПЛАТЫ И СБОИ</p><h2 id="analyticsTitle">Короткий обзор</h2></div>
+        <div class="period-tabs" role="group" aria-label="Период аналитики">
+          <button type="button" data-period="7" aria-pressed="false">7 дней</button>
+          <button type="button" data-period="30" class="is-active" aria-pressed="true">30 дней</button>
+          <button type="button" data-period="all" aria-pressed="false">Всё время</button>
+        </div>
+      </div>
+      <div id="analyticsRegion" class="analytics-grid" aria-live="polite" aria-busy="true">
+        <div class="analytics-card analytics-loading"><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
+        <div class="analytics-card analytics-loading"><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
+      </div>
     </section>
 
     <section class="orders-panel" aria-labelledby="ordersTitle">
@@ -70,6 +91,7 @@
       <div class="toolbar">
         <div class="filter-tabs" role="group" aria-label="Фильтр заказов">
           <button class="filter-tab is-active" type="button" data-filter="attention" aria-pressed="true">Нужно внимания</button>
+          <button class="filter-tab" type="button" data-filter="unverified" aria-pressed="false">Не подтверждено</button>
           <button class="filter-tab" type="button" data-filter="accepted" aria-pressed="false">Письмо принято</button>
           <button class="filter-tab" type="button" data-filter="all" aria-pressed="false">Все заказы</button>
         </div>
@@ -83,7 +105,7 @@
 
       <div class="results-meta">
         <p id="resultsLabel" aria-live="polite">Загружаем заказы…</p>
-        <p class="meta-hint">Откройте заказ, чтобы посмотреть историю писем</p>
+        <p class="meta-hint"><span id="freshnessLabel">Данные ещё не загружены</span> · Откройте заказ для истории писем</p>
       </div>
 
       <div id="ordersRegion" class="orders-region" aria-live="polite" aria-busy="true">
@@ -115,7 +137,7 @@
     </div>
     <section id="credentialPanel" class="credential-panel" aria-labelledby="credentialTitle" hidden>
       <h3 id="credentialTitle">Данные для входа</h3>
-      <p>Email: <strong id="credentialLogin"></strong></p>
+      <p>Email учётной записи — получатель письма: <strong id="credentialLogin"></strong></p>
       <code id="credentialValue" class="credential-value" hidden></code>
       <p id="credentialFeedback" role="status"></p>
       <div class="credential-actions">

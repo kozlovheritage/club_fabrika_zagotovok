@@ -93,7 +93,7 @@ h1 {
 }
 .notice[data-tone="error"] { color: #8b484a; border-color: #edcaca; background: #fff6f5; }
 .notice[data-tone="warning"] { color: #806039; border-color: #eedbb9; background: #fffaf0; }
-.summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; margin-bottom: 24px; }
+.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-bottom: 24px; }
 .summary-card {
   min-height: 111px; padding: 17px 20px; border: 1px solid rgba(221, 196, 194, .64);
   border-radius: 16px; background: rgba(255, 253, 250, .84);
@@ -102,7 +102,40 @@ h1 {
 .summary-label { color: var(--ink-soft); font-size: 12px; font-weight: 700; }
 .summary-value { margin-top: 4px; color: #594b44; font: 600 34px/.98 var(--display); }
 .summary-attention .summary-value { color: var(--pink-deep); }
+.summary-unverified .summary-value { color: var(--amber); }
 .summary-caption { margin-top: 6px; color: var(--muted); font-size: 10px; }
+.analytics-section { margin: 0 0 25px; }
+.analytics-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin: 0 2px 12px; }
+.analytics-heading .eyebrow { margin-bottom: 4px; }
+.analytics-heading h2 { margin: 0; color: #55443e; font: 600 28px/1.05 var(--display); }
+.period-tabs { display: flex; gap: 3px; padding: 4px; border-radius: 999px; background: #f2e9e4; }
+.period-tabs button { padding: 8px 13px; border: 0; border-radius: 999px; color: #85766e; background: transparent; font-size: 10px; font-weight: 800; }
+.period-tabs button.is-active { color: #704c4b; background: var(--paper); box-shadow: 0 2px 7px rgba(102,70,68,.08); }
+.analytics-grid { display: grid; grid-template-columns: 1.12fr .88fr; gap: 13px; min-width: 0; }
+.analytics-card { min-width: 0; padding: 18px 19px 15px; border: 1px solid rgba(221,196,194,.75); border-radius: 16px; background: rgba(255,253,250,.9); box-shadow: 0 8px 25px rgba(122,75,82,.045); }
+.analytics-card h3 { margin: 0; color: #594b44; font: 600 21px/1.2 var(--display); }
+.chart-subtitle { margin: 4px 0 10px; color: #9a8b82; font-size: 10px; }
+.analytics-chart { display: block; width: 100%; height: 148px; overflow: visible; }
+.failure-bars { height: auto; max-height: 300px; }
+.chart-baseline { stroke: #e8d9d5; stroke-width: 1; }
+.chart-bar { fill: #d4768a; }
+.failure-bar { fill: #b87579; }
+.chart-axis-label, .chart-category-label, .chart-value-label { fill: #95877f; font: 10px var(--body); }
+.chart-category-label { font-size: 9px; }
+.chart-value-label { fill: #665650; font-weight: 800; }
+.chart-total { display: flex; align-items: baseline; gap: 10px; padding-top: 5px; }
+.chart-total-value { color: #594b44; font: 600 24px/1 var(--display); }
+.chart-total-caption, .chart-note, .analytics-limit-note { color: #8c7d75; font-size: 10px; line-height: 1.55; }
+.chart-note { margin: 9px 0 0; }
+.chart-text-list { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.analytics-unavailable { margin: 18px 0 2px; color: #8b7d75; font-size: 12px; line-height: 1.6; }
+.analytics-error .button { margin-top: 10px; }
+.analytics-limit-note { grid-column: 1 / -1; margin: -3px 2px 0; }
+.analytics-footnote { margin: 8px 3px 0; color: #95877f; font-size: 10px; line-height: 1.55; }
+.queue-note { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 8px 0 0; border-top: 1px solid #f6ece8; color: #87776e; font-size: 10px; line-height: 1.45; }
+.queue-reason { color: #6f5b54; font-weight: 700; }
+#freshnessLabel.is-stale { color: var(--amber); font-weight: 800; }
+.order-row:has(.queue-note) { row-gap: 11px; }
 .orders-panel {
   overflow: hidden; border: 1px solid rgba(221, 196, 194, .75); border-radius: 19px;
   background: var(--paper); box-shadow: var(--shadow);
@@ -260,7 +293,7 @@ h1 {
   h1 { font-size: 43px; }
   .intro-text { font-size: 13px; }
   .intro-note { max-width: none; margin-top: 15px; }
-  .summary-grid { gap: 8px; margin-bottom: 16px; }
+  .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
   .summary-card { min-height: 100px; padding: 13px 12px; border-radius: 13px; }
   .summary-label { min-height: 29px; font-size: 10px; line-height: 1.35; }
   .summary-value { font-size: 29px; }
@@ -269,7 +302,24 @@ h1 {
   .panel-heading h2 { font-size: 26px; }
   .panel-heading .button { min-height: 37px; padding: 0 11px; font-size: 10px; }
   .toolbar { align-items: stretch; flex-direction: column; padding: 0 15px 13px; }
+  .analytics-heading { align-items: flex-start; flex-direction: column; }
+  .period-tabs { max-width: 100%; }
+  .period-tabs button { padding: 8px 11px; }
+  .analytics-grid { grid-template-columns: minmax(0, 1fr); }
+  .analytics-card { padding: 15px 14px; }
+  .analytics-chart { height: 132px; }
+  .failure-bars { height: auto; }
+  .failure-chart-card .failure-bars { display: none; }
+  .failure-chart-card .chart-text-list {
+    position: static; width: auto; height: auto; clip: auto; overflow: visible; white-space: normal;
+    display: grid; gap: 12px; margin: 14px 0; padding: 0; list-style: none;
+    font-size: 12px; line-height: 1.5; color: #665650; overflow-wrap: anywhere;
+  }
+  .failure-meter { display: block; width: 100%; height: 10px; margin-top: 4px; }
+  .failure-meter::-webkit-meter-bar { background: #efe2df; border: none; }
+  .failure-meter::-webkit-meter-optimum-value { background: #b87579; }
   .filter-tabs { align-self: flex-start; }
+  .orders-panel .filter-tabs { max-width: 100%; overflow-x: auto; }
   .filter-tab { padding: 0 12px; }
   .search-form { width: 100%; }
   .results-meta { align-items: flex-start; flex-direction: column; gap: 3px; padding: 12px 16px 9px; }
@@ -280,6 +330,7 @@ h1 {
   .order-primary { grid-column: 1; }
   .order-tariff { grid-column: 1; }
   .row-end { grid-column: 2; grid-row: 1 / span 2; flex-direction: column; align-items: flex-end; gap: 7px; }
+  .queue-note { grid-column: 1 / -1; }
   .status-pill { max-width: 150px; font-size: 9px; }
   .row-arrow { display: none; }
   .order-date { font-size: 9px; text-align: right; }

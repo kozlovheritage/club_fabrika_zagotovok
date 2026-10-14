@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import {ATTENTION_SQL,PAYMENT_REVIEW_SQL} from './mail-monitor.mjs';
+import {QUEUE_CATEGORY_SQL,QUEUE_PRIORITY_SQL,describeQueue} from './admin-queue.mjs';
 
 export class SupportError extends Error {
   constructor(message,status=409){super(message);this.status=status;}
@@ -28,6 +29,7 @@ export const CHECKOUT_PROVIDER_SCHEMA=[
     ON club_checkout_provider_history(changed_at DESC)`
 ];
 const orderColumns=`o.order_id,o.buyer_email,COALESCE(u.login_email,o.buyer_email) AS recipient_email,
+  CASE WHEN u.email IS NOT NULL THEN COALESCE(NULLIF(u.login_email,''),u.email) END AS account_email,
   o.buyer_name,o.tariff,o.amount_cents,o.status,o.paid_at,o.created_at,
   to_jsonb(o)->>'access_confirmed_at' AS access_confirmed_at,
   to_jsonb(o)->>'last_payment_status' AS last_payment_status,
@@ -38,7 +40,7 @@ const orderColumns=`o.order_id,o.buyer_email,COALESCE(u.login_email,o.buyer_emai
   to_jsonb(o)->>'receipt_id' AS receipt_id,
   m.state AS mail_state,m.delivery_status,m.provider,m.provider_message_id,
   COALESCE(m.attempts,0) AS attempts,m.last_error_code,m.status_checked_at,m.last_sent_at,
-  ${ATTENTION_SQL} AS needs_attention`;
+  ${ATTENTION_SQL} AS needs_attention,${QUEUE_CATEGORY_SQL} AS queue_category`;
 
 export function createAdminStore(pool,{resolveCredential,revealCredential,createResetCredential}={}){
   async function credentialAccount(orderId,actor,operation){
@@ -117,28 +119,27 @@ export function createAdminStore(pool,{resolveCredential,revealCredential,create
         AND ($1::text='' OR o.buyer_email ILIKE '%'||$1||'%'
           OR u.login_email ILIKE '%'||$1||'%'
           OR o.buyer_name ILIKE '%'||$1||'%' OR o.order_id ILIKE '%'||$1||'%')
-        AND ($2::text='all' OR ($2='attention' AND ${ATTENTION_SQL}) OR
-          ($2='accepted' AND o.status='paid' AND NOT COALESCE(${ATTENTION_SQL},false) AND
-            (m.delivery_status='delivered' OR to_jsonb(o)->>'access_confirmed_at' IS NOT NULL)))`;
-      const args=[term,['all','accepted'].includes(filter)?filter:'attention'];
+        AND ($2::text='all' OR
+          ($2='attention' AND (${QUEUE_CATEGORY_SQL}) IN ('payment_review','access_review','mail_error')) OR
+          ($2='unverified' AND (${QUEUE_CATEGORY_SQL})='unverified') OR
+          ($2='accepted' AND (${QUEUE_CATEGORY_SQL})='accepted'))`;
+      const args=[term,['all','accepted','unverified'].includes(filter)?filter:'attention'];
       const total=Number((await pool.query(`SELECT count(*)::integer AS n FROM club_cp_orders o
         LEFT JOIN club_cp_access_mail m USING(order_id)
         LEFT JOIN club_users u ON u.email=m.user_key WHERE ${predicate}`,args)).rows[0].n);
       const orders=(await pool.query(`SELECT ${orderColumns} FROM club_cp_orders o
         LEFT JOIN club_cp_access_mail m USING(order_id)
         LEFT JOIN club_users u ON u.email=m.user_key WHERE ${predicate}
-        ORDER BY o.paid_at DESC NULLS LAST,o.order_id DESC LIMIT 25 OFFSET $3`,
+        ORDER BY ${QUEUE_PRIORITY_SQL},o.paid_at DESC NULLS LAST,o.order_id DESC LIMIT 25 OFFSET $3`,
       [...args,(page-1)*25])).rows;
       const s=(await pool.query(`SELECT
-        count(*) FILTER(WHERE ${ATTENTION_SQL})::integer AS attention,
-        count(*) FILTER(WHERE m.delivery_status='delivered' OR
-          (o.status='paid' AND NOT COALESCE(${ATTENTION_SQL},false) AND
-            to_jsonb(o)->>'access_confirmed_at' IS NOT NULL))::integer AS delivered,
-        count(*) FILTER(WHERE NOT ${ATTENTION_SQL} AND COALESCE(m.delivery_status,'')<>'delivered'
-          AND to_jsonb(o)->>'access_confirmed_at' IS NULL)::integer AS "inProgress"
+        count(*) FILTER(WHERE (${QUEUE_CATEGORY_SQL}) IN ('payment_review','access_review','mail_error'))::integer AS attention,
+        count(*) FILTER(WHERE (${QUEUE_CATEGORY_SQL})='accepted')::integer AS delivered,
+        count(*) FILTER(WHERE (${QUEUE_CATEGORY_SQL})='unverified')::integer AS unverified,
+        count(*) FILTER(WHERE (${QUEUE_CATEGORY_SQL})='progress')::integer AS "inProgress"
         FROM club_cp_orders o LEFT JOIN club_cp_access_mail m USING(order_id)
         WHERE NOT o.test_mode AND o.status IN ('pending','paid','review')`)).rows[0];
-      return {orders,total,page,pageSize:25,summary:s};
+      return {orders:orders.map(describeQueue),total,page,pageSize:25,summary:s,generatedAt:new Date().toISOString()};
     },
     async detail(orderId){
       const found=await pool.query(`SELECT ${orderColumns} FROM club_cp_orders o
@@ -152,7 +153,7 @@ export function createAdminStore(pool,{resolveCredential,revealCredential,create
         FROM club_cp_payment_events WHERE order_id=$1 ORDER BY created_at DESC LIMIT 100`,[orderId])).rows;
       const audit=(await pool.query(`SELECT action,created_at FROM club_admin_audit WHERE order_id=$1
         ORDER BY created_at DESC LIMIT 100`,[orderId])).rows;
-      return {order:found.rows[0],history,paymentHistory,audit};
+      return {order:describeQueue(found.rows[0]),history,paymentHistory,audit};
     },
     async confirmAccess(orderId,actor,input={}){
       if(input.confirmed!==true||!Number.isSafeInteger(input.expectedAttempts)||input.expectedAttempts<0||

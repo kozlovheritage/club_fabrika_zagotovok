@@ -12,7 +12,11 @@
     enabled: true,
     orders: [],
     currentOrder: null,
-    loading: false
+    loading: false,
+    listRequest: 0,
+    detailRequest: 0,
+    generatedAt: null,
+    refreshFailed: false
   };
   const elements = {
     notice: $("#systemNotice"),
@@ -59,7 +63,9 @@
     resetRequested: $("#resetRequested"),
     confirmPasswordReset: $("#confirmPasswordReset"),
     cancelPasswordReset: $("#cancelPasswordReset"),
-    live: $("#liveMessage")
+    live: $("#liveMessage"),
+    unverified: $("#summaryUnverified"),
+    freshness: $("#freshnessLabel")
   };
 
   const text = (value, fallback = "—") => value === null || value === undefined || String(value).trim() === "" ? fallback : String(value);
@@ -108,9 +114,22 @@
   const label = value => labels[value] || text(value);
   const providerName = value => ({prodamus:"Prodamus",cloudpayments:"CloudPayments"})[value] || "Не указан";
   const statusInfo = (order) => {
+    if(order.access_confirmed_at&&!order.needs_attention)
+      return {label:"Письмо принято · вручную",tone:"success"};
+    if (order.queue_category === "unverified")
+      return { label: "Не подтверждено", tone: "progress" };
+    if (order.queue_category === "accepted")
+      return { label: "Письмо принято сервером", tone: "success" };
+    if (order.queue_category === "payment_review")
+      return { label: "Сверка оплаты", tone: "error" };
+    if (order.queue_category === "access_review")
+      return { label: "Проверка доступа", tone: "error" };
+    if (order.queue_category === "mail_error")
+      return { label: "Ошибка доставки", tone: "error" };
+    if (order.queue_category === "progress")
+      return { label: "В процессе", tone: "progress" };
     if(order.status==="pending"&&!order.mail_state&&(!order.last_payment_status||order.last_payment_status==="pending"))
       return {label:"Ожидает оплаты",tone:"progress"};
-    if(order.access_confirmed_at&&!order.needs_attention)return {label:"Письмо принято · вручную",tone:"success"};
     const status = normalize(order.delivery_status || order.mail_state || order.status);
     if (order.needs_attention || /fail|bounce|reject|error|не удалось|ошиб/.test(status)) {
       return { label: "Нужна проверка", tone: "error" };
@@ -209,7 +228,11 @@
     const buyer = document.createElement("span");
     buyer.className = "order-primary";
     addText(buyer, "span", order.buyer_name || "Имя не указано", "buyer-name");
-    addText(buyer, "span", order.buyer_email || "Email не указан", "buyer-email");
+    addText(buyer, "span", `Email плательщика: ${order.buyer_email || "не указан"}`, "buyer-email");
+    if (order.tariff === "premium")
+      addText(buyer, "span", `Email для входа: ${order.account_email || "пока не привязан к заказу"}`, "buyer-email");
+    else if (order.recipient_email && order.recipient_email !== order.buyer_email)
+      addText(buyer, "span", `Email письма: ${order.recipient_email}`, "buyer-email");
     addText(buyer, "span", `${providerName(order.payment_provider)} · ${label(order.last_payment_status || order.status)}`, "order-date");
     button.append(buyer);
 
@@ -226,6 +249,13 @@
     pill.title = "Принятие письма сервером не подтверждает, что оно попало во входящие.";
     addText(end, "span", "›", "row-arrow");
     button.append(end);
+    if (order.queue_reason || order.next_action) {
+      const queue = document.createElement("span");
+      queue.className = "queue-note";
+      if (order.queue_reason) addText(queue, "span", order.queue_reason, "queue-reason");
+      if (order.next_action) addText(queue, "span", `Дальше: ${order.next_action}`, "queue-next");
+      button.append(queue);
+    }
     button.addEventListener("click", () => openOrder(order.order_id));
     return button;
   }
@@ -255,20 +285,36 @@
     elements.prev.disabled = state.page <= 1;
     elements.next.disabled = state.page >= pages;
   }
-  async function loadOrders() {
-    if (state.loading) return;
-    hideNotice();
-    setLoading(true);
-    const params = new URLSearchParams({ filter: state.filter, page: String(state.page) });
-    if (state.query) params.set("q", state.query);
+  async function loadOrders(mode = "user") {
+    const polling = mode === "poll";
+    const dialogsOpen = Array.from(document.querySelectorAll("dialog")).some(dialog => dialog.open);
+    if (polling && (dialogsOpen || document.hidden || state.loading || elements.searchInput.value.trim() !== state.query)) return;
+    if (state.loading && polling) return;
+    const requestId = ++state.listRequest;
+    const request = { filter: state.filter, query: state.query, page: state.page };
+    if (!polling) {
+      hideNotice();
+      setLoading(true);
+    } else {
+      state.loading = true;
+      elements.refresh.disabled = true;
+      elements.region.setAttribute("aria-busy", "true");
+    }
+    const params = new URLSearchParams({ filter: request.filter, page: String(request.page) });
+    if (request.query) params.set("q", request.query);
     try {
       const result = await api(`/api/admin/orders?${params.toString()}`);
+      if (requestId !== state.listRequest || request.filter !== state.filter ||
+          request.query !== state.query || request.page !== state.page) return;
       state.orders = Array.isArray(result.orders) ? result.orders : [];
+      state.refreshFailed = false;
       state.total = Number(result.total) || 0;
       state.page = Number(result.page) || state.page;
       state.pageSize = Number(result.pageSize) || 20;
       state.csrfToken = result.csrfToken || state.csrfToken;
       state.enabled = result.enabled !== false;
+      state.generatedAt = result.generatedAt || null;
+      updateFreshness();
       if(elements.paymentProvider){
         elements.paymentProvider.replaceChildren();
         addText(elements.paymentProvider,"strong",`Новые оплаты: ${providerName(result.activePaymentProvider)}.`);
@@ -286,22 +332,52 @@
       elements.attention.textContent = result.summary && result.summary.attention != null ? String(result.summary.attention) : "—";
       elements.delivered.textContent = result.summary && result.summary.delivered != null ? String(result.summary.delivered) : "—";
       elements.inProgress.textContent = result.summary && result.summary.inProgress != null ? String(result.summary.inProgress) : "—";
+      if (elements.unverified) elements.unverified.textContent = result.summary && result.summary.unverified != null ? String(result.summary.unverified) : "—";
       renderOrders();
+      if (polling) window.clubAnalytics.load(window.clubAnalytics.period,"poll");
       if (!state.enabled) {
         showNotice("Автоматическая отправка доступов ещё не включена. Здесь появятся новые заказы после её включения.", "warning");
       } else if (result.alertsConfigured === false) {
         showNotice("Email-уведомления владельцу не настроены. Проблемные письма пока видны только в этом разделе.", "warning");
       }
     } catch (error) {
-      state.orders = [];
-      state.total = 0;
-      elements.region.replaceChildren(makeState("Не удалось загрузить заказы", explainError(error), true));
-      elements.results.textContent = "Список недоступен";
-      elements.pagination.hidden = true;
-      showNotice(explainError(error), error.status === 401 || error.status === 403 || error.status === 503 ? "warning" : "error");
+      if (requestId !== state.listRequest) return;
+      if (polling) {
+        state.refreshFailed = true;
+        if (elements.freshness) elements.freshness.classList.add("is-stale");
+      } else {
+        state.orders = [];
+        state.total = 0;
+        elements.region.replaceChildren(makeState("Не удалось загрузить заказы", explainError(error), true));
+        elements.results.textContent = "Список недоступен";
+        elements.pagination.hidden = true;
+        showNotice(explainError(error), error.status === 401 || error.status === 403 || error.status === 503 ? "warning" : "error");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === state.listRequest) {
+        if (!polling) setLoading(false);
+        else {
+          state.loading = false;
+          elements.region.setAttribute("aria-busy", "false");
+          elements.refresh.disabled = false;
+        }
+      }
     }
+  }
+  function updateFreshness() {
+    window.clubAnalytics?.updateFreshness();
+    if (!elements.freshness) return;
+    const stamp = Date.parse(state.generatedAt || "");
+    if (!Number.isFinite(stamp)) {
+      elements.freshness.textContent = "Свежесть данных неизвестна";
+      elements.freshness.classList.add("is-stale");
+      return;
+    }
+    const age = Math.max(0, Math.floor((Date.now() - stamp) / 1000));
+    elements.freshness.textContent = state.refreshFailed ? "Обновление не удалось · показаны прежние данные" :
+      age < 60 ? "Данные только что обновлены" : `Обновлено ${Math.floor(age / 60)} мин. назад`;
+    elements.freshness.title = formatDate(state.generatedAt);
+    elements.freshness.classList.toggle("is-stale", age > 120 || state.refreshFailed);
   }
 
   function addDetailItem(parent, label, value) {
@@ -337,9 +413,9 @@
     const grid = document.createElement("div");
     grid.className = "detail-grid";
     addDetailItem(grid, "Участник", order.buyer_name);
-    addDetailItem(grid, "Email в платеже", order.buyer_email);
-    if(order.recipient_email && order.recipient_email!==order.buyer_email)
-      addDetailItem(grid, "Email для письма", order.recipient_email);
+    addDetailItem(grid, "Email плательщика (из платежа)", order.buyer_email);
+    addDetailItem(grid, order.tariff==="premium"?"Email для входа":"Email письма",
+      order.tariff==="premium"?(order.account_email||"пока не привязан к заказу"):(order.recipient_email||order.buyer_email));
     addDetailItem(grid, "Тариф", label(order.tariff));
     addDetailItem(grid, "Оплата", formatAmount(order.amount_cents));
     addDetailItem(grid, "Статус оплаты", label(order.last_payment_status || order.status));
@@ -357,7 +433,12 @@
     addDetailItem(grid, "Последняя отправка", formatDate(order.last_sent_at));
     addDetailItem(grid, "Последняя проверка", formatDate(order.status_checked_at));
     if (order.provider_message_id) addDetailItem(grid, "ID письма у провайдера", order.provider_message_id);
-    if (order.last_error_code) addDetailItem(grid, "Причина последней ошибки", label(order.last_error_code));
+    if (order.last_error_code) addDetailItem(grid,
+      ["external_delivery_unverified","status_unavailable","send_uncertain"].includes(order.last_error_code)?
+        "Ограничение проверки":"Причина последней ошибки",
+      order.last_error_code==="external_delivery_unverified"?"Prodamus не передаёт подтверждение доставки":label(order.last_error_code));
+    if (order.queue_reason) addDetailItem(grid, "Почему заказ в этой очереди", order.queue_reason);
+    if (order.next_action) addDetailItem(grid, "Следующий шаг", order.next_action);
     elements.detailContent.append(grid);
     if(order.payment_requires_review||["refund_reported","refunded","partially_refunded"].includes(order.last_payment_status))
       addText(elements.detailContent,"p","Провайдер сообщил о возврате. Доступ автоматически не отзывается — требуется проверка владельцем.","detail-explanation");
@@ -373,6 +454,13 @@
     elements.detailContent.append(paymentSection);
     const explanation = addText(elements.detailContent, "p", "Очередь NotiSend и статус «Отправлено» ещё не подтверждают доставку. Только «Принято сервером получателя» означает приём почтовым сервером — не попадание во входящие. При отказе провайдера или получателя сначала проверьте причину; повтор не снимает блокировку и не отменяет отписку.", "detail-explanation");
     explanation.setAttribute("role", "note");
+    if ((order.delivery_status === "unknown" || order.queue_category === "unverified") &&
+        (order.payment_provider === "prodamus" || order.provider === "prodamus")) {
+      const providerUnknown = addText(elements.detailContent, "p",
+        "Статус Prodamus не подтверждён: провайдер не возвращает подтверждение доставки. Это неопределённость, а не зарегистрированный отказ. Перед повторной отправкой проверьте фактическую ситуацию.",
+        "detail-explanation");
+      providerUnknown.setAttribute("role", "note");
+    }
     const historySection = document.createElement("section");
     historySection.className = "history-section";
     addText(historySection, "h3", "История доставки");
@@ -385,9 +473,11 @@
     elements.detailContent.append(auditSection);
   }
   async function openOrder(id) {
+    const requestId = ++state.detailRequest;
+    const requestedId = String(id);
     clearCredential();
     elements.credentialPanel.hidden = true;
-    state.currentOrder = state.orders.find((order) => String(order.order_id) === String(id)) || null;
+    state.currentOrder = state.orders.find((order) => String(order.order_id) === String(id)) || {order_id:requestedId};
     elements.detailId.textContent = text(id);
     elements.detailActions.hidden = true;
     elements.detailContent.replaceChildren();
@@ -397,9 +487,11 @@
     if (!elements.dialog.open) elements.dialog.showModal();
     try {
       const result = await api(`/api/admin/orders/${encodeURIComponent(id)}`);
+      if (requestId !== state.detailRequest || !elements.dialog.open ||
+          String(state.currentOrder?.order_id) !== requestedId) return;
       state.csrfToken = result.csrfToken || state.csrfToken;
-      state.currentOrder = result.order || state.currentOrder;
-      if (!state.currentOrder) throw new Error("В ответе сервера нет данных заказа.");
+      if (!result.order || String(result.order.order_id)!==requestedId) throw new Error("В ответе сервера нет данных заказа.");
+      state.currentOrder = result.order;
       renderDetail(state.currentOrder, result.history, result.audit, result.paymentHistory);
       const credentialEligible = state.enabled && state.currentOrder.tariff === "premium" &&
         state.currentOrder.status === "paid" && !state.currentOrder.payment_requires_review &&
@@ -420,6 +512,8 @@
       elements.confirmAccess.textContent = state.currentOrder.access_confirmed_at ? "Доступ подтверждён вручную" : "Оплата и доступ подтверждены";
       elements.detailActions.hidden = false;
     } catch (error) {
+      if (requestId !== state.detailRequest || !elements.dialog.open ||
+          String(state.currentOrder?.order_id) !== requestedId) return;
       elements.detailContent.replaceChildren(makeState("Подробности недоступны", explainError(error), true));
       showNotice(explainError(error), error.status === 401 || error.status === 403 ? "warning" : "error");
     }
@@ -597,7 +691,10 @@
     state.page = 1;
     loadOrders();
   });
-  elements.refresh.addEventListener("click", loadOrders);
+  elements.refresh.addEventListener("click", () => {
+    loadOrders();
+    window.clubAnalytics.load(window.clubAnalytics.period);
+  });
   elements.prev.addEventListener("click", () => {
     if (state.page > 1) { state.page -= 1; loadOrders(); }
   });
@@ -626,8 +723,36 @@
   elements.dialog.addEventListener("click", (event) => {
     if (event.target === elements.dialog) elements.dialog.close();
   });
+  elements.dialog.addEventListener("close", () => { state.detailRequest += 1; clearCredential(); });
   elements.confirmDialog.addEventListener("click", (event) => {
     if (event.target === elements.confirmDialog) elements.confirmDialog.close();
   });
-  loadOrders();
+  document.querySelectorAll("[data-period]").forEach(button => {
+    button.addEventListener("click", () => {
+      if (button.dataset.period === window.clubAnalytics.period) return;
+      document.querySelectorAll("[data-period]").forEach(tab => {
+        const active = tab === button;
+        tab.classList.toggle("is-active", active);
+        tab.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      window.clubAnalytics.load(button.dataset.period);
+    });
+  });
+  window.clubAnalytics.load("30");
+  window.setInterval(() => loadOrders("poll"), 30000);
+  window.setInterval(updateFreshness, 15000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) loadOrders("poll");
+  });
+  window.addEventListener("pagehide", () => { state.detailRequest += 1; });
+  const initialOrder = new URLSearchParams(window.location.search).get("order");
+  if (initialOrder) {
+    state.filter = "all";
+    document.querySelectorAll(".filter-tab").forEach(tab => {
+      const active = tab.dataset.filter === "all";
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    loadOrders().then(() => openOrder(initialOrder));
+  } else loadOrders();
 })();

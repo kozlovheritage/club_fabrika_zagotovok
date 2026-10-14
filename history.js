@@ -12,7 +12,11 @@
     items: [],
     loading: false,
     listRequest: 0,
-    detailRequest: 0
+    detailRequest: 0,
+    generatedAt: null,
+    syncAt: null,
+    syncHasError: false,
+    refreshFailed: false
   };
   const elements = {
     notice: $("#systemNotice"),
@@ -26,6 +30,9 @@
     syncState: $("#syncState"),
     syncError: $("#syncError"),
     syncLimits: $("#syncLimits"),
+    coverageHorizon: $("#coverageHorizon"),
+    csvRange: $("#csvRange"),
+    freshness: $("#historyFreshness"),
     region: $("#historyRegion"),
     results: $("#resultsLabel"),
     hint: $("#resultsHint"),
@@ -154,19 +161,35 @@
     }
     return wrapper;
   }
-  function syncStatus(sync = {}) {
-    elements.syncSuccess.textContent = formatDate(sync.last_success_at);
-    elements.syncImport.textContent = formatDate(sync.last_import_at);
+  function syncStatus(sync = {}, coverage = {}) {
+    state.syncAt=coverage.last_success_at||sync.last_success_at;
+    state.syncHasError=Boolean(sync.last_error);
+    elements.syncSuccess.textContent = formatDate(coverage.last_success_at || sync.last_success_at);
+    elements.syncImport.textContent = formatDate(coverage.last_import_at || sync.last_import_at);
+    elements.coverageHorizon.textContent = coverage.earliest && coverage.latest
+      ? `${formatDate(coverage.earliest)} — ${formatDate(coverage.latest)}` : "Даты покрытия не предоставлены";
+    elements.csvRange.textContent = coverage.import_min && coverage.import_max
+      ? `${formatDate(coverage.import_min)} — ${formatDate(coverage.import_max)}` : "Диапазон CSV не предоставлен";
     const hasError = Boolean(sync.last_error);
-    const lastSync = Date.parse(sync.last_success_at || "");
+    const lastSync = Date.parse(coverage.last_success_at || sync.last_success_at || "");
     const stale = !Number.isFinite(lastSync) || Date.now() - lastSync > 180000;
     elements.syncState.textContent = hasError ? "Есть ошибка синхронизации" :
       (stale ? "Нет свежей сверки" : "Сверка платформы работает");
     elements.syncState.classList.toggle("is-warning", hasError || stale);
     elements.syncError.hidden = !hasError;
     elements.syncError.textContent = hasError ? `Последняя ошибка: ${String(sync.last_error)}` : "";
-    elements.syncLimits.textContent = emptyText(sync.limits_note,
-      "История включает только полученные события. Пропущенные уведомления и полный удалённый журнал автоматически не запрашиваются.");
+    elements.syncLimits.textContent = "Загруженный горизонт показывает только локально сохранённые события. Это не полный удалённый аудит Prodamus; пропущенные уведомления автоматически не восстанавливаются.";
+    updateFreshness();
+  }
+  function updateFreshness(){
+    const staleSync=!state.syncAt||Date.now()-Date.parse(state.syncAt)>180000;
+    elements.syncState.textContent=state.syncHasError?"Есть ошибка локальной сверки":
+      staleSync?"Нет свежей локальной сверки":"Локальная сверка работает";
+    elements.syncState.classList.toggle("is-warning",staleSync||state.syncHasError||state.refreshFailed);
+    const staleView=!state.generatedAt||Date.now()-Date.parse(state.generatedAt)>120000;
+    elements.freshness.textContent=state.refreshFailed?"Обновление не удалось · показаны прежние данные":
+      staleView?"Данные кабинета устарели":"Обновлено: "+formatDate(state.generatedAt);
+    elements.freshness.classList.toggle("is-warning",staleView||state.refreshFailed);
   }
   function statusTone(status, kind) {
     if (kind === "lead") return "neutral";
@@ -250,11 +273,17 @@
     elements.next.disabled = state.page >= pages;
   }
   async function loadHistory(reason = "user") {
-    if (reason === "poll" && (document.hidden || state.loading)) return;
+    if (reason === "poll" && (document.hidden || state.loading || elements.dialog.open ||
+      elements.searchInput.value.trim() !== state.query)) return;
     const requestId = ++state.listRequest;
     const request = { kind: state.kind, status: state.status, query: state.query, page: state.page };
     if (reason !== "poll") hideNotice();
-    setBusy(true);
+    if (reason !== "poll") setBusy(true);
+    else {
+      state.loading = true;
+      elements.region.setAttribute("aria-busy", "true");
+      elements.refresh.disabled = true;
+    }
     const params = new URLSearchParams({
       kind: request.kind,
       q: request.query,
@@ -265,6 +294,8 @@
       const result = await api(`/api/admin/history?${params.toString()}`);
       if (requestId !== state.listRequest) return;
       state.items = Array.isArray(result.items) ? result.items : [];
+      state.generatedAt=result.generatedAt||null;
+      state.refreshFailed=false;
       state.total = Number(result.total) || 0;
       state.page = Number(result.page) || request.page;
       state.pageSize = Number(result.pageSize) || 25;
@@ -275,17 +306,24 @@
       elements.paid.textContent = emptyText(summary.paid, "0");
       elements.refunded.textContent = emptyText(summary.refunded, "0");
       elements.leads.textContent = emptyText(summary.leads, "0");
-      syncStatus(result.sync || {});
+      syncStatus(result.sync || {}, result.coverage || {});
       renderList();
       if (reason === "poll") announce("История обновлена.");
     } catch (error) {
       if (requestId !== state.listRequest) return;
-      state.items = [];
-      state.total = 0;
-      elements.region.replaceChildren(makeState("История недоступна", explainError(error), true));
-      elements.results.textContent = "Список недоступен";
-      elements.pagination.hidden = true;
-      showNotice(explainError(error), error.status === 401 || error.status === 403 ? "warning" : "error");
+      state.refreshFailed=true;
+      updateFreshness();
+      if (reason !== "poll") {
+        state.items = [];
+        state.total = 0;
+        elements.region.replaceChildren(makeState("История недоступна", explainError(error), true));
+        elements.results.textContent = "Список недоступен";
+        elements.pagination.hidden = true;
+        showNotice(explainError(error), error.status === 401 || error.status === 403 ? "warning" : "error");
+      } else {
+        elements.syncState.textContent = "Не удалось обновить локальную синхронизацию";
+        elements.syncState.classList.add("is-warning");
+      }
       if (error.status === 401 || error.status === 403) {
         elements.syncState.textContent = "Требуется доступ администратора";
         elements.syncState.classList.add("is-warning");
@@ -349,10 +387,24 @@
     const mailState = providedMailStatus && providedMailStatus !== "not_verified"
       ? label(providedMailStatus) : "Не проверено";
     addDetailItem(grid, "Состояние письма", mailState);
-    addDetailItem(grid, "Связанный заказ платформы", result.live_order_id || "Не связан");
+    const hasIdentityConflict = item.identity_conflict === true || detail.identity_conflict === true ||
+      (result.item && result.item.identity_conflict === true);
+    const liveOrder = document.createElement("div");
+    liveOrder.className = "detail-item";
+    appendText(liveOrder, "span", "Связанный заказ платформы", "detail-label");
+    if (result.live_order_id && !hasIdentityConflict) {
+      const link = document.createElement("a");
+      link.className = "detail-value history-live-order-link";
+      link.href = `/admin/?order=${encodeURIComponent(String(result.live_order_id))}`;
+      link.textContent = String(result.live_order_id);
+      liveOrder.append(link);
+    } else {
+      appendText(liveOrder, "span", result.live_order_id ? "Ссылка скрыта: требуется проверка идентичности" : "Не связан", "detail-value");
+    }
+    grid.append(liveOrder);
     elements.detailContent.append(grid);
 
-    if (detail.identity_conflict === true || item.identity_conflict === true) {
+    if (hasIdentityConflict) {
       const warning = appendText(elements.detailContent, "p",
         "Требуется проверка: ID провайдера совпал, но email, номер заказа или сумма различались. Доступ не объединяется автоматически.",
         "history-identity-warning");
@@ -440,6 +492,7 @@
     if (!document.hidden) loadHistory("poll");
   });
   window.setInterval(() => loadHistory("poll"), 30000);
+  window.setInterval(updateFreshness,15000);
   elements.statusWrap.hidden = false;
   loadHistory("initial");
 })();

@@ -52,7 +52,7 @@ let root,pool,store,server,base;
 before(async()=>{
   if(!dsn)return;
   const u=new URL(dsn);
-  if(u.hostname!=='127.0.0.1'||u.port!=='55439'||u.pathname!=='/club_cloudpayments_test')
+  if(u.hostname!=='127.0.0.1'||u.pathname!=='/club_cloudpayments_test')
     throw new Error('History tests require the isolated local PostgreSQL runner');
   root=new pg.Pool({connectionString:dsn,ssl:false});
   await root.query('CREATE SCHEMA '+schema);

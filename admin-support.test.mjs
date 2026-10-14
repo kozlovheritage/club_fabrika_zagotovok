@@ -166,6 +166,7 @@ scenario('browser: confirmed access leaves attention, appears in accepted and su
     await page.goto('https://club.example.test/admin');
     await page.evaluate(()=>fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'owner@example.test',password:'synthetic-test-password'})}));
     await page.goto('https://club.example.test/admin');
+    await page.locator('[data-filter="unverified"]').click();
     await page.locator('.order-row').first().click();
     await page.locator('#confirmAccessButton').click();
     await page.locator('#cancelConfirmAccess').click();
@@ -248,7 +249,7 @@ scenario('orders expose safe fields, genuine attention, live-only search and exp
   await order({id:'delivered',status:'delivered'});
   await order({id:'test-only',testMode:true});
   const all=await (await request('/api/admin/orders?filter=all',{cookie})).json();
-  assert.equal(all.total,3);assert.deepEqual(all.summary,{attention:1,delivered:1,inProgress:1});
+   assert.equal(all.total,3);assert.deepEqual(all.summary,{attention:1,delivered:1,inProgress:1,unverified:0});
   assert.ok(all.csrfToken);assert.equal(all.alertsConfigured,false);
   assert.doesNotMatch(JSON.stringify(all),/password|ciphertext|payment_url|claim_token|transaction_id|user_key/);
   const attention=await (await request('/api/admin/orders',{cookie})).json();

@@ -39,11 +39,14 @@
     <section id="systemNotice" class="notice" role="status" hidden></section>
 
     <section class="history-sync" aria-label="Состояние синхронизации">
-      <div><strong>Последняя успешная синхронизация</strong> <span id="syncSuccess">—</span></div>
+      <div><strong>Загруженный горизонт</strong> <span id="coverageHorizon">Неизвестен</span></div>
       <span id="syncState" class="sync-status">Состояние проверяется</span>
       <div id="syncError" class="sync-error" hidden></div>
-      <div><strong>Последняя загрузка CSV</strong> <span id="syncImport">—</span></div>
-      <div id="syncLimits" class="sync-limits">Ограничения данных загружаются.</div>
+      <div><strong>Локальная синхронизация</strong> Последняя успешная: <span id="syncSuccess">—</span></div>
+      <div><strong>Загрузка CSV</strong> Последняя: <span id="syncImport">—</span></div>
+      <div><strong>Диапазон CSV</strong> <span id="csvRange">Неизвестен</span></div>
+      <div><strong>Обновление кабинета</strong> <span id="historyFreshness">Проверяется</span></div>
+      <div id="syncLimits" class="sync-limits">История не является полным удалённым аудитом Prodamus.</div>
     </section>
 
     <section class="summary-grid history-summary" aria-label="Сводка">

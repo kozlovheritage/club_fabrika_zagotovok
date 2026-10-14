@@ -66,6 +66,10 @@
 .history-dialog-footer { padding: 0 25px 21px; display: flex; justify-content: flex-end; }
 .history-nav-link { color: var(--ink-soft); }
 .history-nav-link:hover { color: var(--pink-deep); }
+.history-live-order-link { color: var(--pink-deep); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.history-live-order-link:hover { color: #8f3f56; }
+.history-sync > div { min-width: 0; overflow-wrap: anywhere; }
+.sync-limits { color: #806a62; }
 .history-page .page-footer { margin-top: 8px; }
 
 @media (max-width: 760px) {

@@ -35,7 +35,7 @@ export function mountAdmin(app,express,{enabled,cloudEnabled,paymentProvider,fin
   };
   router.use(guard);
   const staticFiles={'/':'admin.html','/admin.css':'admin.css','/admin.js':'admin.js',
-    '/history':'history.html','/history.js':'history.js','/history.css':'history.css'};
+    '/history':'history.html','/history.js':'history.js','/history.css':'history.css','/analytics.js':'analytics.js'};
   for(const [path,file] of Object.entries(staticFiles))router.get(path,(req,res)=>{
     res.sendFile(file,{root:fileURLToPath(new URL('.',import.meta.url))});
   });
@@ -45,6 +45,10 @@ export function mountAdmin(app,express,{enabled,cloudEnabled,paymentProvider,fin
   // Reuse exactly the same guard, not client-supplied role or a hidden URL.
   api.use(guard);
   if(historyStore){
+    api.get('/analytics',async(req,res,next)=>{
+      try{res.json(await historyStore.analytics(req.query));}
+      catch(error){next(error);}
+    });
     api.get('/history',async(req,res,next)=>{
       try{res.json({...await historyStore.list(req.query),user:{name:req.admin.name}});}
       catch(error){next(error);}
@@ -60,7 +64,7 @@ export function mountAdmin(app,express,{enabled,cloudEnabled,paymentProvider,fin
         alertsConfigured,user:{name:req.admin.name},activePaymentProvider:await activePaymentProvider(),
         providerHistory:await store.checkoutProviderHistory()};
       if(!mailEnabled())return res.json({...metadata,orders:[],total:0,page:1,pageSize:25,
-        summary:{attention:0,delivered:0,inProgress:0}});
+        summary:{attention:0,delivered:0,inProgress:0,unverified:0},generatedAt:new Date().toISOString()});
       res.json({...metadata,...await store.list(req.query)});
     }catch(error){next(error);}
   });

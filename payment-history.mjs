@@ -1,5 +1,6 @@
 import {digest,HistoryInputError} from './history-csv.mjs';
 import {SupportError} from './admin-store.mjs';
+import {readHistoryCoverage,readAdminAnalytics} from './admin-analytics.mjs';
 
 // A separate ledger: it has NO triggers, account writes, fulfillment or outbox.
 export const HISTORY_SCHEMA=[
@@ -64,6 +65,7 @@ async function saveRecord(client,r){
 }
 const limitsNote='Новые оплаты и действия поступают из уведомлений платформы; её платёжный журнал сверяется каждую минуту. Полная история в Prodamus не опрашивается. Пропущенное уведомление, старый статус или возврат без уведомления требуют новой выгрузки. Отсутствие письма в истории не означает, что оно не отправлялось.';
 const mailJoin=`LEFT JOIN club_cp_orders o ON o.order_id=h.order_id AND NOT o.test_mode
+  AND NOT h.identity_conflict AND h.currency='RUB'
   AND o.payment_provider=h.provider AND o.buyer_email=h.buyer_email AND o.amount_cents=h.amount_cents
   LEFT JOIN club_cp_access_mail m ON m.order_id=o.order_id`;
 const projection=`h.*,COALESCE(m.delivery_status,'not_verified') AS mail_status`;
@@ -82,6 +84,7 @@ export function createPaymentHistory(pool){
     finally{c.release();}
   }
   return {
+    async analytics({period='30'}={}){return readAdminAnalytics(pool,period);},
     async importExports(payments,leads){
       return transaction(async c=>{
         for(const r of [...payments.records,...leads.records])await saveRecord(c,r);
@@ -172,7 +175,7 @@ export function createPaymentHistory(pool){
         FROM club_payment_history`)).rows[0];
       const sync=(await pool.query('SELECT * FROM club_history_sync WHERE id=1')).rows[0];
       return {items:items.map(x=>({...x,kind:leads?'lead':'payment'})),total,page,pageSize:25,summary,
-        sync:{...sync,limits_note:limitsNote}};
+        sync:{...sync,limits_note:limitsNote},coverage:await readHistoryCoverage(pool),generatedAt:new Date().toISOString()};
     },
     async detail(id,{kind='payments'}={}){
       if(!/^[a-f0-9]{64}$/.test(id))throw new SupportError('Запись не найдена',404);
