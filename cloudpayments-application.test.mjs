@@ -46,7 +46,7 @@ async function buyer(base,tariff,email,paymentProvider){
   const docs=await (await fetch(base+'/api/legal/checkout-documents')).json();
   return {tariff,email,buyerName:'Тестовая Участница',promo:'',
     ...(paymentProvider?{paymentProvider}:{}),
-    consents:{personalData:true,marketing:false,offer:true,
+    checkoutProtocol:2,consents:{personalData:true,marketing:false,offer:true,
       documents:Object.fromEntries(Object.entries(docs.documents).map(([name,doc])=>[name,doc.id]))}};
 }
 test('whole app: manual selection preserves Prodamus and in-flight Cloud callbacks',
@@ -70,6 +70,13 @@ test('whole app: manual selection preserves Prodamus and in-flight Cloud callbac
     const selector=createAdminStore(pool);
     assert.equal(await selector.activeCheckoutProvider(),'prodamus'); // Restart does not switch.
     await selector.setCheckoutProvider('cloudpayments','prodamus');
+    const stale=await buyer(active,'premium','stale@example.test');
+    delete stale.checkoutProtocol;
+    const countBefore=(await pool.query('SELECT count(*)::int AS n FROM club_cp_orders')).rows[0].n;
+    const staleResponse=await post(active,'/api/checkout/session',stale,{Origin:'https://sales.example.test'});
+    assert.equal(staleResponse.status,409);
+    assert.match((await staleResponse.json()).message,/Обновите страницу/);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM club_cp_orders')).rows[0].n,countBefore);
     const oldDirect=await post(active,'/api/checkout/direct',{}, {Origin:'https://sales.example.test'});
     assert.equal(oldDirect.status,400); // No blanket disabling of existing Prodamus orders.
     for(const [tariff,email,txn] of [['premium','premium@example.test','98765431'],['basic','basic@example.test','98765432']]){

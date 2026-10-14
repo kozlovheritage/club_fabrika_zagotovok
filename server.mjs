@@ -174,6 +174,8 @@ app.use('/api/checkout',(req,res,next)=>{
 app.post('/api/checkout/session',async(req,res,next)=>{
   let checkoutProvider;
   try{checkoutProvider=await adminStore.activeCheckoutProvider();}catch(error){return next(error);}
+  if(checkoutProvider==='cloudpayments'&&req.body?.checkoutProtocol!==2)
+    return res.status(409).json({message:'Форма оплаты обновилась. Обновите страницу сайта и попробуйте ещё раз.'});
   const tariff=req.body?.tariff;
   if(tariff!=='basic'&&tariff!=='premium')return res.status(400).json({message:'Неизвестный тариф'});
   const email=normalizeEmail(req.body?.email);
