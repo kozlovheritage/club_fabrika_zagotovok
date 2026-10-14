@@ -28,6 +28,7 @@ export const MAIL_MONITOR_SCHEMA = [
 ];
 
 export function safeMailError(error) {
+  if(error?.uncertain)return 'send_uncertain';
   if (error?.status===409) return 'credentials_review';
   if ([401,403].includes(error?.status)) return 'provider_auth';
   if (error?.status===429) return 'provider_rate_limit';
@@ -75,9 +76,11 @@ export async function recordMailFailure(pool,mail,token,error) {
     const changed=await client.query(`UPDATE club_cp_access_mail SET
       state=CASE WHEN $3::boolean OR consecutive_failures>=7 THEN 'blocked' ELSE 'pending' END,
       consecutive_failures=consecutive_failures+1,last_error_code=$4,
-      next_attempt_at=now()+make_interval(secs=>LEAST(3600,30*POWER(2,LEAST(consecutive_failures+1,7)))::integer),
+      delivery_status=CASE WHEN $4='send_uncertain' THEN 'unknown' ELSE delivery_status END,
+      next_attempt_at=now()+make_interval(secs=>GREATEST($5::integer,LEAST(3600,30*POWER(2,LEAST(consecutive_failures+1,7)))::integer)),
       claim_token=NULL,claimed_at=NULL WHERE order_id=$1 AND claim_token=$2 RETURNING order_id`,
-    [mail.order_id,token,error?.status===409||error?.permanent===true,code]);
+    [mail.order_id,token,error?.status===409||error?.permanent===true||error?.uncertain===true,code,
+      Math.max(0,Math.min(86400,Number.parseInt(error?.retryAfterSeconds,10)||0))]);
     if(changed.rowCount)await client.query(`INSERT INTO club_cp_mail_history(id,order_id,status,error_code)
       VALUES($1,$2,'send_failed',$3)`,[crypto.randomUUID(),mail.order_id,code]);
     await client.query('COMMIT');

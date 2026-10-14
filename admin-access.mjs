@@ -16,6 +16,7 @@ export function validAdminMutation(req,{siteUrl,key}){
 }
 
 export function mountAdmin(app,express,{enabled,cloudEnabled,findSession,store,siteUrl,key,checkStatus,alertsConfigured}){
+  const mailEnabled=()=>typeof cloudEnabled==='function'?cloudEnabled():cloudEnabled;
   const router=express.Router();
   const guard=async(req,res,next)=>{
     res.set({'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',
@@ -43,14 +44,14 @@ export function mountAdmin(app,express,{enabled,cloudEnabled,findSession,store,s
   api.use(guard);
   api.get('/orders',async(req,res,next)=>{
     try{
-      const metadata={csrfToken:csrfForSession(req,key),enabled:cloudEnabled,
+      const metadata={csrfToken:csrfForSession(req,key),enabled:mailEnabled(),
         alertsConfigured,user:{name:req.admin.name}};
-      if(!cloudEnabled)return res.json({...metadata,orders:[],total:0,page:1,pageSize:25,
+      if(!mailEnabled())return res.json({...metadata,orders:[],total:0,page:1,pageSize:25,
         summary:{attention:0,delivered:0,inProgress:0}});
       res.json({...metadata,...await store.list(req.query)});
     }catch(error){next(error);}
   });
-  api.use((req,res,next)=>cloudEnabled?next():res.status(503).json({message:'CloudPayments ещё не подключён'}));
+  api.use((req,res,next)=>mailEnabled()?next():res.status(503).json({message:'Автоматическая отправка доступов ещё не включена'}));
   api.get('/orders/:id',async(req,res,next)=>{
     try{res.json({...await store.detail(req.params.id),csrfToken:csrfForSession(req,key)});}
     catch(error){next(error);}

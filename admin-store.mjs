@@ -15,6 +15,7 @@ export const ADMIN_SCHEMA=[
 ];
 const orderColumns=`o.order_id,o.buyer_email,COALESCE(u.login_email,o.buyer_email) AS recipient_email,
   o.buyer_name,o.tariff,o.amount_cents,o.status,o.paid_at,o.created_at,
+  to_jsonb(o)->>'payment_provider' AS payment_provider,
   m.state AS mail_state,m.delivery_status,m.provider,m.provider_message_id,
   COALESCE(m.attempts,0) AS attempts,m.last_error_code,m.status_checked_at,m.last_sent_at,
   ${ATTENTION_SQL} AS needs_attention`;
@@ -90,6 +91,8 @@ export function createAdminStore(pool,{resolveCredential}={}){
         if(mail.cooling)throw new SupportError('Подождите 10 минут после последней отправки',429);
         if(['delivered','hard_bounced','skipped'].includes(mail.delivery_status)&&body.reason!=='customer_request')
           throw new SupportError('Нужно подтверждение запроса самого клиента');
+        if(mail.last_error_code==='send_uncertain'&&body.reason!=='customer_request')
+          throw new SupportError('Результат отправки неизвестен. Проверьте письмо у провайдера и запрос клиента');
         const ciphertext=order.tariff==='premium'?await resolveCredential(client,order,mail):null;
         if(order.tariff==='premium'&&!ciphertext)throw new SupportError('Данные входа изменены. Нужна проверка доступа');
         await client.query(`UPDATE club_cp_access_mail SET state='pending',password_ciphertext=$2,

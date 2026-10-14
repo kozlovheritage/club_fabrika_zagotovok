@@ -72,24 +72,36 @@ async function sendAccessMessage(email,text,html,messageSubject=subject) {
     throw new Error('Email provider is not configured');
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    signal: AbortSignal.timeout(10000),
-    headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'},
-    body: JSON.stringify(body)
-  });
+  let response;
+  try{
+    response=await fetch(url, {
+      method: 'POST',
+      signal: AbortSignal.timeout(10000),
+      headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+  }catch{
+    const error=new Error('Email dispatch outcome unknown');
+    error.uncertain=true;throw error;
+  }
   if (!response.ok) {
     const error=new Error('Email provider request failed');
     error.status=response.status;
     error.permanent=[400,401,403,404,422].includes(response.status);
+    error.uncertain=response.status>=500;
+    const after=response.headers.get('retry-after');
+    error.retryAfterSeconds=/^\d+$/.test(after||'')?Number(after):
+      Math.max(0,Math.ceil((Date.parse(after||'')-Date.now())/1000))||0;
     throw error;
   }
   const result=await response.json().catch(()=>null);
-  if(!result?.id||!/^[A-Za-z0-9_-]{1,100}$/.test(String(result.id)))
-    throw new Error('Email provider receipt missing');
+  if(!result?.id||!/^[A-Za-z0-9_-]{1,100}$/.test(String(result.id))){
+    const error=new Error('Email provider receipt missing');error.uncertain=true;throw error;
+  }
   if (provider === 'notisend') {
-    if(!['queued','sent','delivered','skipped','soft_bounced','hard_bounced'].includes(result.status))
-      throw new Error('Email provider status invalid');
+    if(!['queued','sent','delivered','skipped','soft_bounced','hard_bounced'].includes(result.status)){
+      const error=new Error('Email provider status invalid');error.uncertain=true;throw error;
+    }
   }
   return {provider,messageId:String(result.id),status:provider==='notisend'?result.status:'queued',recipient:email};
 }

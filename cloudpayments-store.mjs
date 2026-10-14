@@ -9,7 +9,8 @@ export const CLOUD_SCHEMA = [
     tariff TEXT NOT NULL CHECK (tariff IN ('basic','premium')),
     amount_cents BIGINT NOT NULL CHECK (amount_cents>0), test_mode BOOLEAN NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid','review')),
-    payment_url TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), paid_at TIMESTAMPTZ)`,
+    payment_url TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), paid_at TIMESTAMPTZ,
+    payment_provider TEXT NOT NULL DEFAULT 'cloudpayments')`,
   `CREATE TABLE IF NOT EXISTS club_cp_payments (
     transaction_id TEXT PRIMARY KEY, order_id TEXT NOT NULL REFERENCES club_cp_orders(order_id),
     outcome TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
@@ -30,7 +31,7 @@ export function createCloudStore(pool, {test, grantPremium}) {
       [checkout.order_id,checkout.customer_email,checkout.customer_name||null,tariff,cents(checkout.products[0].price),test]);
     },
     async getOrder(orderId) {
-      const result = await pool.query('SELECT * FROM club_cp_orders WHERE order_id=$1',[orderId]);
+      const result = await pool.query("SELECT * FROM club_cp_orders WHERE order_id=$1 AND payment_provider='cloudpayments'",[orderId]);
       return result.rows[0] || null;
     },
     async saveUrl(orderId, url) {
@@ -43,6 +44,8 @@ export function createCloudStore(pool, {test, grantPremium}) {
         const found = await client.query('SELECT * FROM club_cp_orders WHERE order_id=$1 FOR UPDATE',[orderId]);
         const order = found.rows[0];
         if (!order) throw new CloudPaymentsError('Заказ не найден', 422);
+        if(order.payment_provider&&order.payment_provider!=='cloudpayments')
+          throw new CloudPaymentsError('Заказ относится к другому провайдеру',422);
         // Same buyer lock as the legacy handler; never rotate an existing account.
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[order.buyer_email]);
         const previous = await client.query('SELECT order_id FROM club_cp_payments WHERE transaction_id=$1',[transactionId]);
@@ -83,23 +86,37 @@ export function createCloudStore(pool, {test, grantPremium}) {
 
 // Durable, leased, at-least-once delivery. No passwords in logs or plaintext DB fields.
 // Accepted by mail API != delivered into the customer's inbox.
-export async function drainAccessMail(pool, send, batchSize = 10) {
+export async function drainAccessMail(pool, send, batchSize = 10,providers=['cloudpayments']) {
+  // A crash/timeout after dispatch may mean the provider accepted the email.
+  // Never automatically redispatch an expired lease with an unknown outcome.
+  await pool.query(`WITH expired AS (
+    UPDATE club_cp_access_mail m SET state='blocked',last_error_code='send_uncertain',
+      delivery_status='unknown',claim_token=NULL,claimed_at=NULL
+    WHERE state='sending' AND claimed_at<now()-interval '10 minutes'
+      AND EXISTS(SELECT 1 FROM club_cp_orders o WHERE o.order_id=m.order_id AND o.payment_provider=ANY($1::text[]))
+    RETURNING order_id)
+    INSERT INTO club_cp_mail_history(id,order_id,status,error_code)
+    SELECT gen_random_uuid(),order_id,'send_failed','send_uncertain' FROM expired`,[providers]);
   const token = crypto.randomUUID();
   const batch = await pool.query(`WITH due AS (
     SELECT order_id FROM club_cp_access_mail
-    WHERE (state='pending' AND next_attempt_at<=now())
-      OR (state='sending' AND claimed_at<now()-interval '2 minutes')
+    WHERE state='pending' AND next_attempt_at<=now()
+      AND EXISTS(SELECT 1 FROM club_cp_orders o WHERE o.order_id=club_cp_access_mail.order_id
+        AND o.payment_provider=ANY($3::text[]) AND NOT o.test_mode AND o.status='paid')
     ORDER BY next_attempt_at LIMIT $1 FOR UPDATE SKIP LOCKED)
     UPDATE club_cp_access_mail m SET state='sending',claim_token=$2,claimed_at=now(),attempts=m.attempts+1
     FROM due WHERE m.order_id=due.order_id
-    RETURNING m.*`,[batchSize,token]);
+    RETURNING m.*`,[batchSize,token,providers]);
   for (const mail of batch.rows) {
+    let accepted=false;
     try {
       const order = await pool.query('SELECT * FROM club_cp_orders WHERE order_id=$1',[mail.order_id]);
       if (!order.rows[0] || order.rows[0].test_mode || order.rows[0].status!=='paid') throw new CloudPaymentsError('Отправка требует проверки',409);
       const receipt=await send(order.rows[0],mail);
+      accepted=true;
       await recordMailAccepted(pool,mail,token,receipt);
     } catch (error) {
+      if(accepted)error.uncertain=true;
       await recordMailFailure(pool,mail,token,error);
     }
   }

@@ -18,6 +18,7 @@ import {createCloudService,mountCloudNotifications} from './cloudpayments-router
 import {ADMIN_SCHEMA,createAdminStore} from './admin-store.mjs';
 import {mountAdmin} from './admin-access.mjs';
 import {MAIL_MONITOR_SCHEMA,pollMailStatuses,notifyMailAttention} from './mail-monitor.mjs';
+import {PRODAMUS_MAIL_SCHEMA,PLATFORM_ACCESS_NOTICE,prodamusDeliveryMode,saveProdamusMailOrder,getProdamusMailOrder,fulfillProdamusMailOrder} from './prodamus-mail.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -35,6 +36,9 @@ if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL is required');
 if(!PUBLIC_URL||!/^https:\/\//.test(PUBLIC_URL))throw new Error('PUBLIC_URL must be an HTTPS site address');
 credentialKey();
 const cloudConfig=readCloudConfig();
+const prodamusDelivery=prodamusDeliveryMode();
+const prodamusWorkerEnabled=process.env.PRODAMUS_ACCESS_WORKER_ENABLED==='true';
+let mailRuntimeEnabled=false;
 const adminEnabled=process.env.CLUB_ADMIN_ENABLED==='true';
 const alertsConfigured=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.CLUB_ADMIN_ALERT_EMAIL||'');
 const adminStore=createAdminStore(pool,{
@@ -111,14 +115,21 @@ function normalizeWebhookBody(body){if(!body||typeof body!=='object')return {};i
 function parseCookies(header){return String(header||'').split(';').reduce((out,part)=>{const index=part.indexOf('=');if(index<0)return out;out[part.slice(0,index).trim()]=decodeURIComponent(part.slice(index+1).trim());return out;},{});}
 function cookieHeader(name,value,maxAge){return name+'='+encodeURIComponent(value)+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+maxAge+(COOKIE_SECURE?'; Secure':'');}
 function clearCookieHeader(name){return name+'=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(COOKIE_SECURE?'; Secure':'');}
-async function initDatabase(){for(const statement of [...schema,...CONSENT_SCHEMA,...(cloudConfig.enabled?[...CLOUD_SCHEMA,...MAIL_MONITOR_SCHEMA]:[]),...(adminEnabled?ADMIN_SCHEMA:[])])await pool.query(statement);await archiveConsentDocuments(pool);}
+async function initDatabase(){
+  for(const statement of [...schema,...CONSENT_SCHEMA,...(adminEnabled?ADMIN_SCHEMA:[])])await pool.query(statement);
+  const existing=(await pool.query("SELECT to_regclass('club_cp_orders') AS name")).rows[0].name;
+  // Turning the switch back off must not abandon already-issued platform orders.
+  mailRuntimeEnabled=cloudConfig.enabled||prodamusDelivery==='platform'||Boolean(existing);
+  if(mailRuntimeEnabled)for(const statement of [...CLOUD_SCHEMA,...MAIL_MONITOR_SCHEMA,...PRODAMUS_MAIL_SCHEMA])await pool.query(statement);
+  await archiveConsentDocuments(pool);
+}
 async function findSession(req){const raw=parseCookies(req.headers.cookie).club_session;if(!raw)return null;const result=await pool.query("SELECT u.email AS user_key,COALESCE(u.login_email,u.email) AS email,u.name,u.tariff,u.purchase_at,u.access_until FROM club_sessions s JOIN club_users u ON u.email=s.email WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active' AND u.tariff='premium' AND (u.access_until IS NULL OR u.access_until>now())",[sha256(raw)]);return result.rows[0]||null;}
 async function requireAuth(req,res,next){try{const user=await findSession(req);if(!user)return res.status(401).json({message:'Сессия истекла'});req.user=user;next();}catch(error){next(error);}}
 
 mountCloudNotifications(app,express,cloudService);
 app.use(express.json({limit:'1mb'}));
 app.use(express.urlencoded({extended:true,limit:'1mb'}));
-mountAdmin(app,express,{enabled:adminEnabled,cloudEnabled:cloudConfig.enabled,findSession,store:adminStore,
+mountAdmin(app,express,{enabled:adminEnabled,cloudEnabled:()=>mailRuntimeEnabled,findSession,store:adminStore,
   siteUrl:PUBLIC_URL,key:process.env.AUTH_CREDENTIAL_KEY,alertsConfigured,
   checkStatus:orderId=>pollMailStatuses(pool,{orderId})});
 app.get('/api/health',(req,res)=>res.json({ok:true}));
@@ -188,6 +199,8 @@ app.post('/api/checkout/session',async(req,res,next)=>{
         await client.query('BEGIN');
         if(tariff==='premium')await client.query('INSERT INTO club_checkout_orders (order_id,buyer_email,buyer_name) VALUES ($1,$2,$3)',[checkout.order_id,email,buyerName]);
         await saveCheckoutConsentReceipt(client,{orderId:checkout.order_id,email,tariff,origin:req.get('Origin')||'direct-api',consents});
+        if(checkoutProvider==='prodamus'&&prodamusDelivery==='platform')
+          await saveProdamusMailOrder(client,checkout,tariff);
         await client.query('COMMIT');
       }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
       finally{client.release();}
@@ -196,7 +209,7 @@ app.post('/api/checkout/session',async(req,res,next)=>{
       const payment=await cloudService.create(checkout,tariff);
       return res.set('Cache-Control','no-store').json(payment);
     }
-    checkout.paid_content=tariff==='basic'
+    checkout.paid_content=prodamusDelivery==='platform'?PLATFORM_ACCESS_NOTICE:tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+checkout.order_id
       : buildPremiumPaidContent(PUBLIC_URL,email,premiumPasswordForOrder(checkout.order_id,process.env.AUTH_CREDENTIAL_KEY));
     res.set('Cache-Control','no-store').json(checkout);
@@ -232,7 +245,8 @@ app.post('/api/checkout/direct',async(req,res,next)=>{
     if(!process.env.PRODAMUS_SECRET_KEY||(tariff==='basic'&&
       (process.env.BASIC_CHECKOUT_ENABLED!=='true'||!basicInviteUrl())))
       return res.status(503).json({message:'Прямой переход к оплате пока недоступен'});
-    checkout.paid_content=tariff==='basic'
+    const platformOrder=mailRuntimeEnabled?await getProdamusMailOrder(pool,orderId):null;
+    checkout.paid_content=platformOrder?PLATFORM_ACCESS_NOTICE:tariff==='basic'
       ? 'Базовый тариф клуба «Фабрика заготовок». Вступить в закрытый Telegram-клуб после оплаты: '+PUBLIC_URL+'/access/basic/'+orderId
       : buildPremiumPaidContent(PUBLIC_URL,email,premiumPasswordForOrder(orderId,process.env.AUTH_CREDENTIAL_KEY));
     res.set('Cache-Control','no-store').json(buildDirectPaymentForm(checkout,
@@ -348,6 +362,27 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
       savedName=order.rows[0].buyer_name;
     }
     const eventId=sha256('prodamus:'+orderId);
+    const platformOrder=mailRuntimeEnabled?await getProdamusMailOrder(pool,orderId):null;
+    if(platformOrder){
+      await fulfillProdamusMailOrder(pool,orderId,payload,{
+        async grantPremium(client,order){
+          const userKey='order:'+order.order_id;
+          const password=premiumPasswordForOrder(order.order_id,process.env.AUTH_CREDENTIAL_KEY);
+          const matches=(await client.query(`SELECT email,password_hash,status,tariff,
+            (access_until IS NULL OR access_until>now()) AS valid FROM club_users
+            WHERE email=$1 OR login_email=$2 FOR UPDATE`,[userKey,order.buyer_email])).rows;
+          if(matches.some(user=>user.email!==userKey||user.status!=='active'||user.tariff!=='premium'||!user.valid))
+            return {review:true};
+          if(matches.length&&!await verifyPassword(password,matches[0].password_hash))return {review:true};
+          if(!matches.length)await client.query(`INSERT INTO club_users
+            (email,login_email,password_tag,name,password_hash,tariff,access_until,purchase_at,status)
+            VALUES($1,$2,$3,$4,$5,'premium',NULL,now(),'active')`,
+          [userKey,order.buyer_email,sha256('club-order-password:'+password),order.buyer_name,await hashPassword(password)]);
+          return {userKey,ciphertext:encryptPassword(password)};
+        }
+      });
+      return res.status(200).send('ok');
+    }
     if(checkout.tariff==='basic'){
       await pool.query('INSERT INTO club_webhook_events (event_id,payload) VALUES ($1,$2::jsonb) ON CONFLICT (event_id) DO NOTHING',[eventId,JSON.stringify({tariff:'basic',source:'site',handledBy:'prodamus'})]);
       return res.status(200).send('ok');
@@ -484,7 +519,7 @@ app.use((error,req,res,next)=>{
   console.error(error);if(res.headersSent)return next(error);res.status(500).json({message:'Внутренняя ошибка сервера'});
 });
 await initDatabase();
-if(cloudConfig.enabled){
+if(mailRuntimeEnabled&&(cloudConfig.enabled||prodamusWorkerEnabled)){
   let draining=false;
   const drain=async()=>{
     if(draining)return;draining=true;
@@ -501,8 +536,8 @@ if(cloudConfig.enabled){
         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))
           throw new CloudPaymentsError('Email изменён; требуется проверка письма',409);
         return sendCredentialsEmail(recipient,password,PUBLIC_URL);
-      });
-    }catch{console.error('CLOUDPAYMENTS_MAIL_QUEUE_UNAVAILABLE');}
+      },10,[...(cloudConfig.enabled?['cloudpayments']:[]),...(prodamusWorkerEnabled?['prodamus']:[])]);
+    }catch{console.error('CLUB_ACCESS_MAIL_QUEUE_UNAVAILABLE');}
     finally{draining=false;}
   };
   await drain();

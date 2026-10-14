@@ -75,6 +75,7 @@
     provider_auth:"Проверьте доступ к почтовому API",provider_rate_limit:"Лимит почтового API",
     provider_rejected:"Провайдер отклонил отправку",credentials_review:"Проверьте актуальный доступ",
     temporary_send_failure:"Временный сбой отправки",status_unavailable:"Не удалось получить статус",
+    send_uncertain:"Сервис мог принять письмо. Проверьте отправку перед повтором",
     "resend:customer_request":"Повтор по просьбе участника","resend:delivery_failed":"Повтор после сбоя",
     "status:checked":"Статус проверен","status:unavailable":"Статус временно недоступен"
   };
@@ -243,7 +244,7 @@
       elements.inProgress.textContent = result.summary && result.summary.inProgress != null ? String(result.summary.inProgress) : "—";
       renderOrders();
       if (!state.enabled) {
-        showNotice("CloudPayments ещё не подключён. Здесь появятся его заказы после включения. Рабочая оплата Prodamus не менялась.", "warning");
+        showNotice("Автоматическая отправка доступов ещё не включена. Здесь появятся новые заказы после её включения.", "warning");
       } else if (result.alertsConfigured === false) {
         showNotice("Email-уведомления владельцу не настроены. Проблемные письма пока видны только в этом разделе.", "warning");
       }
@@ -299,7 +300,8 @@
     addDetailItem(grid, "Оплата", formatAmount(order.amount_cents));
     addDetailItem(grid, "Статус оплаты", label(order.status));
     addDetailItem(grid, "Состояние письма", label(order.delivery_status || order.mail_state));
-    addDetailItem(grid, "Провайдер", order.provider);
+    addDetailItem(grid, "Платёжный сервис", order.payment_provider === "prodamus" ? "Prodamus" : "CloudPayments");
+    addDetailItem(grid, "Почтовый сервис", order.provider);
     addDetailItem(grid, "Попытки отправки", order.attempts);
     addDetailItem(grid, "Создан", formatDate(order.created_at));
     addDetailItem(grid, "Оплачен", formatDate(order.paid_at));
@@ -369,7 +371,7 @@
   }
   function beginResend() {
     if (!state.currentOrder) return;
-    const accepted = isMailAccepted(state.currentOrder);
+    const accepted = isMailAccepted(state.currentOrder) || state.currentOrder.last_error_code === "send_uncertain";
     const oldError=elements.resendForm.querySelector("[data-action-error]");
     if(oldError)oldError.hidden=true;
     elements.deliveredWarning.hidden = !accepted;
@@ -384,7 +386,7 @@
     event.preventDefault();
     if (!state.currentOrder) return;
     const reason = new FormData(elements.resendForm).get("reason");
-    if (isMailAccepted(state.currentOrder) && reason !== "customer_request") {
+    if ((isMailAccepted(state.currentOrder) || state.currentOrder.last_error_code === "send_uncertain") && reason !== "customer_request") {
       dialogError(elements.resendForm,"Повтор требует подтверждения запроса самого участника.");
       return;
     }
