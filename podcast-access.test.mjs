@@ -8,10 +8,12 @@ const catalog=await loadPodcastCatalog();
 const item=[...catalog.values()][0];
 
 test('public catalog contains only an opaque podcast ID',async()=>{
-  assert.equal(catalog.size,1);
+  assert.equal(catalog.size,2);
   assert.equal(item.id,'eac9865e38a92514932232d5409aa1d0');
   const rows=JSON.parse(await readFile(new URL('./podcast-catalog.json',import.meta.url),'utf8'));
   assert.deepEqual(Object.keys(rows[0]),['id']);
+  assert.ok(catalog.has('e377621dae7fdd9ca033055cf8341fae'));
+  assert.deepEqual(Object.keys(rows[1]),['id']);
   const html=await readFile(new URL('./index.html',import.meta.url),'utf8');
   assert.match(html,/podcastId:'eac9865e38a92514932232d5409aa1d0'/);
   assert.match(html,/info\.description/);

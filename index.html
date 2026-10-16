@@ -1517,7 +1517,8 @@ const HOLIDAY_FILES = [
 const HEALTH_ITEMS = [
   {t:'Азбука питания от гематолога: от анализов до тарелки', screen:'hematologist'},
   {t:'Нутрициологическая памятка на каждый день', slug:'nutrition-calories', author:'Яна'},
-  {t:'Подкаст', podcastId:'eac9865e38a92514932232d5409aa1d0'}
+  {t:'Подкаст', podcastId:'eac9865e38a92514932232d5409aa1d0'},
+  {t:'Подкаст с гематологом', podcastId:'e377621dae7fdd9ca033055cf8341fae'}
 ];
 
 const KIDS_MATERIALS = [
@@ -1540,8 +1541,8 @@ let currentTariff = 'premium';
 let currentUser = null;
 let activeMaterialSlug = null;
 let activePodcastId = null;
-let nutritionPodcastMetadata = null;
-let nutritionPodcastMetadataRequest = null;
+const nutritionPodcastMetadata = new Map();
+const nutritionPodcastMetadataRequest = new Map();
 let materialOrigin = {screen:'dashboard', section:null};
 const PUBLIC_SCREENS = new Set(['landing','login']);
 
@@ -1835,9 +1836,9 @@ function openClubMaterial(slug,title,originScreen,originSection,author){
 }
 
 async function loadNutritionPodcastMetadata(id){
-  if(nutritionPodcastMetadata) return nutritionPodcastMetadata;
-  if(nutritionPodcastMetadataRequest) return nutritionPodcastMetadataRequest;
   if(!/^[a-f0-9]{32}$/u.test(id)) throw new Error('INVALID_PODCAST_ID');
+  if(nutritionPodcastMetadata.has(id)) return nutritionPodcastMetadata.get(id);
+  if(nutritionPodcastMetadataRequest.has(id)) return nutritionPodcastMetadataRequest.get(id);
   const pending=(async()=>{
     const response=await fetch('/api/podcasts/'+id+'/metadata',{credentials:'same-origin',cache:'no-store'});
     if(!response.ok) throw new Error('HTTP '+response.status);
@@ -1846,9 +1847,9 @@ async function loadNutritionPodcastMetadata(id){
     if(info.chapters.some(chapter=>!chapter||typeof chapter.time!=='string'||!/^\d{1,2}:\d{2}$/u.test(chapter.time)||typeof chapter.title!=='string'||!Number.isSafeInteger(chapter.seconds)||chapter.seconds<0||chapter.seconds>=info.durationSeconds)) throw new Error('INVALID_PODCAST_CHAPTER');
     return info;
   })();
-  nutritionPodcastMetadataRequest=pending;
-  try{nutritionPodcastMetadata=await pending;return nutritionPodcastMetadata;}
-  finally{if(nutritionPodcastMetadataRequest===pending)nutritionPodcastMetadataRequest=null;}
+  nutritionPodcastMetadataRequest.set(id,pending);
+  try{const metadata=await pending;nutritionPodcastMetadata.set(id,metadata);return metadata;}
+  finally{if(nutritionPodcastMetadataRequest.get(id)===pending)nutritionPodcastMetadataRequest.delete(id);}
 }
 function formatPodcastDuration(seconds){
   const value=Math.max(0,Math.floor(Number(seconds)||0));
@@ -1926,7 +1927,7 @@ async function openNutritionPodcast(id){
     const info=await loadNutritionPodcastMetadata(id);
     if(activePodcastId!==id) return;
     document.getElementById('materialReaderTitle').textContent=info.title;
-    document.getElementById('materialReaderAuthor').textContent='Автор: '+info.author+' · '+formatPodcastDuration(info.durationSeconds);
+    document.getElementById('materialReaderAuthor').textContent=(info.author?'Автор: '+info.author+' · ':'')+formatPodcastDuration(info.durationSeconds);
     renderNutritionPodcast(document.getElementById('materialReaderContent'),info,id);
     document.getElementById('materialReaderState').textContent='';
   }catch(error){
@@ -2176,8 +2177,7 @@ function renderHealth(){
     return card;
   });
   list.replaceChildren(...cards);
-  const podcastCard=list.querySelector('[data-podcast-id]');
-  if(podcastCard){
+  for(const podcastCard of list.querySelectorAll('[data-podcast-id]')){
     const id=podcastCard.dataset.podcastId;
     loadNutritionPodcastMetadata(id).then(metadata=>{
       const title=podcastCard.querySelector('[data-podcast-title]');
