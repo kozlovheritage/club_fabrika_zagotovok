@@ -13,7 +13,7 @@ function sign(payload) {
 }
 for (const tariff of ['premium','basic']) {
   test(`${tariff}: recovery preserves order, coupon price, buyer, content and webhook identity`, () => {
-    const first = createCheckout(tariff,key,{},'synthetic@example.invalid','CLUBB3',tariff === 'premium' ? 'Тест Оплаты' : undefined);
+    const first = createCheckout(tariff,key,{},'synthetic@example.invalid','FABRIKA1R',tariff === 'premium' ? 'Тест Оплаты' : undefined);
     const restored = restoreCheckout(first.order_id,key,first.customer_email,first.customer_name);
     assert.deepEqual(restored,first);
     restored.paid_content = tariff === 'premium' ? 'Test unique unpaid credentials' : 'Test payment-gated club URL';
@@ -42,6 +42,20 @@ for (const tariff of ['premium','basic']) {
     assert.equal(restoreCheckout(first.order_id,'wrong-key',first.customer_email,first.customer_name),null);
   });
 }
+test('previously signed discounted orders remain recoverable after a code is retired', () => {
+  for (const [tariff,price] of [['premium',599000],['basic',519000]]) {
+    const first=createCheckout(tariff,key,{},'synthetic@example.invalid','FABRIKA1R',tariff==='premium'?'Тест Оплаты':undefined);
+    const prefix=first.order_id.split('-').slice(0,-1).join('-').replace(/^(fz[34]-[bp]-)\d+-/,'$1'+price+'-');
+    const version=prefix.startsWith('fz4-')?'v4':'v3';
+    const signature=crypto.createHmac('sha256',key).update('club-checkout-'+version+':'+prefix).digest('hex').slice(0,24);
+    const orderId=prefix+'-'+signature;
+    const restored=restoreCheckout(orderId,key,first.customer_email,first.customer_name);
+    assert.equal(restored.order_id,orderId);
+    assert.equal(restored.products[0].price,(price/100).toFixed(2));
+    assert.equal(identifyCheckout({order_num:orderId,customer_email:first.customer_email,
+      products:restored.products,sum:restored.products[0].price},key).kind,'site');
+  }
+});
 test('recovery fails closed and does not accept arbitrary destinations or HTML', () => {
   assert.equal(restoreCheckout('external-order',key,'synthetic@example.invalid','Тест Оплаты'),null);
   const first=createCheckout('premium',key,{},'synthetic@example.invalid','','Тест Оплаты');

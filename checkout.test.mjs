@@ -8,7 +8,6 @@ const env = {BASIC_PRICE_RUB: '5900', PREMIUM_PRICE_RUB: '6800'};
 test('each promotion has the agreed standalone price; only SKIDKA1C can repeat', () => {
   const prices = [
     ['', 6790, 5990],
-    ['CLUBB3', 5990, 5190],
     ['FABRIKA1R', 3890, 2890],
     ['FABRIKA1B', 4500, 3500],
     ['FABRIKA2Pr', 1690, 1490],
@@ -30,6 +29,15 @@ test('each promotion has the agreed standalone price; only SKIDKA1C can repeat',
   }
   for (const input of ['CLUBB3 SKIDKA1C', 'FABRIKA1B FABRIKA2Pr', 'SKIDKA1C SKIDKA1C SKIDKA1C', 'CLUBB3 CLUBB3', 'UNKNOWN']) {
     assert.throws(() => quotePrice('basic', input), /промокод|суммировать|кодов/i, input);
+  }
+});
+
+test('retired CLUBB3 cannot quote a price or create a new checkout for either tariff', () => {
+  for (const tariff of ['basic', 'premium']) {
+    for (const input of ['CLUBB3', 'clubb3', '  CLUBB3  ', 'CLUBB3 SKIDKA1C', 'FABRIKA1R,CLUBB3']) {
+      assert.throws(() => quotePrice(tariff, input), /Промокод не найден/, input);
+      assert.throws(() => createCheckout(tariff, key, env, 'buyer@example.org', input), /Промокод не найден/, input);
+    }
   }
 });
 

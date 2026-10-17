@@ -14,9 +14,10 @@ const config={
     email:'$email',amount:'$amount',label:'$product'}}})
 };
 const checkout=createCheckout('premium','synthetic-checkout-signing-key',{},
-  'buyer@example.test','CLUBB3','Тестовая Участница');
-const order={order_id:checkout.order_id,amount_cents:599000,test_mode:true,status:'pending'};
-const payload={InvoiceId:order.order_id,AccountId:order.order_id,Amount:'5990.00',
+  'buyer@example.test','FABRIKA1R','Тестовая Участница');
+const amount=Number(checkout.products[0].price);
+const order={order_id:checkout.order_id,amount_cents:Math.round(amount*100),test_mode:true,status:'pending'};
+const payload={InvoiceId:order.order_id,AccountId:order.order_id,Amount:checkout.products[0].price,
   Currency:'RUB',TestMode:'1',TransactionId:'123456789',Status:'Completed'};
 const signed=value=>{
   const raw=Buffer.from(new URLSearchParams(value).toString());
@@ -35,7 +36,7 @@ test('integer kopecks, no exponent/negative/precision ambiguity',()=>{
 });
 test('tariffs and all current promo types are preserved without client prices',()=>{
   for(const tariff of ['basic','premium'])
-    for(const promo of ['', 'CLUBB3','FABRIKA1R','FABRIKA1B','FABRIKA2PR','FABRIKAB2P','SKIDKA1C','SKIDKA1C SKIDKA1C']){
+    for(const promo of ['', 'FABRIKA1R','FABRIKA1B','FABRIKA2PR','FABRIKAB2P','SKIDKA1C','SKIDKA1C SKIDKA1C']){
       const name=tariff==='premium'?'Тестовая Участница':undefined;
       const c=createCheckout(tariff,'test-key',{},'buyer@example.test',promo,name);
       assert.equal(cents(c.products[0].price),quotePrice(tariff,promo).priceRub*100);
@@ -57,7 +58,7 @@ test('duplicate form fields and malformed/non-object JSON are rejected',()=>{
 });
 test('order, currency, amount, account, transaction and test/live are validated',()=>{
   assert.equal(validateNotification(payload,order,config).code,0);
-  for(const patch of [{Amount:'5989.99'},{Currency:'USD'},{AccountId:'other'},
+  for(const patch of [{Amount:(amount-0.01).toFixed(2)},{Currency:'USD'},{AccountId:'other'},
     {InvoiceId:'other'},{TestMode:'0'},{TestMode:'yes'},{TransactionId:'NaN'},
     {TransactionId:Number.MAX_SAFE_INTEGER+1}]){
     assert.notEqual(validateNotification({...payload,...patch},order,config).code,0);
@@ -74,7 +75,7 @@ test('invoice is created on server: no confirmation, provider access mail, or re
   let request;
   const fetcher=async(url,options)=>{
     request={url,options,body:JSON.parse(options.body)};
-    return {ok:true,json:async()=>({Success:true,Model:{Url:'https://orders.cloudpayments.ru/d/fixture',Amount:5990,Currency:'RUB'}})};
+    return {ok:true,json:async()=>({Success:true,Model:{Url:'https://orders.cloudpayments.ru/d/fixture',Amount:amount,Currency:'RUB'}})};
   };
   assert.equal(await createPaymentLink(checkout,'https://club.example.test',config,fetcher),'https://orders.cloudpayments.ru/d/fixture');
   assert.equal(request.url,'https://api.cloudpayments.ru/orders/create');
@@ -83,7 +84,7 @@ test('invoice is created on server: no confirmation, provider access mail, or re
   assert.equal(request.body.RequireConfirmation,false);
   assert.equal(request.body.SendEmail,false);
   assert.equal(request.body.SubscriptionBehavior,undefined);
-  assert.equal(request.body.JsonData.cloudpayments.syntheticReceipt.amount,5990);
+  assert.equal(request.body.JsonData.cloudpayments.syntheticReceipt.amount,amount);
   assert.ok(request.options.headers['X-Request-ID']);
   assert.equal(receiptInstructions(checkout,config).cloudpayments.syntheticReceipt.email,'buyer@example.test');
 });
@@ -91,7 +92,7 @@ test('untrusted links, unsuccessful response, wrong amount/currency and timeouts
   for(const url of ['http://orders.cloudpayments.ru/d/a','https://evil.test/d/a',
     'https://orders.cloudpayments.ru.evil.test/d/a','https://evil@orders.cloudpayments.ru/d/a',
     'https://orders.cloudpayments.ru/d/a?url=evil','javascript:alert(1)'])assert.equal(validPaymentUrl(url),false);
-  const good={Success:true,Model:{Url:'https://orders.cloudpayments.ru/d/a',Amount:5990,Currency:'RUB'}};
+  const good={Success:true,Model:{Url:'https://orders.cloudpayments.ru/d/a',Amount:amount,Currency:'RUB'}};
   for(const value of [{...good,Success:false},{...good,Model:{...good.Model,Amount:1}},
     {...good,Model:{...good.Model,Currency:'USD'}},{...good,Model:{...good.Model,Url:'https://evil.test/d/a'}}]){
     await assert.rejects(createPaymentLink(checkout,'https://club.example.test',config,async()=>({ok:true,json:async()=>value})));
