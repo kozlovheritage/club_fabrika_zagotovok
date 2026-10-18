@@ -13,8 +13,8 @@ function priceCents(value) {
   return Number.isSafeInteger(result) && result > 0 ? result : null;
 }
 
-// Active phase: presales. Later phase changes must also update the sales site's displayed prices.
-const CURRENT_PRICES = {premium: 6790, basic: 5990};
+// Active phase: regular. Keep in sync with the sales site's displayed prices.
+const CURRENT_PRICES = {premium: 8490, basic: 6990};
 const COLLECTION_DISCOUNTS = {
   premium: [1100, 1400],
   basic: [1000, 1100]

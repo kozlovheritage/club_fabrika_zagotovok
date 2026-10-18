@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createCheckout, identifyCheckout, premiumPasswordForOrder, quotePrice, normalizeBuyerName} from './checkout.mjs';
+import {createCheckout, identifyCheckout, premiumPasswordForOrder, quotePrice, normalizeBuyerName, restoreCheckout} from './checkout.mjs';
 
 const key = 'test-key-for-authenticated-order-identifiers';
 const env = {BASIC_PRICE_RUB: '5900', PREMIUM_PRICE_RUB: '6800'};
 
 test('each promotion has the agreed standalone price; only SKIDKA1C can repeat', () => {
   const prices = [
-    ['', 6790, 5990],
+    ['', 8490, 6990],
     ['FABRIKA1R', 3890, 2890],
     ['FABRIKA1B', 4500, 3500],
     ['FABRIKA2Pr', 1690, 1490],
     ['FABRIKAB2P', 2390, 1490],
-    ['SKIDKA1C', 5690, 4990],
-    ['SKIDKA1C SKIDKA1C', 5390, 4890]
+    ['SKIDKA1C', 7390, 5990],
+    ['SKIDKA1C SKIDKA1C', 7090, 5890]
   ];
   for (const [code, premium, basic] of prices) {
     assert.equal(quotePrice('premium', code).priceRub, premium, code + ' premium');
