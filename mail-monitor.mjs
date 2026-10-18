@@ -4,6 +4,17 @@ import {setTimeout as pause} from 'node:timers/promises';
 export const PAYMENT_REVIEW_SQL=`EXISTS(SELECT 1 FROM club_cp_payment_events reversal
   WHERE reversal.order_id=o.order_id AND reversal.event_type IN ('refund','cancel','refund_failed'))`;
 
+// Resolve only this unpaid attempt and its current evidence. A later event or
+// successful payment reopens normal processing; provider facts are never edited.
+export const CLOSED_UNPAID_SQL=`(o.status='pending' AND
+  to_jsonb(o)->>'last_payment_status' IN ('failed','canceled') AND
+  NOT EXISTS(SELECT 1 FROM club_cp_payment_events paid
+    WHERE paid.order_id=o.order_id AND paid.event_type='pay') AND
+  EXISTS(SELECT 1 FROM club_admin_audit resolved
+    WHERE resolved.order_id=o.order_id AND resolved.action='attention:unpaid-confirmed'
+      AND NOT EXISTS(SELECT 1 FROM club_cp_payment_events newer
+        WHERE newer.order_id=o.order_id AND newer.created_at>resolved.created_at)))`;
+
 export const MAIL_STATUSES = ['queued','sent','delivered','skipped','soft_bounced','hard_bounced'];
 export const MAIL_MONITOR_SCHEMA = [
   `ALTER TABLE club_cp_orders
@@ -157,7 +168,7 @@ export async function pollMailStatuses(pool,{reader=readNotisendStatus,orderId=n
   return {claimed:batch.rowCount,refreshed};
 }
 
-export const ATTENTION_SQL = `(o.status='review' OR
+export const ATTENTION_SQL = `(NOT ${CLOSED_UNPAID_SQL} AND (o.status='review' OR
   ${PAYMENT_REVIEW_SQL} OR
   to_jsonb(o)->>'last_payment_status' IN ('failed','canceled','refund_reported','refunded','partially_refunded','refund_failed','unknown','duplicate') OR
   (o.status='paid' AND to_jsonb(o)->>'access_confirmed_at' IS NULL AND (m.order_id IS NULL OR m.state='blocked' OR
@@ -167,7 +178,7 @@ export const ATTENTION_SQL = `(o.status='review' OR
       OR (m.delivery_status='queued' AND m.last_sent_at<now()-interval '30 minutes')
       OR (m.delivery_status='sent' AND m.last_sent_at<now()-interval '2 hours')
       OR (m.last_error_code='status_unavailable' AND
-        COALESCE(m.status_checked_at,m.last_sent_at)<now()-interval '1 hour'))))))`;
+        COALESCE(m.status_checked_at,m.last_sent_at)<now()-interval '1 hour')))))))`;
 
 export async function notifyMailAttention(pool,send) {
   const count=Number((await pool.query(`SELECT count(*)::integer AS n FROM club_cp_orders o

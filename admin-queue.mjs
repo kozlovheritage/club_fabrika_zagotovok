@@ -1,8 +1,9 @@
-import {PAYMENT_REVIEW_SQL,ATTENTION_SQL} from './mail-monitor.mjs';
+import {PAYMENT_REVIEW_SQL,ATTENTION_SQL,CLOSED_UNPAID_SQL} from './mail-monitor.mjs';
 
 // Presentation classification only. The existing alert and fulfillment logic
 // remains unchanged; absence of delivery evidence is not a transport failure.
 export const QUEUE_CATEGORY_SQL=`CASE
+  WHEN ${CLOSED_UNPAID_SQL} THEN 'closed_unpaid'
   WHEN o.status='review' OR ${PAYMENT_REVIEW_SQL} OR
     to_jsonb(o)->>'last_payment_status' IN
       ('failed','canceled','refund_reported','refunded','partially_refunded','refund_failed','unknown','duplicate')
@@ -28,6 +29,7 @@ export function describeQueue(order){
   const category=order.queue_category;
   const native=order.provider==='prodamus'&&order.last_error_code==='external_delivery_unverified';
   const copy={
+    closed_unpaid:['Проверено: оплаты нет','Заказ сохранён в истории. Проверка закрыта владельцем; новые события оплаты будут проверены заново.'],
     payment_review:['Оплата требует проверки','Откройте события оплаты; проверьте отказ, возврат или расхождение у платёжного сервиса.'],
     access_review:['Выдача доступа требует проверки','Проверьте учётную запись и актуальные данные входа в карточке заказа.'],
     mail_error:['Подтверждённый сбой письма','Проверьте причину отказа и адрес; повторяйте только после проверки или просьбы участника.'],
