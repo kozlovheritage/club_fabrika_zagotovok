@@ -15,6 +15,23 @@ export const CLOSED_UNPAID_SQL=`(o.status='pending' AND
       AND NOT EXISTS(SELECT 1 FROM club_cp_payment_events newer
         WHERE newer.order_id=o.order_id AND newer.created_at>resolved.created_at)))`;
 
+// Operator closure is separate from delivery/access confirmation. Never hide
+// a reversal, another message, or new adverse evidence after the closure.
+export const CLOSED_PAID_ATTENTION_SQL=`(o.status='paid' AND
+  to_jsonb(o)->>'last_payment_status' IN ('paid','unknown') AND
+  NOT ${PAYMENT_REVIEW_SQL} AND
+  EXISTS(SELECT 1 FROM club_cp_payment_events paid
+    WHERE paid.order_id=o.order_id AND paid.event_type='pay') AND
+  EXISTS(SELECT 1 FROM club_admin_audit resolved
+    WHERE resolved.order_id=o.order_id
+      AND resolved.action='attention:resolved:'||COALESCE(m.provider_message_id,'none')
+      AND NOT EXISTS(SELECT 1 FROM club_cp_payment_events newer
+        WHERE newer.order_id=o.order_id AND newer.created_at>resolved.created_at)
+      AND NOT EXISTS(SELECT 1 FROM club_cp_mail_history failure
+        WHERE failure.order_id=o.order_id
+          AND failure.status IN ('send_failed','unknown','soft_bounced','hard_bounced','skipped')
+          AND GREATEST(failure.sent_at,failure.checked_at)>resolved.created_at)))`;
+
 export const MAIL_STATUSES = ['queued','sent','delivered','skipped','soft_bounced','hard_bounced'];
 export const MAIL_MONITOR_SCHEMA = [
   `ALTER TABLE club_cp_orders
@@ -168,7 +185,7 @@ export async function pollMailStatuses(pool,{reader=readNotisendStatus,orderId=n
   return {claimed:batch.rowCount,refreshed};
 }
 
-export const ATTENTION_SQL = `(NOT ${CLOSED_UNPAID_SQL} AND (o.status='review' OR
+export const ATTENTION_SQL = `(NOT ${CLOSED_UNPAID_SQL} AND NOT ${CLOSED_PAID_ATTENTION_SQL} AND (o.status='review' OR
   ${PAYMENT_REVIEW_SQL} OR
   to_jsonb(o)->>'last_payment_status' IN ('failed','canceled','refund_reported','refunded','partially_refunded','refund_failed','unknown','duplicate') OR
   (o.status='paid' AND to_jsonb(o)->>'access_confirmed_at' IS NULL AND (m.order_id IS NULL OR m.state='blocked' OR
