@@ -8,6 +8,7 @@ const env = {BASIC_PRICE_RUB: '5900', PREMIUM_PRICE_RUB: '6800'};
 test('each promotion has the agreed standalone price; only SKIDKA1C can repeat', () => {
   const prices = [
     ['', 8490, 6990],
+    ['FRIENDSFABRIKA1', 6790, 5990],
     ['FABRIKA1R', 3890, 2890],
     ['FABRIKA1B', 4500, 3500],
     ['FABRIKA2Pr', 1690, 1490],
@@ -29,6 +30,25 @@ test('each promotion has the agreed standalone price; only SKIDKA1C can repeat',
   }
   for (const input of ['CLUBB3 SKIDKA1C', 'FABRIKA1B FABRIKA2Pr', 'SKIDKA1C SKIDKA1C SKIDKA1C', 'CLUBB3 CLUBB3', 'UNKNOWN']) {
     assert.throws(() => quotePrice('basic', input), /промокод|суммировать|кодов/i, input);
+  }
+});
+
+test('friends promotion normalizes input, cannot stack, and preserves signed order identity', () => {
+  for (const tariff of ['basic', 'premium']) {
+    const expected = tariff === 'premium' ? 6790 : 5990;
+    for (const input of ['FRIENDSFABRIKA1', 'friendsfabrika1', '  FriendsFabrika1  ']) {
+      assert.equal(quotePrice(tariff, input).priceRub, expected);
+      const order = createCheckout(tariff, key, env, 'buyer@example.org', input, 'Анна Петрова');
+      const restored = restoreCheckout(order.order_id, key, order.customer_email, order.customer_name);
+      assert.equal(restored.products[0].price, expected.toFixed(2));
+      assert.equal(identifyCheckout({
+        order_num: order.order_id, customer_email: order.customer_email,
+        products: order.products, sum: order.products[0].price
+      }, key).kind, 'site');
+    }
+    for (const input of ['FRIENDSFABRIKA1 FRIENDSFABRIKA1', 'FRIENDSFABRIKA1 SKIDKA1C', 'FABRIKA1R FRIENDSFABRIKA1']) {
+      assert.throws(() => quotePrice(tariff, input), /суммировать/i);
+    }
   }
 });
 

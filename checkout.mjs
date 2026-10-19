@@ -20,6 +20,7 @@ const COLLECTION_DISCOUNTS = {
   basic: [1000, 1100]
 };
 const FIXED_PRICES = {
+  FRIENDSFABRIKA1: {premium: 6790, basic: 5990},
   FABRIKA1R: {premium: 3890, basic: 2890},
   FABRIKA1B: {premium: 4500, basic: 3500},
   FABRIKA2PR: {premium: 1690, basic: 1490},
