@@ -839,6 +839,7 @@ a{text-decoration:none;color:inherit}
   <p>Ревизия кухни, планирование меню, основные правила заготовок и подборка утвари — база всей системы заготовок.</p>
 </div>
 
+<section id="clubMaterialSearch" aria-label="Поиск по материалам клуба"></section>
 <div class="section-label">Разделы клуба</div>
 <h2 class="section-title">Все материалы</h2>
 <div class="nav-grid" id="navGrid"></div>
@@ -2282,5 +2283,880 @@ applyTariff();
 restoreSession();
 </script>
 
+<!-- CLUB MATERIAL SEARCH: metadata only -->
+<style>
+.screen #clubMaterialSearch {
+  margin: 0 20px 28px;
+}
+
+.cms-search {
+  --cms-pink: var(--pink, #d4768a);
+  --cms-pink-dark: var(--pink-dark, #b85a6d);
+  --cms-pink-soft: var(--pink-soft, #fce8ec);
+  --cms-pink-bg: var(--pink-bg, #fdf2f5);
+  --cms-text: var(--text-mid, #5c4f47);
+  --cms-muted: var(--text-light, #8c7d74);
+  --cms-border: var(--border, rgba(91, 90, 90, 0.12));
+  --cms-shadow: var(--shadow, 0 8px 32px rgba(212, 118, 138, 0.12));
+  width: 100%;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--cms-border);
+  border-radius: var(--r, 24px);
+  background: var(--warm, #fbf8f2);
+  box-shadow: var(--cms-shadow);
+  color: var(--cms-text);
+  font-family: "Manrope", sans-serif;
+}
+
+.cms-search *,
+.cms-search *::before,
+.cms-search *::after {
+  box-sizing: border-box;
+}
+
+.cms-search__heading {
+  margin-bottom: 16px;
+}
+
+.cms-search__eyebrow {
+  margin: 0 0 3px;
+  color: var(--cms-pink-dark);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.cms-search__title {
+  margin: 0;
+  color: var(--cms-text);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(1.55rem, 5vw, 1.9rem);
+  font-weight: 600;
+  line-height: 1.12;
+}
+
+.cms-search__form {
+  margin: 0;
+}
+
+.cms-search__label {
+  display: block;
+  margin: 0 0 7px;
+  color: var(--cms-text);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.cms-search__field {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cms-search__input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 11px 14px;
+  border: 1px solid #e7ced2;
+  border-radius: 14px;
+  background: var(--white, #fff);
+  color: var(--cms-text);
+  font: inherit;
+  font-size: 1rem;
+  appearance: none;
+}
+
+.cms-search__input::placeholder {
+  color: var(--cms-muted);
+  opacity: 0.85;
+}
+
+.cms-search__input:focus-visible,
+.cms-search__clear:focus-visible,
+.cms-search__example:focus-visible,
+.cms-search__result:focus-visible {
+  outline: 3px solid var(--cms-pink);
+  outline-offset: 2px;
+}
+
+.cms-search__clear,
+.cms-search__example {
+  min-height: 44px;
+  border: 1px solid #e7ced2;
+  border-radius: 12px;
+  background: var(--white, #fff);
+  color: var(--cms-pink-dark);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.cms-search__clear {
+  flex: 0 0 auto;
+  padding: 0 13px;
+}
+
+.cms-search__clear:hover:not(:disabled),
+.cms-search__example:hover {
+  border-color: var(--cms-pink);
+  background: var(--cms-pink-soft);
+}
+
+.cms-search__clear:disabled {
+  color: var(--cms-muted);
+  cursor: default;
+  opacity: 0.72;
+}
+
+.cms-search-nav-link {
+  min-height: 44px;
+}
+
+.cms-search__examples {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.cms-search__examples-label {
+  margin-right: 2px;
+  color: var(--cms-muted);
+  font-size: 0.78rem;
+}
+
+.cms-search__example {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--cms-pink-soft);
+}
+
+.cms-search__count {
+  min-height: 1.35em;
+  margin: 16px 0 7px;
+  color: var(--cms-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cms-search__content {
+  min-width: 0;
+}
+
+.cms-search__message {
+  margin: 0;
+  padding: 13px 15px;
+  border-radius: 13px;
+  background: var(--cms-pink-bg);
+  color: var(--cms-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.cms-search__results {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cms-search__item {
+  min-width: 0;
+  margin: 0;
+}
+
+.cms-search__group {
+  margin: 12px 0 0;
+  color: var(--cms-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.cms-search__match {
+  width: fit-content;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--cms-pink-bg);
+  color: var(--cms-pink-dark);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.cms-search__result {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  padding: 11px 14px;
+  border: 1px solid var(--cms-border);
+  border-radius: 14px;
+  background: var(--white, #fff);
+  color: var(--cms-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.cms-search__result:hover {
+  border-color: var(--cms-pink);
+  background: var(--cms-pink-bg);
+}
+
+.cms-search__result-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.cms-search__type {
+  color: var(--cms-pink-dark);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.cms-search__result-title {
+  overflow-wrap: anywhere;
+  color: var(--cms-text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.cms-search__section {
+  overflow-wrap: anywhere;
+  color: var(--cms-muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.cms-search__description {
+  flex: 0 1 38%;
+  max-width: 38%;
+  color: var(--cms-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+@media (max-width: 420px) {
+  .cms-search {
+    padding: 16px 14px;
+    border-radius: var(--r-sm, 16px);
+  }
+
+  .cms-search__field {
+    flex-direction: column;
+  }
+
+  .cms-search__clear {
+    width: 100%;
+  }
+
+  .cms-search__result {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .cms-search__description {
+    max-width: none;
+    text-align: left;
+  }
+}
+
+@media (min-width: 768px) {
+  .screen #clubMaterialSearch {
+    margin: 0 40px 28px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .screen #clubMaterialSearch {
+    max-width: 900px;
+    margin: 0 auto 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cms-search *,
+  .cms-search *::before,
+  .cms-search *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+</style>
+<script>
+/* Catalogue metadata only. No PDF extraction, network, storage or query logging. */
+(function (root) {
+  'use strict';
+  function words(value) {
+    return String(value || '').toLowerCase().replace(/ё/g, 'е')
+      .replace(/[^a-zа-я0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  }
+  function stem(word) {
+    if (/^куриц|^курин/.test(word)) return 'куриц';
+    if (word.length < 4) return word;
+    return word.replace(/(иями|ями|ами|ого|ему|ому|ыми|ими|ов|ев|ах|ях|ый|ий|ой|ая|яя|ое|ее|ые|ие|ую|юю|ом|ем|ам|ям|а|я|ы|и|у|ю|е|о|ь)$/g, '');
+  }
+  function tokens(value) { return words(value).map(stem); }
+  function match(term, candidate) {
+    return term === candidate || (term.length >= 2 && candidate.indexOf(term) === 0);
+  }
+  function editDistance(left, right, limit) {
+    if (Math.abs(left.length - right.length) > limit) return limit + 1;
+    let previousPrevious = null;
+    let previous = Array.from({length: right.length + 1}, function (_, index) { return index; });
+    for (let row = 1; row <= left.length; row++) {
+      const current = Array(right.length + 1).fill(limit + 1);
+      current[0] = row;
+      const start = Math.max(1, row - limit);
+      const end = Math.min(right.length, row + limit);
+      let rowMinimum = current[0];
+      for (let column = start; column <= end; column++) {
+        current[column] = Math.min(
+          previous[column] + 1,
+          current[column - 1] + 1,
+          previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1)
+        );
+        if (row > 1 && column > 1 &&
+          left[row - 1] === right[column - 2] &&
+          left[row - 2] === right[column - 1]) {
+          current[column] = Math.min(current[column], previousPrevious[column - 2] + 1);
+        }
+        rowMinimum = Math.min(rowMinimum, current[column]);
+      }
+      if (rowMinimum > limit) return limit + 1;
+      previousPrevious = previous;
+      previous = current;
+    }
+    return previous[right.length];
+  }
+  function typoDistance(term, candidate) {
+    if (term.length < 5 || candidate.length < 5 ||
+      !/^[a-zа-я]+$/.test(term) || !/^[a-zа-я]+$/.test(candidate)) return Infinity;
+    const normalizedTerm = stem(term);
+    const normalizedCandidate = stem(candidate);
+    if (normalizedTerm.length < 4 || normalizedCandidate.length < 4) return Infinity;
+    const limit = term.length >= 12 && candidate.length >= 12 ? 2 : 1;
+    const distance = editDistance(normalizedTerm, normalizedCandidate, limit);
+    return distance <= limit ? distance : Infinity;
+  }
+  function create(entries) {
+    const indexed = entries.map(function (entry, order) {
+      return {
+        entry: entry, order: order,
+        title: words(entry.title), section: words(entry.section),
+        description: words(entry.description), keywords: words(entry.keywords)
+      };
+    });
+    function search(query) {
+      const normalized = words(String(query || '').slice(0, 120)).join(' ');
+      const uniqueTerms = new Map();
+      words(normalized).forEach(function (word) {
+        const normalizedWord = stem(word);
+        if (!uniqueTerms.has(normalizedWord)) uniqueTerms.set(normalizedWord, {word: word, stem: normalizedWord});
+      });
+      const terms = Array.from(uniqueTerms.values()).slice(0, 12);
+      if (!terms.length) return [];
+      return indexed.map(function (item) {
+        let score = 0;
+        let close = false;
+        for (const queryTerm of terms) {
+          const term = queryTerm.stem;
+          let weight = 0;
+          let distance = Infinity;
+          for (const field of [['title', 12], ['keywords', 7], ['section', 4], ['description', 2]]) {
+            if (item[field[0]].some(function (word) { return match(term, stem(word)); })) {
+              weight = field[1]; break;
+            }
+          }
+          if (!weight) for (const field of [['title', 12], ['keywords', 7], ['section', 4], ['description', 2]]) {
+            const fieldDistance = item[field[0]].reduce(function (best, word) {
+              return Math.min(best, typoDistance(queryTerm.word, word));
+            }, Infinity);
+            if (fieldDistance !== Infinity) {
+              weight = field[1];
+              distance = fieldDistance;
+              break;
+            }
+          }
+          if (!weight) return null;
+          if (distance !== Infinity) {
+            close = true;
+            score += weight - distance;
+          } else {
+            score += weight;
+          }
+        }
+        const title = words(item.entry.title).join(' ');
+        if (title === normalized) score += 60;
+        else if (title.indexOf(normalized) === 0) score += 25;
+        return {item: item, score: score, close: close};
+      }).filter(Boolean).sort(function (a, b) {
+        return Number(a.close) - Number(b.close) || b.score - a.score || a.item.order - b.item.order;
+      }).map(function (result) {
+        const entry = Object.assign({}, result.item.entry, {matchType: result.close ? 'close' : 'exact'});
+        return entry;
+      });
+    }
+    return {search: search};
+  }
+  root.ClubSearchEngine = {create: create, words: words, stem: stem};
+})(typeof window === 'undefined' ? globalThis : window);
+
+</script>
+<script>
+(function (window, document) {
+  "use strict";
+
+  var savedQuery = "";
+  var savedResults = [];
+  var savedState = "initial";
+  var mountNumber = 0;
+
+  function element(tagName, className, text) {
+    var node = document.createElement(tagName);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function mount(options) {
+    if (!options || !options.root || typeof options.root.appendChild !== "function") {
+      throw new TypeError("ClubMaterialSearchUI.mount ожидает root-элемент.");
+    }
+    if (typeof options.search !== "function" || typeof options.onOpen !== "function") {
+      throw new TypeError("Передайте функции search и onOpen.");
+    }
+
+    var root = options.root;
+    var search = options.search;
+    var onOpen = options.onOpen;
+    var instanceId = ++mountNumber;
+    var titleId = "cms-title-" + instanceId;
+    var labelId = "cms-input-label-" + instanceId;
+    var inputId = "cms-input-" + instanceId;
+    var resultsId = "cms-results-" + instanceId;
+    var input;
+    var clearButton;
+    var count;
+    var content;
+    var resultsList;
+
+    while (root.firstChild) root.removeChild(root.firstChild);
+
+    var section = element("section", "cms-search");
+    section.setAttribute("aria-labelledby", titleId);
+
+    var heading = element("div", "cms-search__heading");
+    var eyebrow = element("p", "cms-search__eyebrow", "Библиотека клуба");
+    var title = element("h2", "cms-search__title", "Найти материал");
+    title.id = titleId;
+    heading.appendChild(eyebrow);
+    heading.appendChild(title);
+
+    var form = element("form", "cms-search__form");
+    form.setAttribute("role", "search");
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      runSearch(input.value);
+    });
+
+    var label = element("label", "cms-search__label", "Что хотите найти?");
+    label.id = labelId;
+    label.htmlFor = inputId;
+
+    var field = element("div", "cms-search__field");
+    input = element("input", "cms-search__input");
+    input.type = "search";
+    input.id = inputId;
+    input.name = "club-material-search";
+    input.maxLength = 120;
+    input.autocomplete = "off";
+    input.setAttribute("aria-labelledby", labelId);
+    input.setAttribute("aria-controls", resultsId);
+    input.placeholder = "Например, курица или меню";
+    input.addEventListener("input", function () {
+      runSearch(input.value);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        reset();
+        input.focus();
+      }
+    });
+
+    clearButton = element("button", "cms-search__clear", "Очистить");
+    clearButton.type = "button";
+    clearButton.setAttribute("aria-label", "Очистить поисковый запрос");
+    clearButton.addEventListener("click", function () {
+      reset();
+      input.focus();
+    });
+
+    field.appendChild(input);
+    field.appendChild(clearButton);
+    form.appendChild(label);
+    form.appendChild(field);
+
+    var examples = element("div", "cms-search__examples");
+    var examplesLabel = element("span", "cms-search__examples-label", "Попробуйте:");
+    examples.appendChild(examplesLabel);
+    ["курица", "меню", "вакуумация"].forEach(function (example) {
+      var exampleButton = element("button", "cms-search__example", example);
+      exampleButton.type = "button";
+      exampleButton.addEventListener("click", function () {
+        input.value = example;
+        runSearch(example);
+        input.focus();
+      });
+      examples.appendChild(exampleButton);
+    });
+
+    count = element("p", "cms-search__count");
+    count.setAttribute("role", "status");
+    count.setAttribute("aria-live", "polite");
+    count.setAttribute("aria-atomic", "true");
+
+    content = element("div", "cms-search__content");
+    content.id = resultsId;
+    resultsList = element("ul", "cms-search__results");
+    resultsList.setAttribute("aria-label", "Результаты поиска");
+
+    content.appendChild(resultsList);
+    section.appendChild(heading);
+    section.appendChild(form);
+    section.appendChild(examples);
+    section.appendChild(count);
+    section.appendChild(content);
+    root.appendChild(section);
+
+    input.value = savedQuery;
+    render();
+
+    function render() {
+      clearButton.disabled = !input.value;
+      count.textContent = "";
+      while (content.firstChild) content.removeChild(content.firstChild);
+
+      if (savedState === "initial") {
+        var help = element(
+          "p",
+          "cms-search__message",
+          "Ищите по названиям материалов и разделов. Содержимое PDF-файлов не индексируется."
+        );
+        content.appendChild(help);
+        return;
+      }
+
+      if (savedState === "error") {
+        count.textContent = "Поиск временно недоступен.";
+        content.appendChild(
+          element("p", "cms-search__message", "Измените запрос или очистите поле и попробуйте ещё раз.")
+        );
+        return;
+      }
+
+      var total = savedResults.length;
+      count.textContent = total === 1 ? "Найден 1 материал" : "Найдено материалов: " + total;
+
+      if (!total) {
+        content.appendChild(
+          element(
+            "p",
+            "cms-search__message",
+            "Ничего не нашлось. Попробуйте другое слово, например «курица» или «меню», либо очистите запрос."
+          )
+        );
+        return;
+      }
+
+      resultsList = element("ul", "cms-search__results");
+      resultsList.setAttribute("aria-label", "Результаты поиска");
+
+      var nearMatchesStarted = false;
+      savedResults.forEach(function (result) {
+        if (result.matchType === "close" && !nearMatchesStarted) {
+          nearMatchesStarted = true;
+          var group = element("li", "cms-search__group", "Близкие совпадения — возможно, опечатка");
+          group.setAttribute("aria-label", "Близкие совпадения, возможно, опечатка");
+          resultsList.appendChild(group);
+        }
+        var item = element("li", "cms-search__item");
+        var button = element("button", "cms-search__result");
+        button.type = "button";
+        button.addEventListener("click", function () {
+          onOpen(result.id);
+        });
+
+        var type = element("span", "cms-search__type", result.type == null ? "Материал" : String(result.type));
+        var resultTitle = element(
+          "span",
+          "cms-search__result-title",
+          result.title == null ? "Без названия" : String(result.title)
+        );
+        var sectionName = element(
+          "span",
+          "cms-search__section",
+          result.section == null ? "" : String(result.section)
+        );
+
+        var text = element("span", "cms-search__result-copy");
+        text.appendChild(type);
+        if (result.matchType === "close") {
+          text.appendChild(element("span", "cms-search__match", "Близкое совпадение"));
+        }
+        text.appendChild(resultTitle);
+        text.appendChild(sectionName);
+        button.appendChild(text);
+
+        if (result.description != null && String(result.description).trim()) {
+          button.appendChild(
+            element("span", "cms-search__description", String(result.description).trim())
+          );
+        }
+
+        item.appendChild(button);
+        resultsList.appendChild(item);
+      });
+      content.appendChild(resultsList);
+    }
+
+    function runSearch(query) {
+      savedQuery = String(query).slice(0, 120);
+      input.value = savedQuery;
+
+      if (!savedQuery.trim()) {
+        savedQuery = "";
+        input.value = "";
+        savedResults = [];
+        savedState = "initial";
+        render();
+        return;
+      }
+
+      try {
+        var matches = search(savedQuery);
+        savedResults = Array.isArray(matches) ? matches.slice() : [];
+        savedState = "results";
+      } catch (error) {
+        savedResults = [];
+        savedState = "error";
+      }
+      render();
+    }
+
+    function reset() {
+      savedQuery = "";
+      savedResults = [];
+      savedState = "initial";
+      input.value = "";
+      render();
+    }
+
+    function focus() {
+      var focusInput = function () {
+        input.focus({ preventScroll: true });
+        input.scrollIntoView({ block: "center", behavior: "smooth" });
+      };
+      if (typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(focusInput);
+      } else {
+        focusInput();
+      }
+    }
+
+    return { reset: reset, focus: focus };
+  }
+
+  window.ClubMaterialSearchUI = { mount: mount };
+})(window, document);
+
+</script>
+<script>
+/* Adapt the existing member catalogue and actions; never index downloaded bodies. */
+(function () {
+  'use strict';
+  const root = document.getElementById('clubMaterialSearch');
+  if (!root) return;
+  const entries = [], actions = new Map(), seen = new Set();
+  const sections = NAV_BLOCKS.concat([
+    {id: 'start', title: 'Начните с этого', desc: 'Лекторий: ревизия, меню, правила заготовок, организация пространства и вакуумация'},
+    {id: 'rules', title: 'Таблица хранения заготовок', desc: 'Сроки хранения в морозилке и холодильнике'}
+  ]);
+  const byScreen = new Map(sections.map(function (section) { return [section.id, section]; }));
+  function extraWords(title) {
+    if (/птиц|куриц/i.test(title)) return 'курица куриный птица';
+    if (/вакуум/i.test(title)) return 'вакуум вакуумация вакуумирование упаковка';
+    if (/нутрици|питани/i.test(title)) return 'питание нутрициолог Яна Борейко кбжу';
+    return '';
+  }
+  function add(entry, action) {
+    const key = [entry.screen, entry.category || '', entry.type, entry.title].join('|');
+    if (seen.has(key)) return;
+    seen.add(key);
+    entry.id = 'club-search-' + entries.length;
+    entry.keywords = (entry.keywords || '') + ' ' + extraWords(entry.category || entry.title);
+    entries.push(entry); actions.set(entry.id, action);
+  }
+  function focusContent(node) {
+    if (!node) return;
+    node.setAttribute('tabindex', '-1');
+    node.focus({preventScroll: true});
+    const header = document.querySelector('.screen.active .app-header');
+    window.scrollTo(0, Math.max(0, node.getBoundingClientRect().top + window.scrollY - (header ? header.getBoundingClientRect().height : 0) - 20));
+  }
+  function go(screen, category) {
+    showScreen(screen);
+    if (category) {
+      const listId = screen === 'baking' ? 'bakingCategoriesList' : 'recipeCategoriesList';
+      const node = Array.from(document.querySelectorAll('#' + listId + ' .cat-item'))
+        .find(function (item) { return item.querySelector('.cat-title').textContent.trim() === category; });
+      if (node) { node.classList.add('open'); focusContent(node.querySelector('.cat-head')); }
+    } else {
+      focusContent(document.querySelector('#screen-' + screen + ' .section-title'));
+    }
+  }
+  sections.forEach(function (section) {
+    add({title: section.title, section: 'Разделы клуба', screen: section.id, type: 'Раздел', description: section.desc},
+      function () { go(section.id); });
+  });
+  function files(screen, list, category) {
+    const section = byScreen.get(screen);
+    (list || []).forEach(function (file) {
+      if (!file.url && !file.slug) return;
+      add({
+        title: file.t || file.title, screen: screen, category: category,
+        section: section.title + (category ? ' · ' + category : ''), type: file.slug ? 'Материал' : 'Сборник',
+        description: file.d || 'PDF-файл'
+      }, function () {
+        if (file.slug) openClubMaterial(file.slug, file.t, 'dashboard', '', file.author || '');
+        else openFile(file.url, file.t);
+      });
+    });
+  }
+  function videos(screen, list, category) {
+    const section = byScreen.get(screen);
+    (list || []).forEach(function (video) {
+      if (!video.id) return;
+      const title = video.title || video.t;
+      add({title: title, screen: screen, category: category,
+        section: section.title + (category ? ' · ' + category : ''), type: 'Видео'},
+      function () { playVideo(title, video.id); });
+    });
+  }
+  [['recipes', RECIPE_CATEGORIES], ['baking', BAKING_CATEGORIES]].forEach(function (pair) {
+    pair[1].forEach(function (category) {
+      if (category.soon) return;
+      add({title: category.name, screen: pair[0], category: category.name,
+        section: byScreen.get(pair[0]).title, type: 'Подборка'},
+      function () { go(pair[0], category.name); });
+      files(pair[0], category.files, category.name);
+      videos(pair[0], category.videos, category.name);
+    });
+  });
+  ['broths', 'sauces', 'constructor', 'smart', 'holiday'].forEach(function (screen) {
+    videos(screen, CLUB_VIDEOS[screen]);
+    if (screen !== 'constructor' && screen !== 'holiday') files(screen, CLUB_FILES[screen]);
+  });
+  videos('ready-menu', CLUB_VIDEOS.readyMenu);
+  files('ready-menu', CLUB_FILES.readyMenu);
+  files('holiday', HOLIDAY_FILES);
+  files('constructor', CONSTRUCTOR_FILES);
+  files('kids', KIDS_MATERIALS);
+  files('lazy', LAZY_FILES);
+  HEALTH_ITEMS.forEach(function (item, index) {
+    add({title: item.t, screen: 'health', section: 'Для здоровья',
+      type: item.podcastId ? 'Подкаст' : 'Материал',
+      description: item.author ? 'Автор: ' + item.author : '',
+      keywords: item.podcastId && item.t === 'Подкаст' ? 'нутрициолог Яна Борейко питание кбжу' : ''
+    }, function () { openHealthItem(index); });
+  });
+  // Static lecture summaries and static material cards are part of the platform
+  // catalogue. Only their visible headings/metadata are inspected, not article bodies.
+  document.querySelectorAll('#screen-start .start-step').forEach(function (detail) {
+    const summary = detail.querySelector('summary'), heading = summary.querySelector('h4');
+    if (!heading) return;
+    add({title: heading.textContent.trim(), screen: 'start', section: 'Начните с этого · Лекторий',
+      type: 'Материал', description: summary.querySelector('p') ? summary.querySelector('p').textContent.trim() : ''
+    }, function () { showScreen('start'); detail.open = true; focusContent(summary); });
+  });
+  document.querySelectorAll('.screen .mat-card[onclick]').forEach(function (card) {
+    const screen = card.closest('.screen').id.replace(/^screen-/, '');
+    if (!byScreen.has(screen)) return;
+    const heading = card.querySelector('.mat-info h4, .mat-info strong');
+    if (!heading) return;
+    add({title: heading.textContent.trim(), screen: screen, section: byScreen.get(screen).title,
+      type: card.querySelector('.fa-play') ? 'Видео' : 'Материал',
+      description: card.querySelector('.mat-info p') ? card.querySelector('.mat-info p').textContent.trim() : ''
+    }, function () {
+      showScreen(screen);
+      const detail = card.closest('details');
+      if (detail) detail.open = true;
+      card.click();
+    });
+  });
+  const engine = window.ClubSearchEngine.create(entries);
+  const searchUI = window.ClubMaterialSearchUI.mount({
+    root: root, search: function (text) { return window.ClubMaterialSearch.search(text); },
+    onOpen: function (id) { window.ClubMaterialSearch.open(id); }
+  });
+
+  const menu = document.getElementById('sideMenu');
+  const menuList = menu && menu.querySelector('ul');
+  if (menuList) {
+    const item = document.createElement('li');
+    const link = document.createElement('a');
+    const icon = document.createElement('i');
+    link.href = '#';
+    link.className = 'cms-search-nav-link';
+    icon.className = 'fas fa-search';
+    icon.setAttribute('aria-hidden', 'true');
+    link.appendChild(icon);
+    link.appendChild(document.createTextNode('Поиск по материалам'));
+    link.addEventListener('click', function (event) {
+      event.preventDefault();
+      showScreen('dashboard');
+      if (menu.classList.contains('open')) toggleMenu();
+      searchUI.focus();
+    });
+    item.appendChild(link);
+    menuList.appendChild(item);
+  }
+
+  window.ClubMaterialSearch = {
+    search: function (text) { return currentUser ? engine.search(text) : []; },
+    open: function (id) {
+      if (!currentUser) { showScreen('login'); return; }
+      const action = actions.get(id);
+      if (action) action();
+    }
+  };
+})();
+
+</script>
 </body>
 </html>
