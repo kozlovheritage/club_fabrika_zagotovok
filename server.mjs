@@ -11,6 +11,7 @@ import {buildDirectPaymentForm} from './payment-recovery.mjs';
 import {describeRejectedLogin,emailDiagnosticKey,rejectedLoginHint} from './login-diagnostics.mjs';
 import {CONSENT_SCHEMA,archiveConsentDocuments,checkoutDocumentCatalog,validateCheckoutConsents,saveCheckoutConsentReceipt,renderArchivedLegalDocument} from './consents.mjs';
 import {createPdfRouter,loadPdfCatalog,rewritePdfLinks} from './pdf-access.mjs';
+import {createSearchHandler} from './pdf-search.mjs';
 import {createPodcastRouter,loadPodcastCatalog} from './podcast-access.mjs';
 import {readCloudConfig,CloudPaymentsError,cents} from './cloudpayments.mjs';
 import {CLOUD_SCHEMA,createCloudStore,drainAccessMail} from './cloudpayments-store.mjs';
@@ -283,6 +284,7 @@ app.post('/api/checkout/direct',async(req,res,next)=>{
 });
 const failedLogins=new Map();
 app.get('/api/auth/me',requireAuth,(req,res)=>res.json({email:req.user.email,name:req.user.name,tariff:req.user.tariff,purchaseAt:req.user.purchase_at,accessUntil:req.user.access_until}));
+app.get('/api/material-search',requireAuth,createSearchHandler({catalog:pdfCatalog,manifest:JSON.parse(await readFile(new URL('./pdf-search-manifest.json',import.meta.url),'utf8'))}));
 app.use('/api/pdfs',createPdfRouter({
   catalog:pdfCatalog,
   authorize:findSession,

@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "sha256": "6ec77072b76a7b13a0cd6c3c581583f4565aa4a8c64febe6a62601fcbda786c7",
+  "bytes": 1072773,
+  "objectKey": "search/pdf-index-6ec77072b76a7b13a0cd6c3c581583f4565aa4a8c64febe6a62601fcbda786c7.json",
+  "catalogSha256": "923aaf6f775bec96d4d7641fecce5263dae95d590ce6aa14ce2c87f14df8e6a4",
+  "documents": 43,
+  "pages": 884,
+  "ocrPages": [
+    {
+      "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
+      "page": 2
+    },
+    {
+      "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
+      "page": 3
+    },
+    {
+      "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
+      "page": 68
+    },
+    {
+      "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
+      "page": 69
+    },
+    {
+      "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
+      "page": 70
+    },
+    {
+      "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
+      "page": 71
+    },
+    {
+      "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
+      "page": 72
+    },
+    {
+      "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
+      "page": 73
+    },
+    {
+      "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
+      "page": 77
+    }
+  ]
+}

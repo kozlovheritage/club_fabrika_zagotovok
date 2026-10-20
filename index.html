@@ -2735,6 +2735,7 @@ restoreSession();
   var savedResults = [];
   var savedState = "initial";
   var mountNumber = 0;
+  var savedWarning = "";
 
   function element(tagName, className, text) {
     var node = document.createElement(tagName);
@@ -2764,6 +2765,7 @@ restoreSession();
     var count;
     var content;
     var resultsList;
+    var requestNumber = 0, searchTimer;
 
     while (root.firstChild) root.removeChild(root.firstChild);
 
@@ -2866,12 +2868,18 @@ restoreSession();
         var help = element(
           "p",
           "cms-search__message",
-          "Ищите по названиям материалов и разделов. Содержимое PDF-файлов не индексируется."
+          "Ищите по названиям и тексту всех PDF. В результатах — фрагмент и номер страницы. Например: «курица», «шпинат», «без сахара»."
         );
         content.appendChild(help);
         return;
       }
 
+      if (savedState === "loading") {
+        count.textContent = "Ищем в каталоге и PDF…";
+        content.appendChild(element("p", "cms-search__message", "Поиск по материалам клуба…"));
+        return;
+      }
+      if (savedWarning) content.appendChild(element("p", "cms-search__message cms-search__warning", savedWarning));
       if (savedState === "error") {
         count.textContent = "Поиск временно недоступен.";
         content.appendChild(
@@ -2939,42 +2947,66 @@ restoreSession();
           );
         }
 
+        if (Array.isArray(result.fragments)) {
+          button.classList.add("cms-search__result--pdf");
+          text.appendChild(element("span", "cms-search__page",
+            "Страница " + result.page + (result.matchedPages.length > 1 ? " · Совпадения на " + result.matchedPages.length + " стр." : "")));
+          var snippet = element("span", "cms-search__snippet");
+          result.fragments.forEach(function (part) {
+            snippet.appendChild(element(part.match ? "mark" : "span", "", part.text));
+          });
+          button.appendChild(snippet);
+        }
         item.appendChild(button);
+        if (Array.isArray(result.matchedPages) && result.matchedPages.length > 1) {
+          var pages = element("div", "cms-search__pages");
+          result.matchedPages.filter(function (n) { return n !== result.page; }).slice(0, 4).forEach(function (n) {
+            var pageButton = element("button", "cms-search__page-link", "Стр. " + n);
+            pageButton.type = "button";
+            pageButton.setAttribute("aria-label", result.title + " — страница " + n);
+            pageButton.addEventListener("click", function () { onOpen(result.id + "@" + n); });
+            pages.appendChild(pageButton);
+          });
+          if (result.matchedPages.length > 5) pages.appendChild(element("span", "", "и ещё " + (result.matchedPages.length - 5) + " стр."));
+          item.appendChild(pages);
+        }
         resultsList.appendChild(item);
       });
       content.appendChild(resultsList);
     }
 
     function runSearch(query) {
+      var sequence = ++requestNumber;
+      clearTimeout(searchTimer);
+      if (window.ClubPdfSearch) window.ClubPdfSearch.cancel();
       savedQuery = String(query).slice(0, 120);
       input.value = savedQuery;
-
-      if (!savedQuery.trim()) {
-        savedQuery = "";
-        input.value = "";
-        savedResults = [];
-        savedState = "initial";
-        render();
-        return;
-      }
-
-      try {
-        var matches = search(savedQuery);
-        savedResults = Array.isArray(matches) ? matches.slice() : [];
-        savedState = "results";
-      } catch (error) {
-        savedResults = [];
-        savedState = "error";
-      }
-      render();
-    }
-
-    function reset() {
-      savedQuery = "";
+      savedWarning = "";
       savedResults = [];
-      savedState = "initial";
-      input.value = "";
+      if (!savedQuery.trim()) { savedState = "initial"; render(); return; }
+      savedState = "loading";
       render();
+      var currentQuery = savedQuery;
+      searchTimer = setTimeout(async function () {
+        try {
+          var response = await search(currentQuery);
+          if (sequence !== requestNumber) return;
+          savedResults = Array.isArray(response) ? response.slice() : response.results.slice();
+          savedWarning = Array.isArray(response) ? "" : response.warning || "";
+          savedState = "results";
+        } catch (error) {
+          if (sequence !== requestNumber) return;
+          savedResults = []; savedState = "error";
+        }
+        render();
+      }, 250);
+    }
+    function reset() {
+      requestNumber++;
+      clearTimeout(searchTimer);
+      if (window.ClubPdfSearch) window.ClubPdfSearch.cancel();
+      savedQuery = ""; savedResults = []; savedWarning = ""; savedState = "initial";
+      input.value = ""; render();
     }
 
     function focus() {
@@ -2997,6 +3029,65 @@ restoreSession();
 
 </script>
 <script>
+/* Only snippets cross this authenticated endpoint. No corpus, storage URL or keys in the browser. */
+(function () {
+  'use strict';
+  var controller = null;
+  var hits = new Map();
+  function cancel() { if (controller) controller.abort(); controller = null; }
+  async function search(query, catalogueResults) {
+    cancel();
+    controller = new AbortController();
+    var signal = controller.signal;
+    if (String(query).trim().length < 2) return {results: catalogueResults, warning: 'Для поиска внутри PDF введите хотя бы 2 символа.'};
+    var activeController = controller;
+    var timeout = setTimeout(function () { activeController.abort(); }, 20000);
+    try {
+      var response = await fetch('/api/material-search?q=' + encodeURIComponent(query), {
+        credentials: 'same-origin', cache: 'no-store', signal: signal
+      });
+      if (!response.ok) {
+        var warning = response.status === 401 ? 'Сессия истекла. Войдите в клуб заново.' :
+          response.status === 429 ? 'Слишком много запросов. Подождите минуту.' :
+          'Поиск по тексту PDF временно недоступен. Показаны только результаты по каталогу.';
+        return {results: catalogueResults, warning: warning};
+      }
+      var data = await response.json();
+      if (!Array.isArray(data.results)) throw Error('INVALID_SEARCH_RESPONSE');
+      hits.clear();
+      data.results.forEach(function (hit) {
+        if (!/^[a-f0-9]{32}$/.test(hit.pdfId) || !Number.isInteger(hit.page) || hit.page < 1 || hit.page > 2000)
+          throw Error('INVALID_PDF_RESULT');
+        hits.set(hit.id, hit);
+      });
+      var pdfs = new Map(data.results.map(function (hit) { return [hit.pdfId, hit]; }));
+      var seen = new Set(), exact = [], close = [];
+      catalogueResults.forEach(function (entry) {
+        var hit = pdfs.get(entry.pdfId);
+        if (hit) {
+          if (!seen.has(entry.pdfId)) exact.push(Object.assign({}, entry, hit, {title: entry.title, section: entry.section}));
+          seen.add(entry.pdfId);
+        } else if (entry.matchType === 'close') close.push(entry);
+        else exact.push(entry);
+      });
+      data.results.forEach(function (hit) { if (!seen.has(hit.pdfId)) exact.push(hit); });
+      return {results: exact.concat(close), warning: ''};
+    } catch (error) {
+      if (error.name === 'AbortError') throw error;
+      return {results: catalogueResults, warning: 'Поиск по тексту PDF временно недоступен. Показаны только результаты по каталогу.'};
+    } finally { clearTimeout(timeout); }
+  }
+  function open(id) {
+    var parts = String(id).split('@'), hit = hits.get(parts[0]);
+    if (!hit) return false;
+    var page = parts.length === 2 ? Number(parts[1]) : hit.page;
+    if (!Number.isInteger(page) || !hit.matchedPages.includes(page)) return false;
+    openFile('/api/pdfs/' + hit.pdfId + '#page=' + page, hit.title + ' · страница ' + page);
+    return true;
+  }
+  window.ClubPdfSearch = {search: search, open: open, cancel: cancel};
+})();
+
 /* Adapt the existing member catalogue and actions; never index downloaded bodies. */
 (function () {
   'use strict';
@@ -3049,6 +3140,7 @@ restoreSession();
     (list || []).forEach(function (file) {
       if (!file.url && !file.slug) return;
       add({
+        pdfId: (String(file.url || '').match(/\/api\/pdfs\/([a-f0-9]{32})/) || [])[1],
         title: file.t || file.title, screen: screen, category: category,
         section: section.title + (category ? ' · ' + category : ''), type: file.slug ? 'Материал' : 'Сборник',
         description: file.d || 'PDF-файл'
@@ -3121,8 +3213,8 @@ restoreSession();
   });
   const engine = window.ClubSearchEngine.create(entries);
   const searchUI = window.ClubMaterialSearchUI.mount({
-    root: root, search: function (text) { return window.ClubMaterialSearch.search(text); },
-    onOpen: function (id) { window.ClubMaterialSearch.open(id); }
+    root: root, search: function (text) { return window.ClubPdfSearch.search(text, window.ClubMaterialSearch.search(text)); },
+    onOpen: function (id) { if (!window.ClubPdfSearch.open(id)) window.ClubMaterialSearch.open(id); }
   });
 
   const menu = document.getElementById('sideMenu');
@@ -3158,5 +3250,16 @@ restoreSession();
 })();
 
 </script>
+<style>
+.cms-search__result--pdf { flex-direction: column; align-items: stretch; gap: 10px; }
+.cms-search__snippet { display: block; font-size: 14px; line-height: 1.65; color: #5b5653; overflow-wrap: anywhere; }
+.cms-search__snippet mark { color: inherit; background: #f9e7bc; border-radius: 3px; padding: 0 2px; }
+.cms-search__page { color: #a8506b; font-size: 12px; margin-top: 5px; }
+.cms-search__pages { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; padding: 0 14px 12px; font-size: 12px; }
+.cms-search__page-link { border: 1px solid #e9d5dc; border-radius: 14px; background: #fff; color: #99455e; padding: 7px 11px; cursor: pointer; min-height: 36px; font: inherit; }
+.cms-search__page-link:focus-visible { outline: 2px solid #a8506b; outline-offset: 3px; }
+.cms-search__warning { border-left: 3px solid #bc8c38; padding-left: 12px; }
+
+</style>
 </body>
 </html>
