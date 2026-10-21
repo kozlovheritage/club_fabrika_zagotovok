@@ -13,8 +13,8 @@ test('each promotion has the agreed standalone price; only SKIDKA1C can repeat',
     ['FABRIKA1B', 4500, 3500],
     ['FABRIKA2Pr', 1690, 1490],
     ['FABRIKAB2P', 2390, 1490],
-    ['SKIDKA1C', 7390, 5990],
-    ['SKIDKA1C SKIDKA1C', 7090, 5890]
+    ['SKIDKA1C', 5690, 4990],
+    ['SKIDKA1C SKIDKA1C', 5690, 4990]
   ];
   for (const [code, premium, basic] of prices) {
     assert.equal(quotePrice('premium', code).priceRub, premium, code + ' premium');
@@ -61,8 +61,8 @@ test('retired CLUBB3 cannot quote a price or create a new checkout for either ta
   }
 });
 
-test('collection tiers normalize case and separators and retain active-phase discounts', () => {
-  for (const [tariff, first, second] of [['premium', 1100, 1400], ['basic', 1000, 1100]]) {
+test('collection code normalizes input and keeps one fixed price without extra repeated discount', () => {
+  for (const [tariff, first, second] of [['premium', 2800, 2800], ['basic', 2000, 2000]]) {
     assert.equal(quotePrice(tariff, '  skidka1c  ').discountRub, first);
     for (const input of ['skidka1c SKIDKA1C', 'SKIDKA1C,skidka1c', 'SKIDKA1C;SKIDKA1C']) {
       assert.equal(quotePrice(tariff, input).discountRub, second);
