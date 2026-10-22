@@ -709,6 +709,12 @@ a{text-decoration:none;color:inherit}
     margin-top: 6px;
   }
 }
+
+.material-reader-content .nutrition-socials{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:-8px 0 26px}
+.material-reader-content .nutrition-social-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:80px;min-height:66px;padding:9px 12px;border:1px solid var(--pink-soft);border-radius:16px;background:var(--pink-bg);color:var(--pink-dark);text-decoration:none;line-height:1.3;box-sizing:border-box}
+.material-reader-content .nutrition-social-link span{font-size:12px;font-weight:600}
+.material-reader-content .nutrition-social-link:hover{background:var(--pink-light)}
+.material-reader-content .nutrition-social-link:focus-visible{outline:3px solid var(--pink-dark);outline-offset:3px}
 </style>
 </head>
 <body>
@@ -1996,7 +2002,7 @@ function appendNutritionInline(element,text){
 
 function renderNutritionArticle(container,source){
   container.replaceChildren();
-  let list=null,sublist=null,lastItem=null,paragraph=null;
+  let list=null,sublist=null,lastItem=null,paragraph=null,socials=null;
   const lines=source.replace(/\r\n?/g,'\n').trim().split('\n');
   for(let i=0;i<lines.length;i++){
     const raw=lines[i],line=raw.trim();
@@ -2031,12 +2037,28 @@ function renderNutritionArticle(container,source){
     const social=line.match(/^(Instagram(?:\s+\([^)]*\))?|Telegram|YouTube):\s*((?:https:\/\/)?(?:instagram\.com|t\.me|www\.youtube\.com)\/[A-Za-z0-9_@/.-]+)$/u);
     if(social){
       list=null;sublist=null;lastItem=null;paragraph=null;
-      const row=document.createElement('p'),link=document.createElement('a');
-      row.append(document.createTextNode(social[1]+': '));
+      if(!socials){
+        socials=document.createElement('nav');
+        socials.className='nutrition-socials';
+        socials.setAttribute('aria-label','Социальные сети Яны');
+        container.append(socials);
+      }
+      const network=social[1].startsWith('Instagram')?'Instagram':social[1];
+      const icons={
+        Instagram:'<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>',
+        Telegram:'<path d="m21 3-7 18-4-7-7-4 18-7Z"/><path d="m10 14 5-5"/>',
+        YouTube:'<rect x="2" y="5" width="20" height="14" rx="4"/><path d="m10 9 6 3-6 3Z" fill="currentColor" stroke="none"/>'
+      };
+      const link=document.createElement('a'),label=document.createElement('span');
+      link.className='nutrition-social-link';
       link.href=social[2].startsWith('https://')?social[2]:'https://'+social[2];
-      link.textContent=social[2];
+      link.setAttribute('aria-label',network+' Яны'+(network==='Instagram'?' (принадлежит Meta, запрещённой в РФ)':''));
+      link.title=network+' Яны';
       link.target='_blank';link.rel='noopener noreferrer';
-      row.append(link);container.append(row);
+      // Only trusted static icon markup; article content is never inserted as HTML.
+      link.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'+icons[network]+'</svg>';
+      label.textContent=network+(network==='Instagram'?'*':'');
+      link.append(label);socials.append(link);
       continue;
     }
     const bullet=raw.match(/^(\s*)(?:([•-])|(\d+)\.)\s+(.+)$/u);
