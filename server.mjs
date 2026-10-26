@@ -16,6 +16,7 @@ import {createPodcastRouter,loadPodcastCatalog} from './podcast-access.mjs';
 import {readCloudConfig,CloudPaymentsError,cents} from './cloudpayments.mjs';
 import {CLOUD_SCHEMA,createCloudStore,drainAccessMail} from './cloudpayments-store.mjs';
 import {createCloudService,mountCloudNotifications} from './cloudpayments-router.mjs';
+import {rejectClosedSales} from './sales-closure.mjs';
 import {ADMIN_SCHEMA,CHECKOUT_PROVIDER_SCHEMA,createAdminStore} from './admin-store.mjs';
 import {mountAdmin} from './admin-access.mjs';
 import {HISTORY_SCHEMA,createPaymentHistory} from './payment-history.mjs';
@@ -196,6 +197,7 @@ app.use('/api/checkout',(req,res,next)=>{
   }
   next();
 });
+app.use('/api/checkout',rejectClosedSales);
 app.post('/api/checkout/session',async(req,res,next)=>{
   let checkoutProvider;
   try{checkoutProvider=await adminStore.activeCheckoutProvider();}catch(error){return next(error);}
