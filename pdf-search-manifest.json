@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "sha256": "6ec77072b76a7b13a0cd6c3c581583f4565aa4a8c64febe6a62601fcbda786c7",
-  "bytes": 1072773,
-  "objectKey": "search/pdf-index-6ec77072b76a7b13a0cd6c3c581583f4565aa4a8c64febe6a62601fcbda786c7.json",
-  "catalogSha256": "923aaf6f775bec96d4d7641fecce5263dae95d590ce6aa14ce2c87f14df8e6a4",
-  "documents": 43,
-  "pages": 884,
+  "sha256": "8b204838fe25ceb9a877ca07a29e0ddc04f149c86d68224d1f210f1295acb8ea",
+  "bytes": 1084281,
+  "objectKey": "search/pdf-index-8b204838fe25ceb9a877ca07a29e0ddc04f149c86d68224d1f210f1295acb8ea.json",
+  "catalogSha256": "56804125de7258a1a6f7de66b52d4fa99cc75bb09c49911fe7c8d9db1b3e6029",
+  "documents": 44,
+  "pages": 895,
   "ocrPages": [
     {
       "id": "ae6bc5107f375fb6a4d3a3ce65f9e34d",
