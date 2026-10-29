@@ -4,7 +4,7 @@ import {spawn} from 'node:child_process';
 import net from 'node:net';
 import crypto from 'node:crypto';
 import pg from 'pg';
-import {premiumPasswordForOrder} from './checkout.mjs';
+import {createCheckout,premiumPasswordForOrder} from './checkout.mjs';
 import {prodamusDeliveryMode,PLATFORM_ACCESS_NOTICE} from './prodamus-mail.mjs';
 import {drainAccessMail} from './cloudpayments-store.mjs';
 import {sendCredentialsEmail,sendBasicAccessEmail} from './email.mjs';
@@ -303,5 +303,41 @@ test('Prodamus access: isolated checkout → signed payment → durable mail →
     const nativeAttempts=await pool.query(`SELECT m.attempts FROM club_cp_access_mail m
       JOIN club_cp_orders o USING(order_id) WHERE o.access_delivery_provider='prodamus'`);
     assert.ok(nativeAttempts.rows.every(row=>row.attempts===0));
+  });
+  await t.test('account deletion revokes old login, preserves payment evidence and blocks late fulfillment',async()=>{
+    await app.stop();app=await boot('prodamus','false');
+    const deletionOrder=await checkout('deleted-member@example.test');
+    assert.equal((await notify(deletionOrder,'delete-1')).status,200);
+    const password=premiumPasswordForOrder(deletionOrder.order_id,key);
+    const login=await post(app.base,'/api/auth/login',{email:deletionOrder.customer_email,password});
+    assert.equal(login.status,200);
+    const cookie=login.headers.get('set-cookie').split(';')[0];
+    assert.equal((await post(app.base,'/api/auth/delete-account',{confirm:true})).status,401);
+    assert.equal((await post(app.base,'/api/auth/delete-account',{confirm:false},{Cookie:cookie})).status,400);
+    assert.equal((await pool.query("SELECT status FROM club_users WHERE email=$1",['order:'+deletionOrder.order_id])).rows[0].status,'active');
+    const deleted=await post(app.base,'/api/auth/delete-account',{confirm:true},{Cookie:cookie});
+    assert.equal(deleted.status,200,await deleted.text());
+    const account=(await pool.query(`SELECT status,deleted_at,name,login_email,password_hash,password_tag,
+      credential_email_ciphertext FROM club_users WHERE email=$1`,['order:'+deletionOrder.order_id])).rows[0];
+    assert.equal(account.status,'deleted');assert.ok(account.deleted_at instanceof Date);
+    assert.deepEqual({...account,deleted_at:null},{status:'deleted',deleted_at:null,name:null,login_email:null,password_hash:null,password_tag:null,credential_email_ciphertext:null});
+    assert.equal((await pool.query('SELECT count(*)::int n FROM club_sessions WHERE email=$1',['order:'+deletionOrder.order_id])).rows[0].n,0);
+    const mail=(await pool.query('SELECT state,password_ciphertext,last_error_code FROM club_cp_access_mail WHERE order_id=$1',[deletionOrder.order_id])).rows[0];
+    assert.deepEqual(mail,{state:'blocked',password_ciphertext:null,last_error_code:'external_delivery_unverified'});
+    assert.equal((await pool.query("SELECT status FROM club_cp_orders WHERE order_id=$1",[deletionOrder.order_id])).rows[0].status,'paid');
+    assert.equal((await pool.query("SELECT count(*)::int n FROM club_cp_payment_events WHERE order_id=$1 AND event_type='pay'",[deletionOrder.order_id])).rows[0].n,1);
+    assert.equal((await fetch(app.base+'/api/auth/me',{headers:{Cookie:cookie}})).status,401);
+    assert.equal((await post(app.base,'/api/auth/login',{email:deletionOrder.customer_email,password})).status,401);
+    assert.equal((await notify(deletionOrder,'delete-2')).status,200);
+    assert.equal((await pool.query("SELECT status FROM club_users WHERE email=$1",['order:'+deletionOrder.order_id])).rows[0].status,'deleted');
+    assert.equal((await pool.query("SELECT status FROM club_cp_orders WHERE order_id=$1",[deletionOrder.order_id])).rows[0].status,'paid');
+    assert.equal((await pool.query("SELECT state FROM club_cp_access_mail WHERE order_id=$1",[deletionOrder.order_id])).rows[0].state,'blocked');
+    const legacyEmail='legacy-deleted@example.test';
+    await pool.query(`INSERT INTO club_users(email,tariff,status,deleted_at)
+      VALUES($1,'premium','deleted',now())`,[legacyEmail]);
+    const legacyCheckout={...createCheckout('premium',key),customer_email:legacyEmail};
+    assert.equal((await notify(legacyCheckout,'legacy-after-delete')).status,200);
+    const legacy=(await pool.query('SELECT status,password_hash,credential_email_ciphertext FROM club_users WHERE email=$1',[legacyEmail])).rows[0];
+    assert.deepEqual(legacy,{status:'deleted',password_hash:null,credential_email_ciphertext:null});
   });
 });

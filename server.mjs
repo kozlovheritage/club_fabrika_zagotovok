@@ -22,6 +22,7 @@ import {mountAdmin} from './admin-access.mjs';
 import {HISTORY_SCHEMA,createPaymentHistory} from './payment-history.mjs';
 import {MAIL_MONITOR_SCHEMA,pollMailStatuses,notifyMailAttention} from './mail-monitor.mjs';
 import {PRODAMUS_MAIL_SCHEMA,PLATFORM_ACCESS_NOTICE,prodamusDeliveryMode,saveProdamusMailOrder,getProdamusMailOrder,fulfillProdamusMailOrder} from './prodamus-mail.mjs';
+import {AccountDeletionError,deleteMemberAccount} from './account-deletion.mjs';
 
 const {Pool}=pg;
 const scryptAsync=promisify(crypto.scrypt);
@@ -73,7 +74,7 @@ const cloudStore=createCloudStore(pool,{
   receiptProvider:cloudConfig.receiptProvider,
   async grantPremium(client,order){
     const userKey='order:'+order.order_id;
-    const existing=await client.query('SELECT email,status FROM club_users WHERE (email=$1 OR login_email=$2) AND password_hash IS NOT NULL FOR UPDATE',[userKey,order.buyer_email]);
+    const existing=await client.query('SELECT email,status FROM club_users WHERE email=$1 OR (login_email=$2 AND password_hash IS NOT NULL) FOR UPDATE',[userKey,order.buyer_email]);
     if(existing.rowCount&&existing.rows.some(user=>user.email!==userKey||user.status!=='active'))return {review:true};
     const password=premiumPasswordForOrder(order.order_id,process.env.AUTH_CREDENTIAL_KEY);
     if(!password||!normalizeBuyerName(order.buyer_name))throw new CloudPaymentsError('Не удалось проверить получателя доступа',422);
@@ -91,6 +92,7 @@ const schema=[
   "ALTER TABLE club_users ALTER COLUMN access_until DROP NOT NULL",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS password_hash TEXT",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS welcome_email_sent_at TIMESTAMPTZ",
+  "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ",
   "CREATE TABLE IF NOT EXISTS club_sessions (token_hash TEXT PRIMARY KEY, email TEXT NOT NULL REFERENCES club_users(email) ON DELETE CASCADE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS login_email TEXT",
   "ALTER TABLE club_users ADD COLUMN IF NOT EXISTS password_tag TEXT",
@@ -356,8 +358,21 @@ app.post('/api/auth/login',express.urlencoded({extended:false,limit:'8kb'}),asyn
   }catch(error){next(error);}
 });
 app.post('/api/auth/logout',async(req,res,next)=>{try{const raw=parseCookies(req.headers.cookie).club_session;if(raw)await pool.query('DELETE FROM club_sessions WHERE token_hash=$1',[sha256(raw)]);res.setHeader('Set-Cookie',clearCookieHeader('club_session'));res.json({ok:true});}catch(error){next(error);}});
+app.post('/api/auth/delete-account',requireAuth,async(req,res,next)=>{
+  res.set('Cache-Control','no-store');
+  if(!req.is('application/json')||req.body?.confirm!==true)
+    return res.status(400).json({message:'Подтвердите удаление аккаунта'});
+  try{
+    await deleteMemberAccount(pool,req.user.user_key,{mailRuntimeEnabled,adminEnabled});
+    res.setHeader('Set-Cookie',clearCookieHeader('club_session'));
+    res.json({ok:true});
+  }catch(error){
+    if(error instanceof AccountDeletionError)return res.status(error.status).json({message:error.message});
+    next(error);
+  }
+});
 async function deliverPendingCredentials(email){
-  const claim=await pool.query("UPDATE club_users SET credential_claimed_at=now() WHERE email=$1 AND credential_email_ciphertext IS NOT NULL AND (credential_claimed_at IS NULL OR credential_claimed_at<now()-interval '2 minutes') RETURNING credential_email_ciphertext",[email]);
+  const claim=await pool.query("UPDATE club_users SET credential_claimed_at=now() WHERE email=$1 AND status='active' AND credential_email_ciphertext IS NOT NULL AND (credential_claimed_at IS NULL OR credential_claimed_at<now()-interval '2 minutes') RETURNING credential_email_ciphertext",[email]);
   if(!claim.rowCount){
     const pending=await pool.query('SELECT credential_email_ciphertext FROM club_users WHERE email=$1',[email]);
     if(pending.rows[0]?.credential_email_ciphertext)throw new Error('Credential email is being sent; retry webhook');
@@ -365,6 +380,8 @@ async function deliverPendingCredentials(email){
   }
   const ciphertext=claim.rows[0].credential_email_ciphertext;
   try{
+    const stillActive=await pool.query("SELECT 1 FROM club_users WHERE email=$1 AND status='active' AND credential_email_ciphertext=$2",[email,ciphertext]);
+    if(!stillActive.rowCount)return;
     await pool.query(`INSERT INTO club_admin_credentials(user_key,password_ciphertext) VALUES($1,$2)
       ON CONFLICT(user_key) DO UPDATE SET password_ciphertext=EXCLUDED.password_ciphertext,updated_at=now()`,[email,ciphertext]);
     await sendCredentialsEmail(email,decryptPassword(ciphertext),PUBLIC_URL);
@@ -452,14 +469,14 @@ app.post('/api/webhooks/prodamus',upload.any(),async(req,res,next)=>{
         : payload;
       const event=await client.query('INSERT INTO club_webhook_events (event_id,payload) VALUES ($1,$2::jsonb) ON CONFLICT (event_id) DO NOTHING RETURNING event_id',[eventId,JSON.stringify(auditPayload)]);
       if(event.rowCount){
-        const found=await client.query('SELECT password_hash,welcome_email_sent_at,credential_email_ciphertext FROM club_users WHERE email=$1 FOR UPDATE',[email]);
+        const found=await client.query('SELECT password_hash,welcome_email_sent_at,credential_email_ciphertext,status FROM club_users WHERE email=$1 FOR UPDATE',[email]);
         const existing=found.rows[0];
         if(checkout.orderId){
           const password=premiumPasswordForOrder(checkout.orderId,process.env.AUTH_CREDENTIAL_KEY);
           const passwordHash=await hashPassword(password);
           const customerName=checkout.requiresSavedName?savedName:(payload.customer_name?String(payload.customer_name).trim():null);
           await client.query("INSERT INTO club_users (email,login_email,password_tag,name,password_hash,tariff,access_until,purchase_at,status) VALUES ($1,$2,$3,$4,$5,'premium',NULL,now(),'active') ON CONFLICT (email) DO NOTHING",['order:'+checkout.orderId,email,sha256('club-order-password:'+password),customerName,passwordHash]);
-        }else{
+        }else if(existing?.status!=='deleted'){
         let passwordHash=existing?.password_hash||null;
         let ciphertext=existing?.credential_email_ciphertext||null;
         let sentAt=existing?.welcome_email_sent_at||null;

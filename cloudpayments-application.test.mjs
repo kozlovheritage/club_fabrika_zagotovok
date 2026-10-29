@@ -99,6 +99,24 @@ test('whole app: manual selection preserves Prodamus and in-flight Cloud callbac
       if(tariff==='premium'){
         const login=await post(active,'/api/auth/login',{email,password:premiumPasswordForOrder(order.order_id,key)});
         assert.equal(login.status,200);assert.equal((await login.json()).email,email);
+        const cookie=login.headers.get('set-cookie').split(';')[0];
+        const deleted=await post(active,'/api/auth/delete-account',{confirm:true},{Cookie:cookie});
+        assert.equal(deleted.status,200);
+        assert.equal((await fetch(active+'/api/auth/me',{headers:{Cookie:cookie}})).status,401);
+        assert.equal((await post(active,'/api/auth/login',{email,password:premiumPasswordForOrder(order.order_id,key)})).status,401);
+        const blocked=(await pool.query('SELECT state,password_ciphertext,last_error_code FROM club_cp_access_mail WHERE order_id=$1',[order.order_id])).rows[0];
+        assert.deepEqual(blocked,{state:'blocked',password_ciphertext:null,last_error_code:'account_deleted'});
+        // A stale pending projection must not resurrect the deleted account
+        // when a distinct late provider transaction arrives.
+        await pool.query("UPDATE club_cp_orders SET status='pending' WHERE order_id=$1",[order.order_id]);
+        const late={...data,TransactionId:txn+'99'};
+        const lateHmac=crypto.createHmac('sha256',secret).update(JSON.stringify(late)).digest('base64');
+        const lateResponse=await post(active,'/api/webhooks/cloudpayments/pay',late,{'Content-HMAC':lateHmac});
+        assert.equal(lateResponse.status,200);assert.deepEqual(await lateResponse.json(),{code:0});
+        const tombstone=(await pool.query('SELECT status,password_hash FROM club_users WHERE email=$1',['order:'+order.order_id])).rows[0];
+        assert.deepEqual(tombstone,{status:'deleted',password_hash:null});
+        assert.equal((await pool.query('SELECT status FROM club_cp_orders WHERE order_id=$1',[order.order_id])).rows[0].status,'review');
+        assert.equal((await pool.query("SELECT count(*)::int AS n FROM club_cp_payment_events WHERE order_id=$1 AND event_type='pay'",[order.order_id])).rows[0].n,2);
       }else{
         assert.equal((await pool.query('SELECT count(*)::integer AS n FROM club_users WHERE login_email=$1',[email])).rows[0].n,0);
         const access=await fetch(active+'/access/basic/'+order.order_id,{redirect:'manual'});
